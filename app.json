@@ -29,7 +29,7 @@
     ],
     "scheme": "heloc-hero",
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     },
     "extra": {
       "supabaseUrl": "",
