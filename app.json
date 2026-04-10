@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "HELOC Hero",
+    "slug": "heloc-hero",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a9e7a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.heloichero.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a9e7a"
+      },
+      "package": "com.heloichero.app"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "scheme": "heloc-hero",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": "",
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}
