@@ -9,22 +9,22 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@expo/vector-icons": "^15.0.2",
+    "@expo/vector-icons": "*",
     "@supabase/supabase-js": "^2.39.0",
-    "expo": "~55.0.0",
-    "expo-constants": "~55.0.13",
-    "expo-linear-gradient": "~55.0.13",
-    "expo-router": "~55.0.11",
-    "expo-status-bar": "~55.0.5",
-    "react": "19.2.0",
-    "react-native": "0.83.4",
-    "react-native-safe-area-context": "~5.6.2",
-    "react-native-screens": "~4.23.0",
+    "expo": "~54.0.0",
+    "expo-constants": "*",
+    "expo-linear-gradient": "*",
+    "expo-router": "*",
+    "expo-status-bar": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-safe-area-context": "*",
+    "react-native-screens": "*",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
-    "@types/react": "~19.2.10",
+    "@types/react": "*",
     "typescript": "^5.3.0"
   }
 }
