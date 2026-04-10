@@ -4,7 +4,10 @@ import { supabase } from '../lib/supabase';
 import type { UserProfile, Tier } from '../lib/types';
 
 interface AuthState {
+  /** The logged-in user's profile row from the `users` table */
   profile: UserProfile | null;
+  /** Alias for profile — used by screens that call it `user` */
+  user: UserProfile | null;
   tier: Tier;
   loading: boolean;
   updateProfile: (patch: Partial<UserProfile>) => Promise<void>;
@@ -59,5 +62,5 @@ export function useAuth(): AuthState {
 
   const tier: Tier = (profile?.tier as Tier) ?? 'free';
 
-  return { profile, tier, loading, updateProfile };
+  return { profile, user: profile, tier, loading, updateProfile };
 }

@@ -18,6 +18,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
+
 export const auth = {
   signUp: async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({
@@ -52,3 +54,23 @@ export const auth = {
     return supabase.auth.resetPasswordForEmail(email);
   },
 };
+
+// ─── Edge Function helper ─────────────────────────────────────────────────────
+
+/**
+ * Calls a Supabase Edge Function with the current user's auth token.
+ * Throws on network error or non-2xx response.
+ */
+export async function invokeFunction<T = unknown>(
+  name: string,
+  body?: Record<string, unknown>,
+): Promise<T> {
+  const { data, error } = await supabase.functions.invoke<T>(name, {
+    body,
+  });
+
+  if (error) throw new Error(error.message);
+  if (data === null) throw new Error(`Function ${name} returned no data`);
+
+  return data;
+}

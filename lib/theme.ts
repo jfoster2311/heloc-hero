@@ -46,6 +46,7 @@ export const Typography = {
   '4xl': 36,
 
   // Font weights (string literals for StyleSheet)
+  regular:   '400' as const,
   normal:    '400' as const,
   medium:    '500' as const,
   semibold:  '600' as const,

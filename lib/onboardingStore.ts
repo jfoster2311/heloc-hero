@@ -40,14 +40,20 @@ export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
     set({ saving: true });
     const { data } = get();
 
+    // `mortgageMonthlyPayment` (home-info field name) takes priority over `monthlyPayment`
+    const monthlyPayment = data.mortgageMonthlyPayment ?? data.monthlyPayment ?? null;
+
     const { error } = await supabase
       .from('users')
       .update({
-        full_name:         data.fullName,
-        monthly_income:    data.monthlyIncome,
-        monthly_expenses:  data.monthlyExpenses,
-        home_value:        data.homeValue,
-        credit_score:      data.creditScore,
+        full_name:           data.fullName          ?? null,
+        monthly_income:      data.monthlyIncome     ?? null,
+        monthly_expenses:    data.monthlyExpenses   ?? null,
+        home_value:          data.homeValue         ?? null,
+        mortgage_balance:    data.mortgageBalance   ?? null,
+        mortgage_rate:       data.mortgageRate      ?? null,
+        monthly_payment:     monthlyPayment,
+        credit_score:        data.creditScore       ?? null,
         onboarding_complete: true,
       })
       .eq('id', userId);

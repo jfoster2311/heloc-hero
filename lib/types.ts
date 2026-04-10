@@ -2,6 +2,12 @@
 
 export type Tier = 'free' | 'medium' | 'full';
 
+/** Alias used in upgrade modal */
+export type SubscriptionTier = Tier;
+
+/** Plaid account category stored in linked_accounts */
+export type PlaidAccountType = 'mortgage' | 'home equity' | 'savings';
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -25,6 +31,8 @@ export interface OnboardingData {
   mortgageBalance: number;
   mortgageRate: number;
   monthlyPayment: number;
+  /** Alias used in home-info step */
+  mortgageMonthlyPayment: number;
   monthlyIncome: number;
   monthlyExpenses: number;
   hasHeloc: boolean;
@@ -53,7 +61,7 @@ export interface PlaidAccount {
 export interface LinkedAccount {
   id: string;
   user_id: string;
-  account_type: 'mortgage' | 'home equity' | 'savings';
+  account_type: PlaidAccountType;
   institution_name: string | null;
   plaid_item_id: string;
   accounts: PlaidAccount[];
@@ -96,3 +104,43 @@ export interface CalculatorInputs {
   monthlySurplus: number;
   helocRate: number;
 }
+
+// ─── Subscription Plans ───────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+  tier: Exclude<Tier, 'free'>;
+  name: string;
+  price: number;
+  highlighted: boolean;
+  features: string[];
+}
+
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    tier: 'medium',
+    name: 'Accelerator',
+    price: 14.99,
+    highlighted: false,
+    features: [
+      'Link real bank accounts via Plaid',
+      'Personalized HELOC Hero Score™',
+      'Real payoff projections with live data',
+      'Mortgage, HELOC & savings tracking',
+      '6-month cash flow analysis',
+    ],
+  },
+  {
+    tier: 'full',
+    name: 'Autopilot',
+    price: 50,
+    highlighted: true,
+    features: [
+      'Everything in Accelerator',
+      'Safe Sweep™ — auto-move surplus to HELOC',
+      'Safe Dump™ — auto-pay HELOC to mortgage',
+      'Real-time account syncing',
+      'Push alerts for sweeps & dumps',
+      'Priority support',
+    ],
+  },
+];
