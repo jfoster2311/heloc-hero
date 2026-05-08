@@ -25,30 +25,66 @@ Deno.serve(async (req: Request) => {
     const result = await plaid.exchangePublicToken(publicToken);
 
     if (!result.success || !result.access_token) {
-      return errorResponse(result.error ?? "Failed to exchange token");
+      return errorResponse("Failed to exchange token");
     }
 
     const supabase = getAdminClient();
+
+    // Store access token securely in plaid_accounts (never exposed to frontend)
     const { error: upsertError } = await supabase.from("plaid_accounts").upsert(
       {
         user_id: userId,
         account_type: accountType as AccountType,
-        access_token: result.access_token as string,
-        item_id: result.item_id as string,
+        access_token: result.access_token,
+        item_id: result.item_id,
       },
       { onConflict: "user_id,account_type" },
     );
+    if (upsertError) return errorResponse("Failed to save account credentials", 500);
 
-    if (upsertError) return errorResponse("Failed to save account", 500);
-
-    // Kick off initial balance fetch
-    await plaid.syncTransactions(result.access_token as string);
-
-    if (plaid.env === "sandbox") {
-      plaid.sandboxFireSyncUpdateWebhook(result.access_token as string);
+    // Fetch institution name for display
+    let institutionName: string | null = null;
+    try {
+      const itemData = await plaid.getItem(result.access_token);
+      const institutionId = itemData.item?.institution_id;
+      if (institutionId) {
+        const instData = await plaid.getInstitution(institutionId);
+        institutionName = instData.institution?.name ?? null;
+      }
+    } catch {
+      // Non-fatal — institution name is cosmetic
     }
 
-    return jsonResponse({ success: true, item_id: result.item_id });
+    // Create/update linked_accounts row so the frontend can see the account immediately
+    const { error: linkedError } = await supabase.from("linked_accounts").upsert(
+      {
+        user_id: userId,
+        account_type: accountType as AccountType,
+        institution_name: institutionName,
+        plaid_item_id: result.item_id,
+        accounts: [], // populated by webhook / plaid-get-balances
+      },
+      { onConflict: "user_id,account_type" },
+    );
+    if (linkedError) console.warn("linked_accounts upsert:", linkedError.message);
+
+    // Kick off initial transaction sync
+    try {
+      await plaid.syncTransactions(result.access_token);
+    } catch {
+      // Non-fatal
+    }
+
+    // Fire sandbox webhook to trigger the first balance update
+    if (plaid.env === "sandbox") {
+      plaid.sandboxFireSyncUpdateWebhook(result.access_token).catch(() => {});
+    }
+
+    return jsonResponse({
+      success: true,
+      item_id: result.item_id,
+      institution_name: institutionName,
+    });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : "Internal error", 500);
   }
