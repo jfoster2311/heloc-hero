@@ -7,14 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { open } from 'react-native-plaid-link-sdk';
 import { useAuth } from '../../hooks/useAuth';
 import { invokeFunction } from '../../lib/supabase';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { PlaidAccountType } from '../../lib/types';
-
-// NOTE: Install react-native-plaid-link-sdk and follow their Expo setup guide:
-// https://github.com/plaid/react-native-plaid-link-sdk
-// import { open, LinkSuccess, LinkExit } from 'react-native-plaid-link-sdk';
 
 const ACCOUNT_TYPES: { type: PlaidAccountType; label: string; desc: string; icon: string }[] = [
   {
@@ -50,45 +47,52 @@ export default function LinkAccountModal() {
     setError('');
 
     try {
-      // 1. Create a Plaid link token
       const { link_token } = await invokeFunction<{ link_token: string }>(
         'plaid-create-link-token',
         { userId: user.id },
       );
 
-      // 2. Open Plaid Link SDK
-      // open({
-      //   tokenConfig: { token: link_token },
-      //   onSuccess: async (success: LinkSuccess) => {
-      //     // 3. Exchange the public token
-      //     await invokeFunction('plaid-exchange-token', {
-      //       publicToken: success.publicToken,
-      //       accountType: selectedType,
-      //       userId: user.id,
-      //     });
-      //     router.back();
-      //   },
-      //   onExit: (exit: LinkExit) => {
-      //     if (exit.error) setError(exit.error.displayMessage ?? 'Something went wrong');
-      //     setLoading(false);
-      //   },
-      // });
+      open({
+        tokenConfig: { token: link_token },
+        onSuccess: async (success: { publicToken: string }) => {
+          try {
+            await invokeFunction('plaid-exchange-token', {
+              publicToken: success.publicToken,
+              accountType: selectedType,
+              userId: user.id,
+            });
+            router.back();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to link account');
+            setLoading(false);
+          }
+        },
+        onExit: (exit: { error?: { displayMessage?: string } | null }) => {
+          if (exit.error) setError(exit.error.displayMessage ?? 'Something went wrong');
+          setLoading(false);
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start Plaid Link');
+      setLoading(false);
+    }
+  }
 
-      // ── SANDBOX SIMULATION (remove when Plaid SDK is wired up) ──────────────
+  async function handleSandboxLink() {
+    if (!selectedType || !user) return;
+    setLoading(true);
+    setError('');
+    try {
       const sandboxResult = await invokeFunction<{ public_token: string }>(
         'plaid-sandbox',
         { action: 'createPublicToken' },
       );
-
       await invokeFunction('plaid-exchange-token', {
         publicToken: sandboxResult.public_token,
         accountType: selectedType,
         userId: user.id,
       });
-
       router.back();
-      // ────────────────────────────────────────────────────────────────────────
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect account');
     } finally {
@@ -108,7 +112,7 @@ export default function LinkAccountModal() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>
-          Choose which type of account you're connecting. Powered by Plaid — bank-level security.
+          Choose which type of account you’re connecting. Powered by Plaid — bank-level security.
         </Text>
 
         {error ? (
@@ -156,6 +160,21 @@ export default function LinkAccountModal() {
             256-bit encryption. We never store your bank credentials. Read-only access.
           </Text>
         </View>
+
+        {/* Sandbox quick-link for dev testing */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={[
+              styles.sandboxBtn,
+              (!selectedType || loading) && styles.connectBtnDisabled,
+            ]}
+            onPress={handleSandboxLink}
+            disabled={!selectedType || loading}
+          >
+            <Ionicons name="flask-outline" size={16} color={Colors.mint600} />
+            <Text style={styles.sandboxBtnText}>Sandbox Quick-Link (dev only)</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* Connect button */}
@@ -256,6 +275,18 @@ const styles = StyleSheet.create({
     color: '#166534',
     lineHeight: 18,
   },
+  sandboxBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+    backgroundColor: Colors.mint50,
+  },
+  sandboxBtnText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
   footer: {
     padding: Spacing[4],
     borderTopWidth: 1,
