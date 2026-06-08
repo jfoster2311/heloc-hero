@@ -14,7 +14,6 @@ import { computeProjection, genericProjection, formatMonths } from '../../lib/pr
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
 import type { LinkedAccount } from '../../lib/types';
 
-// Assumed HELOC rate for minimum payment estimate when we don't have the real rate
 const ASSUMED_HELOC_RATE = 0.085;
 
 export default function DashboardScreen() {
@@ -30,31 +29,31 @@ export default function DashboardScreen() {
   const hasLinkedAccounts = accounts.length > 0;
 
   const income          = profile?.monthly_income   ?? 0;
-  const livingExpenses  = profile?.monthly_expenses ?? 0;  // excludes mortgage
+  const livingExpenses  = profile?.monthly_expenses ?? 0;
   const mortgagePayment = profile?.monthly_payment  ?? 0;
 
-  // True surplus available for HELOC = income − living expenses − mortgage payment.
-  // monthly_expenses from onboarding explicitly excludes mortgage (see onboarding hint),
-  // so we subtract mortgage_payment separately.
-  const surplus     = income - livingExpenses - mortgagePayment;
-  const savingsRate = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
-
-  // Budget utilisation includes ALL obligations (living expenses + mortgage)
+  const surplus          = income - livingExpenses - mortgagePayment;
+  const savingsRate      = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
   const totalObligations = livingExpenses + mortgagePayment;
-  const budgetPct = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
+  const budgetPct        = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
 
-  // Net worth
-  const homeValue        = profile?.home_value ?? 0;
-  const liveDebt         = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
-  const homeEquity       = Math.max(0, homeValue - liveDebt);
-  const totalNetWorth    = homeEquity + (savingsBalance ?? 0);
-  const hasNetWorthData  = homeValue > 0;
+  const homeValue       = profile?.home_value ?? 0;
+  const liveDebt        = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
+  const homeEquity      = Math.max(0, homeValue - liveDebt);
+  const totalNetWorth   = homeEquity + (savingsBalance ?? 0);
+  const hasNetWorthData = homeValue > 0;
 
-  // Debt Ratio (uses take-home income — not gross; labelled accordingly)
-  // HELOC minimum estimated as interest-only payment
   const helocInterestMin = (helocBalance ?? 0) * ASSUMED_HELOC_RATE / 12;
   const debtRatio = income > 0
     ? ((mortgagePayment + helocInterestMin) / income) * 100
+    : 0;
+
+  // Mortgage payoff progress: compare original balance to live (or profile) balance
+  const originalMortgage = profile?.mortgage_balance ?? 0;
+  const liveMortgage     = mortgageBalance ?? originalMortgage;
+  const paidDown         = Math.max(0, originalMortgage - liveMortgage);
+  const payoffProgressPct = originalMortgage > 0
+    ? Math.min((paidDown / originalMortgage) * 100, 100)
     : 0;
 
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
@@ -86,7 +85,7 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>
-            Hi{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''} 👋
+            {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'Dashboard'}
           </Text>
           <Text style={styles.headerSub}>Your mortgage payoff dashboard</Text>
         </View>
@@ -233,6 +232,22 @@ export default function DashboardScreen() {
               <Text style={styles.savingsBannerBold}>${projection.interestSaved.toLocaleString()}</Text>{' '}in interest
             </Text>
           </View>
+
+          {/* Payoff progress milestone */}
+          {originalMortgage > 0 && (
+            <View style={styles.payoffProgress}>
+              <View style={styles.payoffProgressHeader}>
+                <Text style={styles.payoffProgressLabel}>Principal Paid Off</Text>
+                <Text style={styles.payoffProgressPct}>{payoffProgressPct.toFixed(1)}%</Text>
+              </View>
+              <View style={styles.payoffTrack}>
+                <View style={[styles.payoffFill, { width: `${payoffProgressPct}%` }]} />
+              </View>
+              <Text style={styles.payoffSub}>
+                ${fmt(paidDown)} paid • ${fmt(liveMortgage)} remaining
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Score breakdown */}
@@ -273,7 +288,7 @@ export default function DashboardScreen() {
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────────────
 
 function ScoreRing({ score }: { score: number }) {
   const SIZE = 90, STROKE = 8;
@@ -347,7 +362,7 @@ function QuickAction({ icon, label, onPress }: { icon: string; label: string; on
   );
 }
 
-// ─── Utilities ───────────────────────────────────────────────────────────────
+// ─── Utilities ─────────────────────────────────────────────────────────────────────────
 
 function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
@@ -364,7 +379,7 @@ function fmtK(n: number) {
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles ──────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
@@ -433,6 +448,14 @@ const styles = StyleSheet.create({
   savingsBanner:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: Colors.mint50, borderRadius: Radius.md, padding: Spacing[3] },
   savingsBannerText:    { fontSize: Typography.sm, color: Colors.mint700, flex: 1, lineHeight: 18 },
   savingsBannerBold:    { fontWeight: Typography.bold },
+
+  payoffProgress:       { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing[3], gap: Spacing[2] },
+  payoffProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  payoffProgressLabel:  { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
+  payoffProgressPct:    { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint600 },
+  payoffTrack:          { height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
+  payoffFill:           { height: 6, borderRadius: 3, backgroundColor: Colors.mint600 },
+  payoffSub:            { fontSize: Typography.xs, color: Colors.textMuted },
 
   scoreBarRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   scoreBarLabel: { width: 120, fontSize: Typography.sm, color: Colors.textSecondary },

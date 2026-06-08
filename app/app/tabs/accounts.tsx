@@ -30,6 +30,15 @@ function relativeTime(dateStr: string | null | undefined): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+function syncDotColor(dateStr: string | null | undefined): string {
+  if (!dateStr) return Colors.warning;
+  const diffSeconds = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diffSeconds < 3600)  return Colors.success;  // < 1 hour: green
+  if (diffSeconds < 86400) return Colors.warning;  // < 24 hours: amber
+  return Colors.error;                              // > 24 hours: red
+}
+
 function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
   return account.accounts[0].balances.current;
@@ -235,6 +244,7 @@ const bStyles = StyleSheet.create({
 function AccountCard({ account }: { account: LinkedAccount }) {
   const color = ACCOUNT_COLORS[account.account_type] ?? Colors.gray400;
   const icon  = ACCOUNT_ICONS[account.account_type]  ?? 'card-outline';
+  const dotColor = syncDotColor(account.accounts_updated_at);
   return (
     <View style={[styles.accountCard, Shadows.card]}>
       <View style={styles.accountHeader}>
@@ -248,7 +258,7 @@ function AccountCard({ account }: { account: LinkedAccount }) {
           {account.institution_name && <Text style={styles.institutionName}>{account.institution_name}</Text>}
         </View>
         <View style={styles.syncBadge}>
-          <View style={[styles.syncDot, { backgroundColor: Colors.success }]} />
+          <View style={[styles.syncDot, { backgroundColor: dotColor }]} />
           <Text style={styles.syncText}>{relativeTime(account.accounts_updated_at)}</Text>
         </View>
       </View>
@@ -290,7 +300,6 @@ const styles = StyleSheet.create({
   addBtnText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.semibold },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
-  // Balance sheet
   balanceSheet: {
     backgroundColor: Colors.surface, borderRadius: Radius.lg,
     padding: Spacing[4], gap: Spacing[4], ...Shadows.card,
@@ -318,7 +327,6 @@ const styles = StyleSheet.create({
   paydownFill:    { height: 8, borderRadius: 4, backgroundColor: Colors.mint600 },
   paydownSub:     { fontSize: Typography.xs, color: Colors.textMuted },
 
-  // Upgrade banner
   upgradeBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
     backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4],
@@ -330,7 +338,6 @@ const styles = StyleSheet.create({
   upgradePill:        { backgroundColor: Colors.mint600, borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: Spacing[1] + 2 },
   upgradePillText:    { color: Colors.white, fontSize: Typography.xs, fontWeight: Typography.semibold },
 
-  // Empty state
   emptyState:   { alignItems: 'center', paddingVertical: Spacing[12], gap: Spacing[3] },
   emptyIconRing:{ width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.mint50, borderWidth: 2, borderColor: Colors.mint200, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing[2] },
   emptyTitle:    { fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary },
@@ -338,7 +345,6 @@ const styles = StyleSheet.create({
   emptyBtn:      { marginTop: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: Colors.mint600, borderRadius: Radius.md, paddingHorizontal: Spacing[5], paddingVertical: Spacing[3], ...Shadows.glow },
   emptyBtnText:  { color: Colors.white, fontWeight: Typography.semibold, fontSize: Typography.sm },
 
-  // Account cards
   accountCard:     { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], gap: Spacing[3] },
   accountHeader:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   accountIcon:     { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
@@ -355,7 +361,6 @@ const styles = StyleSheet.create({
   balanceCurrent:  { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
   balanceAvail:    { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
 
-  // Checklist
   checklistTitle:    { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary, marginBottom: Spacing[3] },
   checklistRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   checklistRowLast:  { borderBottomWidth: 0 },
