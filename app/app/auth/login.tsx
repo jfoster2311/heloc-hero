@@ -7,15 +7,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../../lib/supabase';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
 
   async function handleSignIn() {
     if (!email || !password) {
@@ -74,17 +76,30 @@ export default function LoginScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete="current-password"
-              placeholder="Your password"
-              placeholderTextColor={Colors.textMuted}
-              onSubmitEditing={handleSignIn}
-              returnKeyType="go"
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="current-password"
+                placeholder="Your password"
+                placeholderTextColor={Colors.textMuted}
+                onSubmitEditing={handleSignIn}
+                returnKeyType="go"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(v => !v)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={Colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Link href="/auth/forgot-password" style={styles.forgotLink}>
@@ -178,6 +193,28 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     color: Colors.textPrimary,
     backgroundColor: Colors.gray50,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    borderRightWidth: 0,
+  },
+  eyeBtn: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 0,
+    borderTopRightRadius: Radius.md,
+    borderBottomRightRadius: Radius.md,
+    backgroundColor: Colors.gray50,
+    paddingHorizontal: Spacing[3],
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   forgotLink: {
     alignSelf: 'flex-end',

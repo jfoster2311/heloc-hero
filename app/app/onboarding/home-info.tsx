@@ -45,7 +45,7 @@ export default function HomeInfoStep() {
   return (
     <OnboardingStep
       step={1}
-      totalSteps={5}
+      totalSteps={4}
       title="Tell us about your home"
       subtitle="This lets us calculate exactly how much interest you can save."
       onBack={() => { prevStep(); router.back(); }}

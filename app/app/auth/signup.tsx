@@ -2,22 +2,25 @@
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../../lib/supabase';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [fullName, setFullName]         = useState('');
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [confirm, setConfirm]           = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm]   = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
 
   async function handleSignUp() {
     if (!fullName || !email || !password) {
@@ -99,29 +102,55 @@ export default function SignupScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              placeholderTextColor={Colors.textMuted}
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                placeholderTextColor={Colors.textMuted}
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(v => !v)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={Colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              value={confirm}
-              onChangeText={setConfirm}
-              secureTextEntry
-              placeholder="Re-enter password"
-              placeholderTextColor={Colors.textMuted}
-              onSubmitEditing={handleSignUp}
-              returnKeyType="go"
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={confirm}
+                onChangeText={setConfirm}
+                secureTextEntry={!showConfirm}
+                placeholder="Re-enter password"
+                placeholderTextColor={Colors.textMuted}
+                onSubmitEditing={handleSignUp}
+                returnKeyType="go"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowConfirm(v => !v)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={showConfirm ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={Colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -136,7 +165,21 @@ export default function SignupScreen() {
           </TouchableOpacity>
 
           <Text style={styles.terms}>
-            By signing up you agree to our Terms of Service and Privacy Policy.
+            By signing up you agree to our{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={() => Linking.openURL('https://helochero.com/terms')}
+            >
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={() => Linking.openURL('https://helochero.com/privacy')}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
 
           <View style={styles.footer}>
@@ -221,6 +264,28 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     backgroundColor: Colors.gray50,
   },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    borderRightWidth: 0,
+  },
+  eyeBtn: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 0,
+    borderTopRightRadius: Radius.md,
+    borderBottomRightRadius: Radius.md,
+    backgroundColor: Colors.gray50,
+    paddingHorizontal: Spacing[3],
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   button: {
     backgroundColor: Colors.mint600,
     borderRadius: Radius.md,
@@ -240,7 +305,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing[3],
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: Colors.mint600,
+    fontWeight: Typography.medium,
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',

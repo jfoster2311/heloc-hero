@@ -8,11 +8,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 const RANGES = [
-  { label: 'Exceptional', range: '800+', value: 820, color: '#059669' },
-  { label: 'Very Good',   range: '740–799', value: 760, color: '#10b981' },
-  { label: 'Good',        range: '670–739', value: 700, color: '#34d399' },
-  { label: 'Fair',        range: '580–669', value: 620, color: Colors.warning },
-  { label: 'Poor',        range: 'Below 580', value: 550, color: Colors.error },
+  { label: 'Exceptional', range: '800+',       value: 820, color: '#059669' },
+  { label: 'Very Good',   range: '740–799',    value: 760, color: '#10b981' },
+  { label: 'Good',        range: '670–739',    value: 700, color: '#34d399' },
+  { label: 'Fair',        range: '580–669',    value: 620, color: Colors.warning },
+  { label: 'Poor',        range: 'Below 580',  value: 550, color: Colors.error },
 ];
 
 export default function CreditScoreStep() {
@@ -24,7 +24,10 @@ export default function CreditScoreStep() {
 
   async function handleFinish() {
     update({ creditScore: selected });
-    if (!user) return;
+    if (!user) {
+      router.push('/auth/signup');
+      return;
+    }
     const { error: saveError } = await submit(user.id);
     if (saveError) {
       setError(saveError);
@@ -37,13 +40,13 @@ export default function CreditScoreStep() {
 
   return (
     <OnboardingStep
-      step={5}
-      totalSteps={5}
+      step={4}
+      totalSteps={4}
       title="Estimate your credit score"
       subtitle="This helps calculate your HELOC Hero Score™ and HELOC approval odds."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleFinish}
-      nextLabel="Finish Setup"
+      nextLabel={user ? 'Finish Setup' : 'Create Account →'}
       loading={saving}
     >
       {error ? (
@@ -51,6 +54,14 @@ export default function CreditScoreStep() {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
+
+      {!user && (
+        <View style={styles.signupPrompt}>
+          <Text style={styles.signupPromptText}>
+            Almost done! You'll create your free account on the next screen to save your results.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.rangeList}>
         {RANGES.map(r => (
@@ -97,6 +108,20 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.error,
   },
   errorText: { color: Colors.error, fontSize: Typography.sm },
+  signupPrompt: {
+    backgroundColor: Colors.mint50,
+    borderRadius: Radius.md,
+    padding: Spacing[4],
+    marginBottom: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+  },
+  signupPromptText: {
+    fontSize: Typography.sm,
+    color: Colors.mint700,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   rangeList: { gap: Spacing[3], marginBottom: Spacing[5] },
   rangeItem: {
     flexDirection: 'row',

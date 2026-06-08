@@ -26,6 +26,8 @@ export default function DashboardScreen() {
   const helocLimit      = firstLimit(helocAccount);
   const savingsBalance  = firstBalance(savingsAccount);
 
+  const hasLinkedAccounts = accounts.length > 0;
+
   // --- Score ---
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
   const score = hasRealData
@@ -109,26 +111,47 @@ export default function DashboardScreen() {
         )}
 
         {/* Quick stats */}
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Mortgage"
-            value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'}
-            icon="home-outline"
-            color={Colors.info}
-          />
-          <StatCard
-            label="HELOC Balance"
-            value={helocBalance !== null ? `$${fmt(helocBalance)}` : '—'}
-            icon="card-outline"
-            color={Colors.warning}
-          />
-          <StatCard
-            label="Savings"
-            value={savingsBalance !== null ? `$${fmt(savingsBalance)}` : '—'}
-            icon="wallet-outline"
-            color={Colors.success}
-          />
-        </View>
+        {hasLinkedAccounts ? (
+          <View style={styles.statsRow}>
+            <StatCard
+              label="Mortgage"
+              value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'}
+              icon="home-outline"
+              color={Colors.info}
+              onPress={() => router.push('/tabs/accounts')}
+            />
+            <StatCard
+              label="HELOC Balance"
+              value={helocBalance !== null ? `$${fmt(helocBalance)}` : '—'}
+              icon="card-outline"
+              color={Colors.warning}
+              onPress={() => router.push('/tabs/accounts')}
+            />
+            <StatCard
+              label="Savings"
+              value={savingsBalance !== null ? `$${fmt(savingsBalance)}` : '—'}
+              icon="wallet-outline"
+              color={Colors.success}
+              onPress={() => router.push('/tabs/accounts')}
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.linkAccountsCta}
+            onPress={() => router.push('/tabs/accounts')}
+          >
+            <View style={styles.linkAccountsIcon}>
+              <Ionicons name="link-outline" size={22} color={Colors.mint600} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkAccountsTitle}>Link Your Bank Accounts</Text>
+              <Text style={styles.linkAccountsSub}>
+                Connect mortgage, HELOC & savings to see live balances
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.mint600} />
+          </TouchableOpacity>
+        )}
 
         {/* Payoff projection */}
         <View style={[CommonStyles.card, styles.projectionCard]}>
@@ -240,7 +263,6 @@ function ScoreRing({ score }: { score: number }) {
 
   return (
     <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
-      {/* Background ring */}
       <View style={{
         position: 'absolute',
         width: SIZE,
@@ -249,7 +271,6 @@ function ScoreRing({ score }: { score: number }) {
         borderWidth: STROKE,
         borderColor: 'rgba(255,255,255,0.2)',
       }} />
-      {/* Rough % indicator as a text overlay — no SVG needed */}
       <Text style={{ color: Colors.white, fontSize: Typography['2xl'], fontWeight: Typography.extrabold }}>
         {score}
       </Text>
@@ -258,17 +279,17 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function StatCard({ label, value, icon, color }: {
-  label: string; value: string; icon: string; color: string;
+function StatCard({ label, value, icon, color, onPress }: {
+  label: string; value: string; icon: string; color: string; onPress?: () => void;
 }) {
   return (
-    <View style={[styles.statCard, Shadows.card]}>
+    <TouchableOpacity style={[styles.statCard, Shadows.card]} onPress={onPress} activeOpacity={onPress ? 0.7 : 1}>
       <View style={[styles.statIcon, { backgroundColor: `${color}18` }]}>
         <Ionicons name={icon as any} size={16} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -426,6 +447,39 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
   statLabel: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  // Link accounts CTA
+  linkAccountsCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
+    borderWidth: 1.5,
+    borderColor: Colors.mint200,
+    borderStyle: 'dashed',
+    ...Shadows.card,
+  },
+  linkAccountsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.mint50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkAccountsTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  linkAccountsSub: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    marginTop: 2,
+    lineHeight: 16,
+  },
 
   // Projection
   projectionCard: { gap: Spacing[3] },

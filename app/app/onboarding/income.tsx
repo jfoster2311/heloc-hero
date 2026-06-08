@@ -43,7 +43,7 @@ export default function IncomeStep() {
   return (
     <OnboardingStep
       step={2}
-      totalSteps={5}
+      totalSteps={4}
       title="What's your monthly cash flow?"
       subtitle="Your surplus is the engine of this strategy. Don't worry if it's small."
       onBack={() => { prevStep(); router.back(); }}

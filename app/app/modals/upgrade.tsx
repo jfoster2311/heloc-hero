@@ -29,8 +29,8 @@ export default function UpgradeModal() {
       const { url } = await invokeFunction<{ url: string }>('stripe-checkout', {
         userId: user.id,
         tier: selectedTier,
-        successUrl: 'helochair://upgrade-success',
-        cancelUrl: 'helochair://upgrade-cancel',
+        successUrl: 'heloc-hero://upgrade-success',
+        cancelUrl: 'heloc-hero://upgrade-cancel',
       });
 
       if (url) await Linking.openURL(url);
@@ -40,6 +40,8 @@ export default function UpgradeModal() {
       setLoading(null);
     }
   }
+
+  const nonFreePlans = SUBSCRIPTION_PLANS.filter(p => p.tier !== 'free');
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -60,80 +62,92 @@ export default function UpgradeModal() {
           </Text>
         </LinearGradient>
 
+        {/* 7-day trial — prominent banner */}
+        <View style={styles.trialBanner}>
+          <Ionicons name="gift-outline" size={20} color={Colors.mint600} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.trialTitle}>7-Day Free Trial Included</Text>
+            <Text style={styles.trialSubtitle}>Try any paid plan free for 7 days. Cancel anytime, no charge.</Text>
+          </View>
+        </View>
+
         {error ? (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
 
-        {/* Plan cards */}
-        {SUBSCRIPTION_PLANS.filter(p => p.tier !== 'free').map(plan => (
-          <View
-            key={plan.tier}
-            style={[
-              styles.planCard,
-              plan.highlighted && styles.planCardHighlighted,
-              tier === plan.tier && styles.planCardCurrent,
-            ]}
-          >
-            {plan.highlighted && (
-              <View style={styles.popularBadge}>
-                <Text style={styles.popularBadgeText}>Most Popular</Text>
-              </View>
-            )}
-
-            <View style={styles.planHeader}>
-              <View>
-                <Text style={styles.planName}>{plan.name}</Text>
-                <Text style={styles.planPrice}>
-                  ${plan.price}
-                  <Text style={styles.planPricePer}>/mo</Text>
-                </Text>
-              </View>
-              {tier === plan.tier && (
-                <View style={styles.currentBadge}>
-                  <Text style={styles.currentBadgeText}>Current Plan</Text>
+        {/* Plan cards — first non-free plan is the recommended one */}
+        {nonFreePlans.map((plan, idx) => {
+          const isRecommended = idx === 0;
+          return (
+            <View
+              key={plan.tier}
+              style={[
+                styles.planCard,
+                isRecommended && styles.planCardHighlighted,
+                tier === plan.tier && styles.planCardCurrent,
+              ]}
+            >
+              {isRecommended && (
+                <View style={styles.popularBadge}>
+                  <Text style={styles.popularBadgeText}>⭐ Most Popular</Text>
                 </View>
               )}
-            </View>
 
-            <View style={styles.featureList}>
-              {plan.features.map((feat, i) => (
-                <View key={i} style={styles.featureRow}>
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.mint600} />
-                  <Text style={styles.featureText}>{feat}</Text>
-                </View>
-              ))}
-            </View>
-
-            {tier !== plan.tier && (
-              <TouchableOpacity
-                style={[
-                  styles.upgradeBtn,
-                  plan.highlighted && styles.upgradeBtnPrimary,
-                ]}
-                onPress={() => handleUpgrade(plan.tier)}
-                disabled={!!loading}
-              >
-                {loading === plan.tier ? (
-                  <ActivityIndicator
-                    color={plan.highlighted ? Colors.white : Colors.mint600}
-                    size="small"
-                  />
-                ) : (
-                  <Text
-                    style={[
-                      styles.upgradeBtnText,
-                      plan.highlighted && styles.upgradeBtnTextPrimary,
-                    ]}
-                  >
-                    Start with {plan.name} →
+              <View style={styles.planHeader}>
+                <View>
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  <Text style={styles.planPrice}>
+                    ${plan.price}
+                    <Text style={styles.planPricePer}>/mo</Text>
                   </Text>
+                </View>
+                {tier === plan.tier && (
+                  <View style={styles.currentBadge}>
+                    <Text style={styles.currentBadgeText}>Current Plan</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+              </View>
+
+              <View style={styles.featureList}>
+                {plan.features.map((feat, i) => (
+                  <View key={i} style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.mint600} />
+                    <Text style={styles.featureText}>{feat}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {tier !== plan.tier && (
+                <TouchableOpacity
+                  style={[
+                    styles.upgradeBtn,
+                    isRecommended && styles.upgradeBtnPrimary,
+                  ]}
+                  onPress={() => handleUpgrade(plan.tier)}
+                  disabled={!!loading}
+                >
+                  {loading === plan.tier ? (
+                    <ActivityIndicator
+                      color={isRecommended ? Colors.white : Colors.mint600}
+                      size="small"
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.upgradeBtnText,
+                        isRecommended && styles.upgradeBtnTextPrimary,
+                      ]}
+                    >
+                      Start {plan.name} — Free for 7 Days →
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
 
         {/* Free tier reminder */}
         <View style={styles.freeTier}>
@@ -145,7 +159,7 @@ export default function UpgradeModal() {
         </View>
 
         <Text style={styles.legal}>
-          Cancel anytime. Billed monthly. 7-day free trial on first subscription.
+          Cancel anytime. Billed monthly after trial ends.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -173,6 +187,18 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.white },
   heroSubtitle: { fontSize: Typography.sm, color: Colors.mint100, lineHeight: 20 },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[3],
+    backgroundColor: Colors.mint50,
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
+    borderWidth: 1.5,
+    borderColor: Colors.mint200,
+  },
+  trialTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  trialSubtitle: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
   errorBanner: {
     backgroundColor: '#fef2f2',
     borderRadius: Radius.md,
