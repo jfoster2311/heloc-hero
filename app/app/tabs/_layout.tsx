@@ -53,7 +53,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="cashflow"
         options={{
-          title: 'Cash Flow',
+          title: 'Budget',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),

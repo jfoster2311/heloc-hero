@@ -14,52 +14,70 @@ import { computeProjection, genericProjection, formatMonths } from '../../lib/pr
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
 import type { LinkedAccount } from '../../lib/types';
 
+// Assumed HELOC rate for minimum payment estimate when we don't have the real rate
+const ASSUMED_HELOC_RATE = 0.085;
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { profile, tier } = useAuth();
   const { accounts, refreshing, refresh, mortgageAccount, helocAccount, savingsAccount } =
     useAccounts(profile?.id ?? null);
 
-  const mortgageBalance = firstBalance(mortgageAccount);
-  const helocBalance    = firstBalance(helocAccount);
-  const helocLimit      = firstLimit(helocAccount);
-  const savingsBalance  = firstBalance(savingsAccount);
+  const mortgageBalance   = firstBalance(mortgageAccount);
+  const helocBalance      = firstBalance(helocAccount);
+  const helocLimit        = firstLimit(helocAccount);
+  const savingsBalance    = firstBalance(savingsAccount);
   const hasLinkedAccounts = accounts.length > 0;
 
-  const income   = profile?.monthly_income  ?? 0;
-  const expenses = profile?.monthly_expenses ?? 0;
-  const surplus  = income - expenses;
-  const savingsRate = income > 0 ? (surplus / income) * 100 : 0;
+  const income          = profile?.monthly_income   ?? 0;
+  const livingExpenses  = profile?.monthly_expenses ?? 0;  // excludes mortgage
+  const mortgagePayment = profile?.monthly_payment  ?? 0;
 
-  // Net worth from home equity + savings
-  const homeValue       = profile?.home_value ?? 0;
-  const liveDebt        = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
-  const homeEquity      = Math.max(0, homeValue - liveDebt);
-  const totalNetWorth   = homeEquity + (savingsBalance ?? 0);
-  const hasNetWorthData = homeValue > 0;
+  // True surplus available for HELOC = income − living expenses − mortgage payment.
+  // monthly_expenses from onboarding explicitly excludes mortgage (see onboarding hint),
+  // so we subtract mortgage_payment separately.
+  const surplus     = income - livingExpenses - mortgagePayment;
+  const savingsRate = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
 
-  // DTI = (mortgage P&I + HELOC est.) / gross income
-  const helocMinPayment = (helocBalance ?? 0) * 0.01;
-  const dti = income > 0
-    ? (((profile?.monthly_payment ?? 0) + helocMinPayment) / income) * 100
+  // Budget utilisation includes ALL obligations (living expenses + mortgage)
+  const totalObligations = livingExpenses + mortgagePayment;
+  const budgetPct = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
+
+  // Net worth
+  const homeValue        = profile?.home_value ?? 0;
+  const liveDebt         = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
+  const homeEquity       = Math.max(0, homeValue - liveDebt);
+  const totalNetWorth    = homeEquity + (savingsBalance ?? 0);
+  const hasNetWorthData  = homeValue > 0;
+
+  // Debt Ratio (uses take-home income — not gross; labelled accordingly)
+  // HELOC minimum estimated as interest-only payment
+  const helocInterestMin = (helocBalance ?? 0) * ASSUMED_HELOC_RATE / 12;
+  const debtRatio = income > 0
+    ? ((mortgagePayment + helocInterestMin) / income) * 100
     : 0;
-  const budgetPct = income > 0 ? Math.min((expenses / income) * 100, 100) : 0;
 
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
+
   const score = hasRealData
     ? computeHelocScore({
-        monthlyIncome: income, monthlyExpenses: expenses,
-        helocBalance: helocBalance ?? 0, helocLimit: helocLimit ?? 0,
-        creditScore: profile?.credit_score ?? 700,
-        homeValue, mortgageBalance: mortgageBalance ?? 0,
+        monthlyIncome:   income,
+        monthlyExpenses: livingExpenses,
+        helocBalance:    helocBalance  ?? 0,
+        helocLimit:      helocLimit    ?? 0,
+        creditScore:     profile?.credit_score ?? 700,
+        homeValue,
+        mortgageBalance: mortgageBalance ?? 0,
       })
     : genericHelocScore();
 
   const projection = hasRealData && mortgageBalance
     ? computeProjection({
-        mortgageBalance, mortgageRate: profile?.mortgage_rate ?? 0.065,
-        monthlyPayment: profile?.monthly_payment ?? 2000,
-        monthlySurplus: Math.max(0, surplus), helocRate: 0.085,
+        mortgageBalance,
+        mortgageRate:   profile?.mortgage_rate   ?? 0.065,
+        monthlyPayment: profile?.monthly_payment ?? 2_000,
+        monthlySurplus: Math.max(0, surplus),
+        helocRate:      ASSUMED_HELOC_RATE,
       })
     : genericProjection();
 
@@ -88,13 +106,11 @@ export default function DashboardScreen() {
             <Text style={styles.scoreLabel}>HELOC Hero Score™</Text>
             {!hasRealData && <Text style={styles.scoreEstimate}>Estimated — connect accounts</Text>}
             <Text style={styles.scoreNumber}>{score.total}</Text>
-            <View style={[styles.scoreBadge]}>
+            <View style={styles.scoreBadge}>
               <Text style={styles.scoreBadgeText}>{score.label}</Text>
             </View>
           </View>
-          <View style={styles.scoreGauge}>
-            <ScoreRing score={score.total} />
-          </View>
+          <View style={styles.scoreGauge}><ScoreRing score={score.total} /></View>
         </LinearGradient>
 
         {/* Upgrade prompt — free tier */}
@@ -108,12 +124,12 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Account stats or link CTA */}
+        {/* Account stats */}
         {hasLinkedAccounts ? (
           <View style={styles.statsRow}>
-            <StatCard label="Mortgage"     value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'} icon="home-outline"   color={Colors.info}    onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="HELOC"        value={helocBalance    !== null ? `$${fmt(helocBalance)}`    : '—'} icon="card-outline"   color={Colors.warning} onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="Savings"      value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.success} onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="Mortgage"  value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'} icon="home-outline"   color={Colors.info}    onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="HELOC"     value={helocBalance    !== null ? `$${fmt(helocBalance)}`    : '—'} icon="card-outline"   color={Colors.warning} onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="Savings"   value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.success} onPress={() => router.push('/tabs/accounts')} />
           </View>
         ) : (
           <TouchableOpacity style={styles.linkAccountsCta} onPress={() => router.push('/tabs/accounts')}>
@@ -131,12 +147,11 @@ export default function DashboardScreen() {
           <View style={CommonStyles.card}>
             <Text style={styles.cardTitle}>Financial Snapshot</Text>
 
-            {/* Net worth + key ratios */}
             <View style={styles.snapshotRow}>
               <SnapshotStat
                 label="Net Worth"
                 value={hasNetWorthData ? `$${fmtK(totalNetWorth)}` : '—'}
-                sub={hasNetWorthData ? 'Home equity + savings' : 'Add home value'}
+                sub={hasNetWorthData ? 'Home equity + savings' : 'Add home value in onboarding'}
                 color={Colors.mint600}
                 icon="trending-up-outline"
               />
@@ -150,10 +165,10 @@ export default function DashboardScreen() {
               />
               <View style={styles.snapshotDivider} />
               <SnapshotStat
-                label="DTI Ratio"
-                value={income > 0 ? `${dti.toFixed(0)}%` : '—'}
-                sub={dti <= 36 ? 'Healthy' : dti <= 43 ? 'Manageable' : 'High'}
-                color={dti <= 36 ? Colors.success : dti <= 43 ? Colors.warning : Colors.error}
+                label="Debt Ratio"
+                value={income > 0 ? `${debtRatio.toFixed(0)}%` : '—'}
+                sub={debtRatio <= 36 ? 'Healthy' : debtRatio <= 50 ? 'Moderate' : 'High'}
+                color={debtRatio <= 36 ? Colors.success : debtRatio <= 50 ? Colors.warning : Colors.error}
                 icon="speedometer-outline"
               />
             </View>
@@ -164,7 +179,7 @@ export default function DashboardScreen() {
                 <View style={styles.budgetHeader}>
                   <Text style={styles.budgetLabel}>Monthly Budget</Text>
                   <Text style={styles.budgetNumbers}>
-                    <Text style={{ color: Colors.textPrimary, fontWeight: Typography.semibold }}>${fmt(expenses)}</Text>
+                    <Text style={styles.budgetSpent}>${fmt(totalObligations)}</Text>
                     <Text style={styles.budgetOf}> of ${fmt(income)}</Text>
                   </Text>
                 </View>
@@ -182,10 +197,10 @@ export default function DashboardScreen() {
                     ]}
                   />
                 </View>
-                <Text style={styles.budgetSurplus}>
+                <Text style={styles.budgetNote}>
                   {surplus >= 0
-                    ? `$${fmt(surplus)}/mo surplus — available for HELOC`
-                    : `$${fmt(Math.abs(surplus))}/mo over budget`}
+                    ? `$${fmt(surplus)}/mo available for HELOC`
+                    : `$${fmt(Math.abs(surplus))}/mo over budget — reduce expenses to use HELOC strategy`}
                 </Text>
               </View>
             )}
@@ -205,7 +220,9 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.projectionDivider}><Ionicons name="arrow-forward" size={20} color={Colors.mint600} /></View>
             <View style={styles.projectionItem}>
-              <Text style={[styles.projectionValue, styles.projectionValueAccel]}>{formatMonths(projection.acceleratedMonths)}</Text>
+              <Text style={[styles.projectionValue, styles.projectionValueAccel]}>
+                {formatMonths(projection.acceleratedMonths)}
+              </Text>
               <Text style={styles.projectionLabel}>With HELOC</Text>
             </View>
           </View>
@@ -225,7 +242,7 @@ export default function DashboardScreen() {
           <ScoreBar label="HELOC Utilization" value={score.utilizationScore} max={25} color={Colors.info} />
           <ScoreBar label="Credit Score"      value={score.creditPoints}     max={20} color={Colors.success} />
           <View style={styles.mteRow}>
-            <Text style={styles.mteLabel}>Equity Modifier</Text>
+            <Text style={styles.mteLabel}>Home Equity Modifier</Text>
             <Text style={[styles.mteValue, { color: score.mteModifier >= 0 ? Colors.success : Colors.error }]}>
               {score.mteModifier >= 0 ? '+' : ''}{score.mteModifier} pts
             </Text>
@@ -237,7 +254,7 @@ export default function DashboardScreen() {
           <View style={[CommonStyles.card, styles.automationCard]}>
             <Text style={styles.cardTitle}>Automation</Text>
             <AutomationRow label="Safe Sweep™" subtitle="Auto-move surplus to HELOC" active />
-            <AutomationRow label="Safe Dump™" subtitle="Auto-dump HELOC to mortgage" active={false} />
+            <AutomationRow label="Safe Dump™"  subtitle="Auto-dump HELOC to mortgage" active={false} />
             <TouchableOpacity style={styles.automationManageBtn} onPress={() => router.push('/modals/settings')}>
               <Text style={styles.automationManageText}>Manage Automation →</Text>
             </TouchableOpacity>
@@ -256,7 +273,7 @@ export default function DashboardScreen() {
   );
 }
 
-// ─── Helper components ────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────
 
 function ScoreRing({ score }: { score: number }) {
   const SIZE = 90, STROKE = 8;
@@ -330,7 +347,7 @@ function QuickAction({ icon, label, onPress }: { icon: string; label: string; on
   );
 }
 
-// ─── Utilities ───────────────────────────────────────────────────────────────────
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
@@ -347,7 +364,7 @@ function fmtK(n: number) {
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
@@ -355,19 +372,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[5], paddingVertical: Spacing[4],
     backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  greeting:  { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  greeting:  { fontSize: Typography.xl,  fontWeight: Typography.bold, color: Colors.textPrimary },
   headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
-  settingsBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: Colors.gray100, alignItems: 'center', justifyContent: 'center',
-  },
+  settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.gray100, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
-  scoreCard: {
-    borderRadius: Radius.lg, padding: Spacing[5],
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...Shadows.glow,
-  },
-  scoreLeft: { flex: 1 },
+  scoreCard:     { borderRadius: Radius.lg, padding: Spacing[5], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...Shadows.glow },
+  scoreLeft:     { flex: 1 },
   scoreLabel:    { fontSize: Typography.sm, color: 'rgba(255,255,255,0.8)', fontWeight: Typography.medium },
   scoreEstimate: { fontSize: Typography.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2, marginBottom: 4 },
   scoreNumber:   { fontSize: 52, fontWeight: Typography.extrabold, color: Colors.white, lineHeight: 60, marginTop: Spacing[1] },
@@ -375,47 +386,40 @@ const styles = StyleSheet.create({
   scoreBadgeText:{ fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.white },
   scoreGauge:    { marginLeft: Spacing[4] },
 
-  upgradeBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
-    backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4],
-    borderWidth: 1, borderColor: Colors.mint200,
-  },
-  upgradeText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
-  upgradeLink: { color: Colors.mint600, fontWeight: Typography.semibold, fontSize: Typography.sm },
+  upgradeBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1, borderColor: Colors.mint200 },
+  upgradeText:   { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
+  upgradeLink:   { color: Colors.mint600, fontWeight: Typography.semibold, fontSize: Typography.sm },
 
-  statsRow:    { flexDirection: 'row', gap: Spacing[3] },
-  statCard:    { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[3], gap: Spacing[2], alignItems: 'flex-start' },
-  statIcon:    { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  statValue:   { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
-  statLabel:   { fontSize: Typography.xs, color: Colors.textMuted },
+  statsRow:  { flexDirection: 'row', gap: Spacing[3] },
+  statCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[3], gap: Spacing[2], alignItems: 'flex-start' },
+  statIcon:  { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
+  statLabel: { fontSize: Typography.xs, color: Colors.textMuted },
 
-  linkAccountsCta: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4],
-    borderWidth: 1.5, borderColor: Colors.mint200, borderStyle: 'dashed', ...Shadows.card,
-  },
-  linkAccountsIcon:  { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: Colors.mint50, alignItems: 'center', justifyContent: 'center' },
-  linkAccountsTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  linkAccountsSub:   { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  linkAccountsCta:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.mint200, borderStyle: 'dashed', ...Shadows.card },
+  linkAccountsIcon: { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: Colors.mint50, alignItems: 'center', justifyContent: 'center' },
+  linkAccountsTitle:{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  linkAccountsSub:  { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
 
-  // Financial Snapshot
   cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary, marginBottom: Spacing[4] },
-  snapshotRow: { flexDirection: 'row', marginBottom: Spacing[4] },
-  snapshotDivider: { width: 1, backgroundColor: Colors.gray100, marginHorizontal: Spacing[2] },
-  snapshotStat: { flex: 1, alignItems: 'center', gap: 3 },
-  snapshotValue: { fontSize: Typography.lg, fontWeight: Typography.bold },
-  snapshotLabel: { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.medium },
-  snapshotSub:   { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
+
+  snapshotRow:    { flexDirection: 'row', marginBottom: Spacing[4] },
+  snapshotDivider:{ width: 1, backgroundColor: Colors.gray100, marginHorizontal: Spacing[2] },
+  snapshotStat:   { flex: 1, alignItems: 'center', gap: 3 },
+  snapshotValue:  { fontSize: Typography.lg, fontWeight: Typography.bold },
+  snapshotLabel:  { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.medium },
+  snapshotSub:    { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
+
   budgetSection: { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing[4], gap: Spacing[2] },
   budgetHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   budgetLabel:   { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  budgetNumbers: { fontSize: Typography.sm, color: Colors.textMuted },
-  budgetOf:      { color: Colors.textMuted, fontWeight: Typography.regular },
+  budgetNumbers: { fontSize: Typography.sm },
+  budgetSpent:   { color: Colors.textPrimary, fontWeight: Typography.semibold },
+  budgetOf:      { color: Colors.textMuted },
   budgetTrack:   { height: 8, backgroundColor: Colors.gray100, borderRadius: 4 },
   budgetFill:    { height: 8, borderRadius: 4 },
-  budgetSurplus: { fontSize: Typography.xs, color: Colors.textMuted },
+  budgetNote:    { fontSize: Typography.xs, color: Colors.textMuted },
 
-  // Projection
   projectionCard:       { gap: Spacing[3] },
   projectionHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   exampleBadge:         { backgroundColor: Colors.gray100, borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: 2 },
@@ -430,7 +434,6 @@ const styles = StyleSheet.create({
   savingsBannerText:    { fontSize: Typography.sm, color: Colors.mint700, flex: 1, lineHeight: 18 },
   savingsBannerBold:    { fontWeight: Typography.bold },
 
-  // Score bars
   scoreBarRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   scoreBarLabel: { width: 120, fontSize: Typography.sm, color: Colors.textSecondary },
   scoreBarTrack: { flex: 1, height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
@@ -440,7 +443,6 @@ const styles = StyleSheet.create({
   mteLabel:      { fontSize: Typography.sm, color: Colors.textSecondary },
   mteValue:      { fontSize: Typography.sm, fontWeight: Typography.bold },
 
-  // Automation
   automationCard:       { gap: Spacing[3] },
   automationRow:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[2] },
   automationDot:        { width: 10, height: 10, borderRadius: 5 },
@@ -450,7 +452,6 @@ const styles = StyleSheet.create({
   automationManageBtn:  { paddingTop: Spacing[2] },
   automationManageText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
 
-  // Quick actions
   quickActionsRow:  { flexDirection: 'row', gap: Spacing[3] },
   quickAction:      { flex: 1, alignItems: 'center', gap: Spacing[2] },
   quickActionIcon:  { width: 52, height: 52, borderRadius: Radius.lg, backgroundColor: Colors.mint50, borderWidth: 1, borderColor: Colors.mint200, alignItems: 'center', justifyContent: 'center' },

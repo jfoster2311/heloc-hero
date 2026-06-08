@@ -11,26 +11,31 @@ export default function IncomeStep() {
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
-  const [income, setIncome] = useState(String(data.monthlyIncome ?? ''));
+  const [income,   setIncome]   = useState(String(data.monthlyIncome   ?? ''));
   const [expenses, setExpenses] = useState(String(data.monthlyExpenses ?? ''));
 
-  const incomeNum = parseFloat(income) || 0;
+  const incomeNum   = parseFloat(income)   || 0;
   const expensesNum = parseFloat(expenses) || 0;
-  const surplus = incomeNum - expensesNum;
-  const surplusPct = incomeNum > 0 ? (surplus / incomeNum) * 100 : 0;
+  const grossSurplus = incomeNum - expensesNum;
+  const grossPct     = incomeNum > 0 ? (grossSurplus / incomeNum) * 100 : 0;
+
+  // Mortgage payment was entered in step 1 and is available in the store
+  const mortgagePayment = data.mortgageMonthlyPayment ?? 0;
+  // True HELOC surplus = income − living expenses − mortgage payment
+  const helocSurplus    = Math.max(0, grossSurplus - mortgagePayment);
 
   const isValid = incomeNum > 0 && expensesNum > 0;
 
   function getSurplusColor() {
-    if (surplusPct >= 25) return Colors.success;
-    if (surplusPct >= 10) return Colors.warning;
+    if (grossPct >= 25) return Colors.success;
+    if (grossPct >= 10) return Colors.warning;
     return Colors.error;
   }
 
   function getSurplusMessage() {
-    if (surplus <= 0) return 'Expenses exceed income — let\'s work on this together.';
-    if (surplusPct >= 30) return 'Excellent! This surplus is your mortgage-crushing fuel.';
-    if (surplusPct >= 15) return 'Good surplus. Even this amount will dramatically accelerate payoff.';
+    if (grossSurplus <= 0) return 'Expenses exceed income — let\'s work on this together.';
+    if (grossPct >= 30)    return 'Excellent cash flow — this is your mortgage-crushing engine.';
+    if (grossPct >= 15)    return 'Good surplus. Even this amount dramatically accelerates payoff.';
     return 'Small surplus is fine — the HELOC strategy still saves you significantly.';
   }
 
@@ -70,17 +75,33 @@ export default function IncomeStep() {
       />
 
       {isValid && (
-        <View style={[styles.surplusCard, { borderColor: getSurplusColor() }]}>
-          <Text style={styles.surplusLabel}>Monthly Surplus</Text>
-          <Text style={[styles.surplusValue, { color: getSurplusColor() }]}>
-            ${Math.abs(surplus).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-            {surplus < 0 ? ' deficit' : '/mo'}
-          </Text>
-          <Text style={styles.surplusPct}>
-            {surplusPct.toFixed(1)}% of income
-          </Text>
-          <Text style={styles.surplusMsg}>{getSurplusMessage()}</Text>
-        </View>
+        <>
+          {/* Gross surplus (income minus living expenses) */}
+          <View style={[styles.surplusCard, { borderColor: getSurplusColor() }]}>
+            <Text style={styles.surplusLabel}>Gross Monthly Surplus</Text>
+            <Text style={[styles.surplusValue, { color: getSurplusColor() }]}>
+              ${Math.abs(grossSurplus).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              {grossSurplus < 0 ? ' deficit' : '/mo'}
+            </Text>
+            <Text style={styles.surplusPct}>{grossPct.toFixed(1)}% of income</Text>
+            <Text style={styles.surplusMsg}>{getSurplusMessage()}</Text>
+          </View>
+
+          {/* Net HELOC surplus — only show when mortgage payment is known from step 1 */}
+          {mortgagePayment > 0 && grossSurplus > 0 && (
+            <View style={styles.helocSurplusCard}>
+              <View style={styles.helocSurplusRow}>
+                <Text style={styles.helocSurplusLabel}>After mortgage payment</Text>
+                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? Colors.mint600 : Colors.error }]}>
+                  ${helocSurplus.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo
+                </Text>
+              </View>
+              <Text style={styles.helocSurplusSub}>
+                This is the amount swept to your HELOC each month in the strategy.
+              </Text>
+            </View>
+          )}
+        </>
       )}
     </OnboardingStep>
   );
@@ -88,32 +109,22 @@ export default function IncomeStep() {
 
 const styles = StyleSheet.create({
   surplusCard: {
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-    alignItems: 'center',
-    borderWidth: 2,
-    backgroundColor: Colors.gray50,
-    marginTop: Spacing[2],
+    borderRadius: Radius.lg, padding: Spacing[4],
+    alignItems: 'center', borderWidth: 2,
+    backgroundColor: Colors.gray50, gap: Spacing[1],
+  },
+  surplusLabel: { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
+  surplusValue: { fontSize: Typography['3xl'], fontWeight: Typography.extrabold },
+  surplusPct:   { fontSize: Typography.sm, color: Colors.textMuted },
+  surplusMsg:   { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: Spacing[2] },
+
+  helocSurplusCard: {
+    backgroundColor: Colors.mint50, borderRadius: Radius.md,
+    padding: Spacing[4], borderWidth: 1, borderColor: Colors.mint200,
     gap: Spacing[1],
   },
-  surplusLabel: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    fontWeight: Typography.medium,
-  },
-  surplusValue: {
-    fontSize: Typography['3xl'],
-    fontWeight: Typography.extrabold,
-  },
-  surplusPct: {
-    fontSize: Typography.sm,
-    color: Colors.textMuted,
-  },
-  surplusMsg: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: Spacing[2],
-  },
+  helocSurplusRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  helocSurplusLabel:{ fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  helocSurplusValue:{ fontSize: Typography.base, fontWeight: Typography.extrabold },
+  helocSurplusSub:  { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
 });
