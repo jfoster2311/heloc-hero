@@ -18,7 +18,7 @@ const GENERIC_DEFAULTS: CalculatorInputs = {
   mortgageBalance: 320000,
   mortgageRate:    6.5,    // displayed as % — divided by 100 before compute
   monthlyPayment:  2100,
-  monthlySurplus:  2400,
+  monthlySurplus:  600,    // realistic: $8k income − $5.5k expenses − $2.1k mortgage
   helocRate:       8.5,
 };
 
@@ -36,18 +36,21 @@ export default function CalculatorScreen() {
 
   const canPrefill = tier !== 'free';
 
-  // Pre-fill from real data when available
+  // Pre-fill from real data when available.
+  // monthlySurplus = income − living expenses − mortgage payment.
+  // monthly_expenses from onboarding excludes mortgage, so we subtract it separately.
   const initialInputs: CalculatorInputs = useMemo(() => {
     if (!canPrefill) return GENERIC_DEFAULTS;
     const mb = firstBalance(accounts, 'mortgage');
+    const income   = profile?.monthly_income   ?? 0;
+    const expenses = profile?.monthly_expenses ?? 0;
+    const payment  = profile?.monthly_payment  ?? 0;
     return {
       mortgageBalance: mb ?? GENERIC_DEFAULTS.mortgageBalance,
       mortgageRate:    (profile?.mortgage_rate ?? 0.065) * 100,
-      monthlyPayment:  profile?.monthly_payment ?? GENERIC_DEFAULTS.monthlyPayment,
-      monthlySurplus:
-        Math.max(0, (profile?.monthly_income ?? 0) - (profile?.monthly_expenses ?? 0)) ||
-        GENERIC_DEFAULTS.monthlySurplus,
-      helocRate: GENERIC_DEFAULTS.helocRate,
+      monthlyPayment:  payment || GENERIC_DEFAULTS.monthlyPayment,
+      monthlySurplus:  Math.max(0, income - expenses - payment) || GENERIC_DEFAULTS.monthlySurplus,
+      helocRate:       GENERIC_DEFAULTS.helocRate,
     };
   }, [canPrefill, accounts, profile]);
 
@@ -147,7 +150,7 @@ export default function CalculatorScreen() {
               value={inputs.monthlySurplus}
               onChangeText={v => updateField('monthlySurplus', v)}
               keyboardType="numeric"
-              hint="Income minus expenses you'll move to HELOC each month"
+              hint="Income minus all expenses including your mortgage payment"
             />
             <CalcInput
               label="HELOC Interest Rate"
@@ -405,7 +408,6 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
-  infobanner: void 0,
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
