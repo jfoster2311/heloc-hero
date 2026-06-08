@@ -15,11 +15,12 @@ import type { AutomationSettings } from '../../lib/types';
 
 export default function SettingsModal() {
   const router = useRouter();
-  const { profile, tier, updateProfile } = useAuth();
+  const { profile, tier } = useAuth();
   const [automation, setAutomation] = useState<Partial<AutomationSettings>>(
     DEFAULT_AUTOMATION_SETTINGS,
   );
   const [savingAutomation, setSavingAutomation] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -58,44 +59,37 @@ export default function SettingsModal() {
   }
 
   const tierLabels: Record<string, string> = {
-    free: 'Free',
-    medium: 'Accelerator ($14.99/mo)',
-    full: 'Autopilot ($50/mo)',
+    free:   'Free Plan',
+    medium: 'Accelerator (´14.99/mo)',
+    full:   'Autopilot (´50/mo)',
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="close" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Profile section */}
+        {/* Profile */}
         <SectionHeader title="Account" />
         <View style={styles.card}>
-          <SettingRow
-            icon="person-outline"
-            label="Name"
-            value={profile?.full_name ?? '—'}
-          />
-          <SettingRow
-            icon="mail-outline"
-            label="Email"
-            value={profile?.email ?? '—'}
-          />
+          <SettingRow icon="person-outline" label="Name" value={profile?.full_name ?? '—'} />
+          <SettingRow icon="mail-outline" label="Email" value={profile?.email ?? '—'} />
           <SettingRow
             icon="star-outline"
             label="Plan"
             value={tierLabels[tier] ?? tier}
             onPress={() => { router.back(); router.push('/modals/upgrade'); }}
-            actionLabel={tier === 'free' ? 'Upgrade' : 'Manage'}
+            actionLabel={tier === 'free' ? 'Upgrade →' : 'Manage'}
+            isLast
           />
         </View>
 
-        {/* Automation section — Full tier only */}
+        {/* Automation — Full tier only */}
         {tier === 'full' && (
           <>
             <SectionHeader title="Automation" subtitle={savingAutomation ? 'Saving…' : undefined} />
@@ -117,12 +111,13 @@ export default function SettingsModal() {
               <SettingRow
                 icon="shield-outline"
                 label="Cash Buffer"
-                value={`$${automation.buffer_target?.toLocaleString() ?? 2000}`}
+                value={`$${(automation.buffer_target ?? 2000).toLocaleString()}`}
               />
               <SettingRow
                 icon="calendar-outline"
                 label="Upcoming Bills"
-                value={`$${automation.upcoming_bills_estimate?.toLocaleString() ?? 500}`}
+                value={`$${(automation.upcoming_bills_estimate ?? 500).toLocaleString()}`}
+                isLast
               />
             </View>
           </>
@@ -134,20 +129,40 @@ export default function SettingsModal() {
           <ToggleRow
             icon="notifications-outline"
             label="Balance Alerts"
-            subtitle="Get notified when thresholds are crossed"
-            value={true}
-            onChange={() => {}}
+            subtitle="HELOC/savings threshold crossing notifications"
+            value={notificationsEnabled}
+            onChange={setNotificationsEnabled}
+            isLast
+          />
+        </View>
+
+        {/* Support */}
+        <SectionHeader title="Support" />
+        <View style={styles.card}>
+          <SettingRow
+            icon="help-circle-outline"
+            label="Help & FAQ"
+            value=""
+            onPress={() => router.push('/tabs/learn')}
+          />
+          <SettingRow
+            icon="document-text-outline"
+            label="Terms of Service"
+            value=""
+            isLast
           />
         </View>
 
         {/* Danger zone */}
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
-          <TouchableOpacity style={styles.dangerRow} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={18} color={Colors.error} />
+          <TouchableOpacity style={[styles.row, styles.dangerRow]} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={18} color={Colors.error} style={styles.rowIcon} />
             <Text style={styles.dangerText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={styles.version}>HELOC Hero v1.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,35 +178,35 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
 }
 
 function SettingRow({
-  icon, label, value, onPress, actionLabel,
+  icon, label, value, onPress, actionLabel, isLast,
 }: {
   icon: string; label: string; value: string;
-  onPress?: () => void; actionLabel?: string;
+  onPress?: () => void; actionLabel?: string; isLast?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={styles.row}
+      style={[styles.row, isLast && styles.rowLast]}
       onPress={onPress}
       disabled={!onPress}
+      activeOpacity={onPress ? 0.6 : 1}
     >
       <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-      {actionLabel && (
-        <Text style={styles.rowAction}>{actionLabel}</Text>
-      )}
+      {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+      {actionLabel && <Text style={styles.rowAction}>{actionLabel}</Text>}
+      {onPress && !actionLabel && <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />}
     </TouchableOpacity>
   );
 }
 
 function ToggleRow({
-  icon, label, subtitle, value, onChange,
+  icon, label, subtitle, value, onChange, isLast,
 }: {
   icon: string; label: string; subtitle: string;
-  value: boolean; onChange: (v: boolean) => void;
+  value: boolean; onChange: (v: boolean) => void; isLast?: boolean;
 }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isLast && styles.rowLast]}>
       <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
       <View style={styles.toggleText}>
         <Text style={styles.rowLabel}>{label}</Text>
@@ -226,7 +241,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing[2],
-    paddingTop: Spacing[3],
+    paddingTop: Spacing[4],
     paddingBottom: Spacing[2],
   },
   sectionTitle: {
@@ -251,9 +266,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray100,
   },
+  rowLast: { borderBottomWidth: 0 },
   rowIcon: { marginRight: Spacing[3] },
   rowLabel: { flex: 1, fontSize: Typography.base, color: Colors.textPrimary },
-  rowValue: { fontSize: Typography.sm, color: Colors.textMuted },
+  rowValue: { fontSize: Typography.sm, color: Colors.textMuted, marginRight: Spacing[1] },
   rowAction: {
     fontSize: Typography.sm,
     color: Colors.mint600,
@@ -262,16 +278,16 @@ const styles = StyleSheet.create({
   },
   toggleText: { flex: 1 },
   toggleSubtitle: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
-  dangerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[4],
-  },
+  dangerRow: { borderBottomWidth: 0 },
   dangerText: {
     fontSize: Typography.base,
     color: Colors.error,
     fontWeight: Typography.medium,
+  },
+  version: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingTop: Spacing[4],
   },
 });

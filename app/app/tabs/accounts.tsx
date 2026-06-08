@@ -12,21 +12,30 @@ import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../.
 import type { LinkedAccount, PlaidAccount } from '../../lib/types';
 
 const ACCOUNT_ICONS: Record<string, string> = {
-  mortgage:     'home-outline',
+  mortgage:      'home-outline',
   'home equity': 'card-outline',
-  savings:      'wallet-outline',
+  savings:       'wallet-outline',
 };
 
 const ACCOUNT_COLORS: Record<string, string> = {
-  mortgage:     Colors.info,
+  mortgage:      Colors.info,
   'home equity': Colors.warning,
-  savings:      Colors.success,
+  savings:       Colors.success,
 };
+
+function relativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'Never synced';
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60)    return 'Just now';
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 export default function AccountsScreen() {
   const router = useRouter();
   const { profile, tier } = useAuth();
-  const { accounts, loading, refreshing, refresh, hasAllAccounts } = useAccounts(profile?.id ?? null);
+  const { accounts, loading, refreshing, refresh } = useAccounts(profile?.id ?? null);
 
   const canLink = tier === 'medium' || tier === 'full';
 
@@ -39,7 +48,7 @@ export default function AccountsScreen() {
             style={styles.addBtn}
             onPress={() => router.push('/modals/link-account')}
           >
-            <Ionicons name="add" size={20} color={Colors.mint600} />
+            <Ionicons name="add" size={18} color={Colors.mint600} />
             <Text style={styles.addBtnText}>Link Account</Text>
           </TouchableOpacity>
         )}
@@ -52,17 +61,24 @@ export default function AccountsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />
         }
       >
-        {/* Lock prompt for free tier */}
+        {/* Upgrade prompt for free tier */}
         {!canLink && (
           <TouchableOpacity
             style={styles.upgradeBanner}
             onPress={() => router.push('/modals/upgrade')}
           >
-            <Ionicons name="lock-closed-outline" size={20} color={Colors.mint600} />
-            <Text style={styles.upgradeText}>
-              Upgrade to Accelerator to link your real bank accounts
-            </Text>
-            <Text style={styles.upgradeLink}>Upgrade →</Text>
+            <View style={styles.upgradeBannerIcon}>
+              <Ionicons name="lock-closed" size={18} color={Colors.mint600} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.upgradeBannerTitle}>Connect Your Accounts</Text>
+              <Text style={styles.upgradeBannerSub}>
+                Upgrade to Accelerator to link your mortgage, HELOC & savings
+              </Text>
+            </View>
+            <View style={styles.upgradePill}>
+              <Text style={styles.upgradePillText}>Upgrade</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -73,42 +89,50 @@ export default function AccountsScreen() {
           ))
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="wallet-outline" size={48} color={Colors.gray300} />
-            <Text style={styles.emptyTitle}>No accounts linked</Text>
+            <View style={styles.emptyIconRing}>
+              <Ionicons name="wallet-outline" size={32} color={Colors.mint600} />
+            </View>
+            <Text style={styles.emptyTitle}>No accounts linked yet</Text>
             <Text style={styles.emptySubtitle}>
               {canLink
-                ? 'Link your mortgage, HELOC, and savings accounts to get started.'
-                : 'Upgrade to link your accounts and unlock your personalized strategy.'}
+                ? 'Connect your mortgage, HELOC, and savings to unlock your live payoff strategy.'
+                : 'Upgrade your plan to connect real bank accounts and see your actual numbers.'}
             </Text>
-            {canLink && (
-              <TouchableOpacity
-                style={styles.emptyBtn}
-                onPress={() => router.push('/modals/link-account')}
-              >
-                <Text style={styles.emptyBtnText}>Link Your First Account</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => router.push(canLink ? '/modals/link-account' : '/modals/upgrade')}
+            >
+              <Ionicons name={canLink ? 'link-outline' : 'star-outline'} size={16} color={Colors.white} />
+              <Text style={styles.emptyBtnText}>
+                {canLink ? 'Link Your First Account' : 'View Plans'}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Account type checklist */}
+        {/* Account checklist */}
         {canLink && (
-          <View style={[CommonStyles.card, { marginTop: Spacing[4] }]}>
+          <View style={[CommonStyles.card, { gap: 0 }]}>
             <Text style={styles.checklistTitle}>Account Checklist</Text>
-            {(['mortgage', 'home equity', 'savings'] as const).map(type => {
+            {(['mortgage', 'home equity', 'savings'] as const).map((type, idx) => {
               const linked = accounts.some(a => a.account_type === type);
+              const isLast = idx === 2;
               return (
-                <View key={type} style={styles.checklistRow}>
-                  <Ionicons
-                    name={linked ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={20}
-                    color={linked ? Colors.success : Colors.gray300}
-                  />
+                <View key={type} style={[styles.checklistRow, isLast && styles.checklistRowLast]}>
+                  <View style={[styles.checklistDot, linked && styles.checklistDotDone]}>
+                    <Ionicons
+                      name={linked ? 'checkmark' : 'add'}
+                      size={12}
+                      color={linked ? Colors.white : Colors.gray400}
+                    />
+                  </View>
                   <Text style={[styles.checklistLabel, linked && styles.checklistLabelDone]}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {type === 'home equity' ? 'HELOC' : type.charAt(0).toUpperCase() + type.slice(1)}
                   </Text>
-                  {!linked && (
-                    <TouchableOpacity onPress={() => router.push('/modals/link-account')}>
+                  {linked ? (
+                    <Text style={styles.checklistLinked}>Connected</Text>
+                  ) : (
+                    <TouchableOpacity onPress={() => router.push('/modals/link-account')} style={styles.checklistLinkBtn}>
                       <Text style={styles.checklistLink}>Link →</Text>
                     </TouchableOpacity>
                   )}
@@ -124,10 +148,7 @@ export default function AccountsScreen() {
 
 function AccountCard({ account }: { account: LinkedAccount }) {
   const color = ACCOUNT_COLORS[account.account_type] ?? Colors.gray400;
-  const icon = ACCOUNT_ICONS[account.account_type] ?? 'card-outline';
-  const lastUpdated = account.accounts_updated_at
-    ? new Date(account.accounts_updated_at).toLocaleDateString()
-    : 'Never';
+  const icon  = ACCOUNT_ICONS[account.account_type]  ?? 'card-outline';
 
   return (
     <View style={[styles.accountCard, Shadows.card]}>
@@ -137,14 +158,17 @@ function AccountCard({ account }: { account: LinkedAccount }) {
         </View>
         <View style={styles.accountMeta}>
           <Text style={styles.accountType}>
-            {account.account_type.charAt(0).toUpperCase() + account.account_type.slice(1)}
+            {account.account_type === 'home equity'
+              ? 'HELOC'
+              : account.account_type.charAt(0).toUpperCase() + account.account_type.slice(1)}
           </Text>
           {account.institution_name && (
             <Text style={styles.institutionName}>{account.institution_name}</Text>
           )}
         </View>
-        <View style={styles.connectedBadge}>
-          <Text style={styles.connectedText}>Connected</Text>
+        <View style={styles.syncBadge}>
+          <View style={[styles.syncDot, { backgroundColor: Colors.success }]} />
+          <Text style={styles.syncText}>{relativeTime(account.accounts_updated_at)}</Text>
         </View>
       </View>
 
@@ -158,7 +182,8 @@ function AccountCard({ account }: { account: LinkedAccount }) {
             <Text style={styles.balanceCurrent}>
               ${acct.balances.current.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </Text>
-            {acct.balances.available !== null && acct.balances.available !== acct.balances.current && (
+            {acct.balances.available !== null &&
+             acct.balances.available !== acct.balances.current && (
               <Text style={styles.balanceAvail}>
                 ${acct.balances.available.toLocaleString('en-US', { maximumFractionDigits: 0 })} avail.
               </Text>
@@ -166,8 +191,6 @@ function AccountCard({ account }: { account: LinkedAccount }) {
           </View>
         </View>
       ))}
-
-      <Text style={styles.lastUpdated}>Updated {lastUpdated}</Text>
     </View>
   );
 }
@@ -183,11 +206,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-  },
+  headerTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,19 +220,50 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.semibold },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
+
+  // Upgrade banner
   upgradeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
-    backgroundColor: Colors.mint50,
+    backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing[4],
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.mint200,
+    ...Shadows.card,
   },
-  upgradeText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
-  upgradeLink: { color: Colors.mint600, fontWeight: Typography.semibold, fontSize: Typography.sm },
+  upgradeBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upgradeBannerTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  upgradeBannerSub: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  upgradePill: {
+    backgroundColor: Colors.mint600,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1] + 2,
+  },
+  upgradePillText: { color: Colors.white, fontSize: Typography.xs, fontWeight: Typography.semibold },
+
+  // Empty state
   emptyState: { alignItems: 'center', paddingVertical: Spacing[12], gap: Spacing[3] },
+  emptyIconRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.mint50,
+    borderWidth: 2,
+    borderColor: Colors.mint200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+  },
   emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary },
   emptySubtitle: {
     fontSize: Typography.sm,
@@ -224,12 +274,18 @@ const styles = StyleSheet.create({
   },
   emptyBtn: {
     marginTop: Spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
     backgroundColor: Colors.mint600,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[5],
     paddingVertical: Spacing[3],
+    ...Shadows.glow,
   },
   emptyBtnText: { color: Colors.white, fontWeight: Typography.semibold, fontSize: Typography.sm },
+
+  // Account card
   accountCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -247,30 +303,25 @@ const styles = StyleSheet.create({
   accountMeta: { flex: 1 },
   accountType: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   institutionName: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
-  connectedBadge: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  connectedText: { fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.medium },
+  syncBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  syncDot: { width: 6, height: 6, borderRadius: 3 },
+  syncText: { fontSize: Typography.xs, color: Colors.textMuted },
   subAccount: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing[2],
+    paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[1],
     borderTopWidth: 1,
     borderTopColor: Colors.gray100,
   },
   subAccountName: { fontSize: Typography.sm, color: Colors.textPrimary, fontWeight: Typography.medium },
-  subAccountType: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
+  subAccountType: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
   balanceCol: { alignItems: 'flex-end' },
   balanceCurrent: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
   balanceAvail: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
-  lastUpdated: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'right' },
+
+  // Checklist
   checklistTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
@@ -285,7 +336,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray100,
   },
+  checklistRowLast: { borderBottomWidth: 0 },
+  checklistDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: Colors.gray300,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  checklistDotDone: {
+    backgroundColor: Colors.mint600,
+    borderColor: Colors.mint600,
+  },
   checklistLabel: { flex: 1, fontSize: Typography.base, color: Colors.textSecondary },
-  checklistLabelDone: { color: Colors.textPrimary, textDecorationLine: 'line-through' },
+  checklistLabelDone: { color: Colors.textPrimary, fontWeight: Typography.medium },
+  checklistLinked: { fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.medium },
+  checklistLinkBtn: { paddingVertical: 2 },
   checklistLink: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
 });
