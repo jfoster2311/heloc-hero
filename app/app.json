@@ -5,7 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.heloichero.app",
@@ -22,8 +24,8 @@
       "typedRoutes": false
     },
     "extra": {
-      "supabaseUrl": "",
-      "supabaseAnonKey": "",
+      "supabaseUrl": "https://lpsqrjwlleewckucdlhz.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxwc3FyandsbGVld2NrdWNkbGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODE1NjIsImV4cCI6MjA4NzU1NzU2Mn0.kE_R68zmF8dFCmYx8hRiqw82JRmjZGKB9LNR_aaNVGs",
       "eas": {
         "projectId": "your-eas-project-id"
       }
