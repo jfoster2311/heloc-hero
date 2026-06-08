@@ -24,12 +24,12 @@ const BUDGET_CATEGORIES: {
 ];
 
 const TREND_MONTHS = [
-  { month: 'Oct', income: 8200, expenses: 5800 },
-  { month: 'Nov', income: 8000, expenses: 6100 },
-  { month: 'Dec', income: 9500, expenses: 7200 },
-  { month: 'Jan', income: 8000, expenses: 5500 },
-  { month: 'Feb', income: 8000, expenses: 5600 },
-  { month: 'Mar', income: 8400, expenses: 5700 },
+  { month: 'Jan', income: 8200, expenses: 5800 },
+  { month: 'Feb', income: 8000, expenses: 6100 },
+  { month: 'Mar', income: 9500, expenses: 7200 },
+  { month: 'Apr', income: 8000, expenses: 5500 },
+  { month: 'May', income: 8000, expenses: 5600 },
+  { month: 'Jun', income: 8400, expenses: 5700 },
 ];
 
 function getBudgetStatus(pct: number): { color: string; label: string } {
@@ -53,18 +53,20 @@ export default function CashFlowScreen() {
   const savingsRate      = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
 
   const totalBudgeted = BUDGET_CATEGORIES.reduce((s, c) => s + c.budget, 0);
-  const totalSpent    = BUDGET_CATEGORIES.reduce((s, c) => s + c.spent, 0);
-  const budgetPct     = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
   const overCount     = BUDGET_CATEGORIES.filter(c => c.spent > c.budget).length;
+  const budgetPct     = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
   const isLocked      = tier === 'free';
   const maxBar        = Math.max(...TREND_MONTHS.map(m => m.income));
+
+  // Dynamic month header
+  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Budget & Cash Flow</Text>
-          <Text style={styles.headerSub}>March 2026</Text>
+          <Text style={styles.headerSub}>{currentMonth}</Text>
         </View>
         {isLocked && (
           <View style={styles.exampleBadge}>
@@ -78,17 +80,17 @@ export default function CashFlowScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />}
       >
-        {/* Monthly summary */}
+        {/* Monthly summary — uses profile-based numbers for accuracy */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTop}>
-            <SummaryNum label="Income"    value={`$${income.toLocaleString()}`}           color={Colors.success} />
+            <SummaryNum label="Income"  value={`$${income.toLocaleString()}`}                                         color={Colors.success} />
             <View style={styles.summaryDivider} />
-            <SummaryNum label="Spent"     value={`$${totalSpent.toLocaleString()}`}        color={Colors.textPrimary} />
+            <SummaryNum label="Spent"   value={`$${totalObligations.toLocaleString()}`}                               color={Colors.textPrimary} />
             <View style={styles.summaryDivider} />
             <SummaryNum
               label="Surplus"
-              value={`$${Math.max(0, income - totalSpent).toLocaleString()}`}
-              color={income - totalSpent >= 0 ? Colors.mint600 : Colors.error}
+              value={surplus >= 0 ? `$${surplus.toLocaleString()}` : `-$${Math.abs(surplus).toLocaleString()}`}
+              color={surplus >= 0 ? Colors.mint600 : Colors.error}
             />
           </View>
           <View style={styles.overallTrack}>
@@ -111,7 +113,7 @@ export default function CashFlowScreen() {
         <View style={CommonStyles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Budget Categories</Text>
-            <Text style={styles.sectionSub}>This month</Text>
+            <Text style={styles.sectionSub}>{isLocked ? 'Example data' : 'This month'}</Text>
           </View>
 
           {BUDGET_CATEGORIES.map((cat, i) => {

@@ -44,8 +44,7 @@ export default function WelcomeScreen() {
             <Text style={styles.logoMark}>HELOC</Text>
             <Text style={styles.logoHero}>HERO</Text>
             <Text style={styles.heroHeadline}>
-              Pay off your{'’'}mortgage{'’'}{'
-'}years sooner.
+              Pay off your mortgage{' '}{'\n'}years sooner.
             </Text>
             <Text style={styles.heroSub}>
               The automated strategy used by 12,000+ homeowners to eliminate mortgage interest.
@@ -91,7 +90,7 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/onboarding/home-info')}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryBtnText}>Get Started — It’s Free</Text>
+            <Text style={styles.primaryBtnText}>Get Started — It's Free</Text>
             <Ionicons name="arrow-forward" size={18} color={Colors.white} />
           </TouchableOpacity>
 

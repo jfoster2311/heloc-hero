@@ -1,7 +1,7 @@
 // app/modals/settings.tsx
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Switch, Alert,
+  TouchableOpacity, Switch, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -60,8 +60,8 @@ export default function SettingsModal() {
 
   const tierLabels: Record<string, string> = {
     free:   'Free Plan',
-    medium: 'Accelerator (´14.99/mo)',
-    full:   'Autopilot (´50/mo)',
+    medium: 'Accelerator ($14.99/mo)',
+    full:   'Autopilot ($50/mo)',
   };
 
   return (
@@ -143,12 +143,19 @@ export default function SettingsModal() {
             icon="help-circle-outline"
             label="Help & FAQ"
             value=""
-            onPress={() => router.push('/tabs/learn')}
+            onPress={() => { router.back(); router.push('/tabs/learn'); }}
           />
           <SettingRow
             icon="document-text-outline"
             label="Terms of Service"
             value=""
+            onPress={() => Linking.openURL('https://helochair.com/terms')}
+          />
+          <SettingRow
+            icon="shield-checkmark-outline"
+            label="Privacy Policy"
+            value=""
+            onPress={() => Linking.openURL('https://helochair.com/privacy')}
             isLast
           />
         </View>
