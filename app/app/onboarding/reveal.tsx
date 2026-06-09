@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
-import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
+import { computeProjection, genericProjection } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
 
 export default function RevealScreen() {
@@ -77,6 +77,29 @@ export default function RevealScreen() {
             </Text>
           )}
         </LinearGradient>
+
+        {/* No-HELOC card */}
+        {!data.hasHeloc && (
+          <TouchableOpacity
+            style={styles.noHelocCard}
+            onPress={() => router.push('/modals/get-heloc' as never)}
+            accessibilityLabel="Open HELOC guide"
+          >
+            <View style={styles.noHelocRow}>
+              <View style={styles.noHelocIcon}>
+                <Ionicons name="home-outline" size={22} color={Colors.mint600} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.noHelocTitle}>First step: open a HELOC</Text>
+                <Text style={styles.noHelocBody}>
+                  The strategy requires an interest-only HELOC with a 10+ year draw period.
+                  Tap to see what to look for and avoid.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.mint400} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* "Not a budgeting app" card */}
         <View style={styles.differentCard}>
@@ -187,6 +210,33 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
   },
+
+  noHelocCard: {
+    marginHorizontal: Spacing[5],
+    backgroundColor: Colors.mint50,
+    borderRadius: Radius.xl,
+    padding: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+    ...Shadows.card,
+  },
+  noHelocRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  noHelocIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  noHelocTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+    marginBottom: 2,
+  },
+  noHelocBody: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 18 },
 
   differentCard: {
     margin: Spacing[5],

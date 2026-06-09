@@ -67,6 +67,10 @@ export default function RootLayout() {
           name="modals/settings"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="modals/get-heloc"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
     </LockGate>
   );

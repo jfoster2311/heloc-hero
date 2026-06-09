@@ -6,13 +6,17 @@ import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import FormField from '../../components/ui/FormField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
+import type { HelocStatus } from '../../lib/lenders';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 export default function HelocInfoStep() {
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
-  const [hasHeloc, setHasHeloc] = useState<boolean>(data.hasHeloc ?? false);
+  const [helocStatus, setHelocStatus] = useState<HelocStatus>(
+    data.hasHeloc ? 'have_one' : 'no_heloc',
+  );
+  const hasHeloc = helocStatus === 'have_one';
   const [helocBalance, setHelocBalance] = useState(String(data.helocBalance ?? '0'));
   const [helocLimit, setHelocLimit] = useState(String(data.helocLimit ?? ''));
   const [helocRate, setHelocRate] = useState(
@@ -25,8 +29,8 @@ export default function HelocInfoStep() {
     update({
       hasHeloc,
       helocBalance: hasHeloc ? parseFloat(helocBalance) || 0 : 0,
-      helocLimit: hasHeloc ? parseFloat(helocLimit) || 0 : 0,
-      helocRate: hasHeloc ? parseFloat(helocRate) / 100 : 0.085,
+      helocLimit:   hasHeloc ? parseFloat(helocLimit)   || 0 : 0,
+      helocRate:    hasHeloc ? parseFloat(helocRate) / 100 : 0.085,
     });
     nextStep();
     router.push('/onboarding/credit-score');
@@ -42,35 +46,28 @@ export default function HelocInfoStep() {
       onNext={handleNext}
       nextDisabled={!isValid}
     >
-      {/* Yes / No toggle */}
-      <View style={styles.toggleRow}>
-        <TouchableOpacity
-          style={[styles.toggleBtn, hasHeloc && styles.toggleBtnActive]}
-          onPress={() => setHasHeloc(true)}
-        >
-          <Ionicons
-            name="checkmark-circle"
-            size={18}
-            color={hasHeloc ? Colors.white : Colors.textMuted}
-          />
-          <Text style={[styles.toggleText, hasHeloc && styles.toggleTextActive]}>
-            Yes, I have a HELOC
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toggleBtn, !hasHeloc && styles.toggleBtnActive]}
-          onPress={() => setHasHeloc(false)}
-        >
-          <Ionicons
-            name="search"
-            size={18}
-            color={!hasHeloc ? Colors.white : Colors.textMuted}
-          />
-          <Text style={[styles.toggleText, !hasHeloc && styles.toggleTextActive]}>
-            No, help me get one
-          </Text>
-        </TouchableOpacity>
+      {/* HELOC status — 3-way */}
+      <View style={styles.statusList}>
+        {([
+          { value: 'have_one',  icon: 'checkmark-circle', label: 'Yes, I have a HELOC' },
+          { value: 'no_heloc',  icon: 'home-outline',     label: "No, I don't have one" },
+          { value: 'not_sure',  icon: 'help-circle-outline', label: "Not sure" },
+        ] as { value: HelocStatus; icon: string; label: string }[]).map(opt => (
+          <TouchableOpacity
+            key={opt.value}
+            style={[styles.toggleBtn, helocStatus === opt.value && styles.toggleBtnActive]}
+            onPress={() => setHelocStatus(opt.value)}
+          >
+            <Ionicons
+              name={opt.icon as never}
+              size={18}
+              color={helocStatus === opt.value ? Colors.white : Colors.textMuted}
+            />
+            <Text style={[styles.toggleText, helocStatus === opt.value && styles.toggleTextActive]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {hasHeloc ? (
@@ -103,10 +100,10 @@ export default function HelocInfoStep() {
         </>
       ) : (
         <View style={styles.noHelocInfo}>
-          <Ionicons name="information-circle-outline" size={20} color={Colors.info} />
+          <Ionicons name="information-circle-outline" size={20} color={Colors.mint600} />
           <Text style={styles.noHelocText}>
-            No problem! After setup we'll show you the best HELOC options based on your
-            home equity and credit profile.
+            No problem. After setup, we'll guide you through what to look for and how to
+            find the right HELOC for this strategy.
           </Text>
         </View>
       )}
@@ -115,8 +112,7 @@ export default function HelocInfoStep() {
 }
 
 const styles = StyleSheet.create({
-  toggleRow: {
-    flexDirection: 'row',
+  statusList: {
     gap: Spacing[3],
     marginBottom: Spacing[5],
   },
@@ -145,16 +141,16 @@ const styles = StyleSheet.create({
   noHelocInfo: {
     flexDirection: 'row',
     gap: Spacing[3],
-    backgroundColor: '#eff6ff',
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.info,
+    borderLeftColor: Colors.mint400,
   },
   noHelocText: {
     flex: 1,
     fontSize: Typography.sm,
-    color: '#1e40af',
+    color: Colors.mint700,
     lineHeight: 20,
   },
 });

@@ -233,6 +233,24 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
+          {/* First milestone: open HELOC when none linked */}
+          {!helocAccount && (
+            <TouchableOpacity
+              style={styles.helocMilestone}
+              onPress={() => router.push('/modals/get-heloc')}
+              accessibilityLabel="Open HELOC guide"
+            >
+              <View style={styles.helocMilestoneIcon}>
+                <Ionicons name="home-outline" size={18} color={Colors.mint600} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.helocMilestoneTitle}>Step 1: Open your HELOC</Text>
+                <Text style={styles.helocMilestoneSub}>Tap to see what to look for →</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.mint400} />
+            </TouchableOpacity>
+          )}
+
           {/* Payoff progress milestone */}
           {originalMortgage > 0 && (
             <View style={styles.payoffProgress}>
@@ -456,6 +474,31 @@ const styles = StyleSheet.create({
   payoffTrack:          { height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
   payoffFill:           { height: 6, borderRadius: 3, backgroundColor: Colors.mint600 },
   payoffSub:            { fontSize: Typography.xs, color: Colors.textMuted },
+  helocMilestone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.mint50,
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    marginTop: Spacing[3],
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+  },
+  helocMilestoneIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helocMilestoneTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+  },
+  helocMilestoneSub: { fontSize: Typography.xs, color: Colors.mint600 },
 
   scoreBarRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   scoreBarLabel: { width: 120, fontSize: Typography.sm, color: Colors.textSecondary },
