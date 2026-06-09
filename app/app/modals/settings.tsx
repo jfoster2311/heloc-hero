@@ -13,6 +13,7 @@ import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
 import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
 } from '../../lib/appLock';
+import { loadDemo, clearDemo } from '../../lib/seedDemo';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
 
@@ -258,7 +259,33 @@ export default function SettingsModal() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.version}>HELOC Hero v1.0 · © 2026</Text>
+        <TouchableOpacity
+          onLongPress={() => {
+            if (!profile?.id) return;
+            Alert.alert('Demo Data', 'Load or clear demo scenario?', [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Load Demo',
+                onPress: async () => {
+                  const { error } = await loadDemo(profile.id);
+                  if (error) Alert.alert('Error', error);
+                  else router.replace('/tabs/dashboard');
+                },
+              },
+              {
+                text: 'Clear All',
+                style: 'destructive',
+                onPress: async () => {
+                  const { error } = await clearDemo(profile.id);
+                  if (error) Alert.alert('Error', error);
+                  else router.replace('/onboarding/welcome');
+                },
+              },
+            ]);
+          }}
+        >
+          <Text style={styles.version}>HELOC Hero v1.0 · © 2026</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
