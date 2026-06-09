@@ -44,6 +44,41 @@ export default function SettingsModal() {
     setSavingAutomation(false);
   }
 
+  function handleDeleteAccount() {
+    Alert.alert(
+      'Delete My Account',
+      'This will permanently delete your account and all associated data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) return;
+              const res = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                  },
+                },
+              );
+              if (!res.ok) throw new Error('Failed to delete account');
+              await supabase.auth.signOut();
+              router.replace('/auth/login');
+            } catch {
+              Alert.alert('Error', 'Could not delete account. Please contact support.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function handleSignOut() {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -160,6 +195,25 @@ export default function SettingsModal() {
           />
         </View>
 
+        {/* Security & Privacy */}
+        <SectionHeader title="Security & Privacy" />
+        <View style={styles.card}>
+          <View style={[styles.row]}>
+            <Ionicons name="lock-closed-outline" size={18} color={Colors.textMuted} style={styles.rowIcon} />
+            <View style={styles.securityText}>
+              <Text style={styles.rowLabel}>Encrypted in transit and at rest</Text>
+              <Text style={styles.toggleSubtitle}>Powered by Supabase. Your data is never sold.</Text>
+            </View>
+          </View>
+          <SettingRow
+            icon="trash-outline"
+            label="Delete My Account"
+            value=""
+            onPress={handleDeleteAccount}
+            isLast
+          />
+        </View>
+
         {/* Danger zone */}
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
@@ -169,7 +223,7 @@ export default function SettingsModal() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.version}>HELOC Hero v1.0</Text>
+        <Text style={styles.version}>HELOC Hero v1.0 · © 2026</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -284,6 +338,7 @@ const styles = StyleSheet.create({
     marginLeft: Spacing[2],
   },
   toggleText: { flex: 1 },
+  securityText: { flex: 1 },
   toggleSubtitle: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
   dangerRow: { borderBottomWidth: 0 },
   dangerText: {

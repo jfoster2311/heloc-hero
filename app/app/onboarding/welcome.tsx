@@ -14,21 +14,21 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BENEFITS = [
   {
     icon: 'trending-down-outline' as const,
-    title: 'Pay off 7+ years sooner',
-    body: 'The HELOC strategy slashes your amortization schedule in ways extra payments alone cannot.',
+    title: 'Projected to pay off years sooner',
+    body: 'The HELOC cycling strategy reduces your daily interest balance in ways extra payments alone cannot.',
     color: Colors.mint600,
   },
   {
     icon: 'cash-outline' as const,
-    title: 'Save $40k–$120k in interest',
-    body: 'Every surplus dollar swept to your HELOC reduces daily interest accrual immediately.',
-    color: Colors.info,
+    title: 'Potentially save tens of thousands',
+    body: 'Every surplus dollar swept to your HELOC reduces daily interest accrual immediately. Results vary.',
+    color: Colors.mint400,
   },
   {
     icon: 'flash-outline' as const,
     title: 'Fully automated strategy',
     body: 'Safe Sweep™ and Safe Dump™ move money for you — set it and forget it.',
-    color: Colors.success,
+    color: Colors.mint700,
   },
 ];
 
@@ -47,17 +47,8 @@ export default function WelcomeScreen() {
               Pay off your mortgage{' '}{'\n'}years sooner.
             </Text>
             <Text style={styles.heroSub}>
-              The automated strategy used by 12,000+ homeowners to eliminate mortgage interest.
+              The automated cycling strategy for homeowners who want to eliminate mortgage interest faster.
             </Text>
-          </View>
-
-          {/* Social proof strip */}
-          <View style={styles.socialProof}>
-            <SocialStat value="12,000+" label="Homeowners" />
-            <View style={styles.socialDivider} />
-            <SocialStat value="$74k" label="Avg. Saved" />
-            <View style={styles.socialDivider} />
-            <SocialStat value="7.2 yrs" label="Avg. Sooner" />
           </View>
         </LinearGradient>
 
@@ -107,15 +98,6 @@ export default function WelcomeScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function SocialStat({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.socialStat}>
-      <Text style={styles.socialStatValue}>{value}</Text>
-      <Text style={styles.socialStatLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -171,33 +153,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 300,
-  },
-
-  socialProof: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    paddingVertical: Spacing[4],
-    paddingHorizontal: Spacing[6],
-    marginHorizontal: -Spacing[6],
-    marginBottom: 0,
-  },
-  socialStat: { flex: 1, alignItems: 'center' },
-  socialStatValue: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.extrabold,
-    color: Colors.white,
-  },
-  socialStatLabel: {
-    fontSize: Typography.xs,
-    color: 'rgba(255,255,255,0.65)',
-    marginTop: 2,
-  },
-  socialDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: 'rgba(255,255,255,0.2)',
   },
 
   benefits: {

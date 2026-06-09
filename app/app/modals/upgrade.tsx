@@ -91,7 +91,8 @@ export default function UpgradeModal() {
             >
               {isRecommended && (
                 <View style={styles.popularBadge}>
-                  <Text style={styles.popularBadgeText}>⭐ Most Popular</Text>
+                  <Ionicons name="star" size={11} color={Colors.white} />
+                  <Text style={styles.popularBadgeText}>Most Popular</Text>
                 </View>
               )}
 
@@ -151,7 +152,10 @@ export default function UpgradeModal() {
 
         {/* Free tier reminder */}
         <View style={styles.freeTier}>
-          <Text style={styles.freeTierTitle}>✓ Free Plan Always Available</Text>
+          <View style={styles.freeTierHeading}>
+            <Ionicons name="checkmark-circle" size={16} color={Colors.mint600} />
+            <Text style={styles.freeTierTitle}>Free Plan Always Available</Text>
+          </View>
           <Text style={styles.freeTierText}>
             Calculator, projections, and educational content are always free —
             no credit card required.
@@ -224,6 +228,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
   },
   popularBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: Colors.mint600,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
@@ -271,6 +278,7 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     gap: Spacing[2],
   },
+  freeTierHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   freeTierTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   freeTierText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
   legal: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
