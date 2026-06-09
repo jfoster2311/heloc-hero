@@ -10,6 +10,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
+import {
+  isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
+} from '../../lib/appLock';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
 
@@ -21,6 +24,29 @@ export default function SettingsModal() {
   );
   const [savingAutomation, setSavingAutomation] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [autoLock, setAutoLock] = useState(false);
+  const [lockSupported, setLockSupported] = useState(false);
+
+  useEffect(() => {
+    async function loadLockState() {
+      const supported = lockModuleAvailable() && await deviceSupportsLock();
+      setLockSupported(supported);
+      if (supported) setAutoLock(await isLockEnabled());
+    }
+    loadLockState();
+  }, []);
+
+  async function handleAutoLockToggle(value: boolean) {
+    const success = await setLockEnabled(value);
+    if (success) {
+      setAutoLock(value);
+    } else {
+      Alert.alert(
+        'Not Available',
+        'Auto-lock requires Face ID or a passcode to be set up on your device.',
+      );
+    }
+  }
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -205,6 +231,15 @@ export default function SettingsModal() {
               <Text style={styles.toggleSubtitle}>Powered by Supabase. Your data is never sold.</Text>
             </View>
           </View>
+          {lockSupported && (
+            <ToggleRow
+              icon="finger-print-outline"
+              label="Auto Lock"
+              subtitle="Require Face ID or passcode after 15 min in background"
+              value={autoLock}
+              onChange={handleAutoLockToggle}
+            />
+          )}
           <SettingRow
             icon="trash-outline"
             label="Delete My Account"

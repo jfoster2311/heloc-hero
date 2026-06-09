@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
 import { initPurchases, identifyPurchaser } from '../lib/purchases';
+import LockGate from '../components/LockGate';
 
 export default function RootLayout() {
   const { profile, loading } = useAuth();
@@ -48,7 +49,7 @@ export default function RootLayout() {
   if (loading) return null;
 
   return (
-    <>
+    <LockGate>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="onboarding" />
@@ -67,6 +68,6 @@ export default function RootLayout() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
       </Stack>
-    </>
+    </LockGate>
   );
 }
