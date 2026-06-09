@@ -9,6 +9,8 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
+import { useStreak } from '../../hooks/useStreak';
+import NotificationPrimer from '../../components/NotificationPrimer';
 import { computeHelocScore, genericHelocScore } from '../../lib/helocScore';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
@@ -19,6 +21,7 @@ const ASSUMED_HELOC_RATE = 0.085;
 export default function DashboardScreen() {
   const router = useRouter();
   const { profile, tier } = useAuth();
+  const { streak } = useStreak(profile?.id);
   const { accounts, refreshing, refresh, mortgageAccount, helocAccount, savingsAccount } =
     useAccounts(profile?.id ?? null);
 
@@ -82,6 +85,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
+      <NotificationPrimer triggerKey={profile?.id ?? null} />
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>
@@ -121,6 +125,16 @@ export default function DashboardScreen() {
             </Text>
             <Text style={styles.upgradeLink}>Upgrade →</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Streak strip */}
+        {streak > 0 && (
+          <View style={styles.streakStrip}>
+            <Ionicons name="flame-outline" size={16} color={Colors.mint600} />
+            <Text style={styles.streakText}>
+              {streak}-month cycling streak — keep it going
+            </Text>
+          </View>
         )}
 
         {/* Account stats */}
@@ -499,6 +513,18 @@ const styles = StyleSheet.create({
     color: Colors.mint700,
   },
   helocMilestoneSub: { fontSize: Typography.xs, color: Colors.mint600 },
+  streakStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    backgroundColor: Colors.mint50,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2] + 2,
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+  },
+  streakText: { fontSize: Typography.sm, color: Colors.mint700, fontWeight: Typography.medium },
 
   scoreBarRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   scoreBarLabel: { width: 120, fontSize: Typography.sm, color: Colors.textSecondary },

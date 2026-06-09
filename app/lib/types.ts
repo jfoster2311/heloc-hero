@@ -144,3 +144,13 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     ],
   },
 ];
+
+export interface AutomationLogEntry {
+  id: string;
+  user_id: string;
+  action: 'sweep' | 'dump';
+  amount: number;
+  status: 'pending' | 'success' | 'failed';
+  note: string | null;
+  created_at: string;
+}
