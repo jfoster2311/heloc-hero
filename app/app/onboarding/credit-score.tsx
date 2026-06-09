@@ -8,11 +8,11 @@ import { useOnboardingStore } from '../../lib/onboardingStore';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 const RANGES = [
-  { label: 'Exceptional', range: '800+',       value: 820, color: '#059669' },
-  { label: 'Very Good',   range: '740–799',    value: 760, color: '#10b981' },
-  { label: 'Good',        range: '670–739',    value: 700, color: '#34d399' },
-  { label: 'Fair',        range: '580–669',    value: 620, color: Colors.warning },
-  { label: 'Poor',        range: 'Below 580',  value: 550, color: Colors.error },
+  { label: 'Exceptional', range: '800+',       value: 820, color: Colors.mint700 },
+  { label: 'Very Good',   range: '740–799',    value: 760, color: Colors.mint600 },
+  { label: 'Good',        range: '670–739',    value: 700, color: Colors.mint400 },
+  { label: 'Fair',        range: '580–669',    value: 620, color: Colors.mint400 },
+  { label: 'Poor',        range: 'Below 580',  value: 550, color: Colors.gray400 },
 ];
 
 export default function CreditScoreStep() {
@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
     padding: Spacing[3],
     marginBottom: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.gray400,
   },
-  errorText: { color: Colors.error, fontSize: Typography.sm },
+  errorText: { color: Colors.gray400, fontSize: Typography.sm },
   rangeList: { gap: Spacing[3], marginBottom: Spacing[5] },
   rangeItem: {
     flexDirection: 'row',

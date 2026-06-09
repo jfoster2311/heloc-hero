@@ -13,13 +13,13 @@ import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../.
 const BUDGET_CATEGORIES: {
   name: string; icon: string; budget: number; spent: number; color: string;
 }[] = [
-  { name: 'Housing',        icon: 'home-outline',            budget: 2000, spent: 1800, color: Colors.info },
-  { name: 'Food & Dining',  icon: 'restaurant-outline',      budget: 1000, spent: 1050, color: Colors.warning },
-  { name: 'Transportation', icon: 'car-outline',             budget: 600,  spent: 580,  color: '#a855f7' },
-  { name: 'Utilities',      icon: 'flash-outline',           budget: 500,  spent: 420,  color: '#0ea5e9' },
-  { name: 'Healthcare',     icon: 'medkit-outline',          budget: 300,  spent: 120,  color: Colors.success },
-  { name: 'Subscriptions',  icon: 'phone-portrait-outline',  budget: 200,  spent: 180,  color: '#ec4899' },
-  { name: 'Entertainment',  icon: 'game-controller-outline', budget: 250,  spent: 310,  color: Colors.error },
+  { name: 'Housing',        icon: 'home-outline',            budget: 2000, spent: 1800, color: Colors.mint600 },
+  { name: 'Food & Dining',  icon: 'restaurant-outline',      budget: 1000, spent: 1050, color: Colors.mint400 },
+  { name: 'Transportation', icon: 'car-outline',             budget: 600,  spent: 580,  color: Colors.mint400 },
+  { name: 'Utilities',      icon: 'flash-outline',           budget: 500,  spent: 420,  color: Colors.mint600 },
+  { name: 'Healthcare',     icon: 'medkit-outline',          budget: 300,  spent: 120,  color: Colors.mint600 },
+  { name: 'Subscriptions',  icon: 'phone-portrait-outline',  budget: 200,  spent: 180,  color: Colors.mint200 },
+  { name: 'Entertainment',  icon: 'game-controller-outline', budget: 250,  spent: 310,  color: Colors.gray400 },
   { name: 'Savings/HELOC',  icon: 'wallet-outline',          budget: 800,  spent: 700,  color: Colors.mint600 },
 ];
 
@@ -33,9 +33,9 @@ const TREND_MONTHS = [
 ];
 
 function getBudgetStatus(pct: number): { color: string; label: string } {
-  if (pct > 100) return { color: Colors.error,   label: 'Over budget' };
-  if (pct >= 90) return { color: Colors.warning,  label: 'Near limit' };
-  return             { color: Colors.success,  label: 'On track' };
+  if (pct > 100) return { color: Colors.gray400,   label: 'Over budget' };
+  if (pct >= 90) return { color: Colors.mint400,  label: 'Near limit' };
+  return             { color: Colors.mint600,  label: 'On track' };
 }
 
 export default function CashFlowScreen() {
@@ -83,27 +83,27 @@ export default function CashFlowScreen() {
         {/* Monthly summary — uses profile-based numbers for accuracy */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTop}>
-            <SummaryNum label="Income"  value={`$${income.toLocaleString()}`}                                         color={Colors.success} />
+            <SummaryNum label="Income"  value={`$${income.toLocaleString()}`}                                         color={Colors.mint600} />
             <View style={styles.summaryDivider} />
             <SummaryNum label="Spent"   value={`$${totalObligations.toLocaleString()}`}                               color={Colors.textPrimary} />
             <View style={styles.summaryDivider} />
             <SummaryNum
               label="Surplus"
               value={surplus >= 0 ? `$${surplus.toLocaleString()}` : `-$${Math.abs(surplus).toLocaleString()}`}
-              color={surplus >= 0 ? Colors.mint600 : Colors.error}
+              color={surplus >= 0 ? Colors.mint600 : Colors.gray400}
             />
           </View>
           <View style={styles.overallTrack}>
             <View style={[
               styles.overallFill,
-              { width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetPct > 100 ? Colors.error : budgetPct > 85 ? Colors.warning : Colors.mint600 },
+              { width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetPct > 100 ? Colors.gray400 : budgetPct > 85 ? Colors.mint400 : Colors.mint600 },
             ]} />
           </View>
           <View style={styles.summaryFooter}>
             <Text style={styles.summaryFooterText}>
               {overCount > 0 ? `${overCount} categor${overCount === 1 ? 'y' : 'ies'} over budget` : 'All categories on track'}
             </Text>
-            <Text style={[styles.savingsRateChip, { color: savingsRate >= 20 ? Colors.success : savingsRate >= 10 ? Colors.warning : Colors.error }]}>
+            <Text style={[styles.savingsRateChip, { color: savingsRate >= 20 ? Colors.mint600 : savingsRate >= 10 ? Colors.mint400 : Colors.gray400 }]}>
               {savingsRate.toFixed(1)}% savings rate
             </Text>
           </View>
@@ -129,7 +129,7 @@ export default function CashFlowScreen() {
                 <View style={styles.catBody}>
                   <View style={styles.catTopRow}>
                     <Text style={styles.catName}>{cat.name}</Text>
-                    <Text style={[styles.catSpent, pct > 100 && { color: Colors.error }]}>
+                    <Text style={[styles.catSpent, pct > 100 && { color: Colors.gray400 }]}>
                       ${cat.spent.toLocaleString()}
                       <Text style={styles.catBudget}> / ${cat.budget.toLocaleString()}</Text>
                     </Text>
@@ -228,8 +228,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
   headerSub:   { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
-  exampleBadge: { backgroundColor: Colors.warning + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: Spacing[1], borderWidth: 1, borderColor: Colors.warning + '55' },
-  exampleBadgeText: { fontSize: Typography.xs, color: Colors.warning, fontWeight: Typography.semibold },
+  exampleBadge: { backgroundColor: Colors.mint400 + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: Spacing[1], borderWidth: 1, borderColor: Colors.mint400 + '55' },
+  exampleBadgeText: { fontSize: Typography.xs, color: Colors.mint400, fontWeight: Typography.semibold },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
   summaryCard:       { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], gap: Spacing[3], ...Shadows.card },
@@ -247,8 +247,8 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[4] },
   sectionTitle:  { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   sectionSub:    { fontSize: Typography.xs, color: Colors.textMuted },
-  exampleChip:     { backgroundColor: Colors.warning + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 2 },
-  exampleChipText: { fontSize: 10, color: Colors.warning, fontWeight: Typography.semibold },
+  exampleChip:     { backgroundColor: Colors.mint400 + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 2 },
+  exampleChipText: { fontSize: 10, color: Colors.mint400, fontWeight: Typography.semibold },
 
   budgetRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
   budgetRowLast: { borderBottomWidth: 0 },

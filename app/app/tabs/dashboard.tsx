@@ -140,9 +140,9 @@ export default function DashboardScreen() {
         {/* Account stats */}
         {hasLinkedAccounts ? (
           <View style={styles.statsRow}>
-            <StatCard label="Mortgage"  value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'} icon="home-outline"   color={Colors.info}    onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="HELOC"     value={helocBalance    !== null ? `$${fmt(helocBalance)}`    : '—'} icon="card-outline"   color={Colors.warning} onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="Savings"   value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.success} onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="Mortgage"  value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'} icon="home-outline"   color={Colors.mint600}    onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="HELOC"     value={helocBalance    !== null ? `$${fmt(helocBalance)}`    : '—'} icon="card-outline"   color={Colors.mint400} onPress={() => router.push('/tabs/accounts')} />
+            <StatCard label="Savings"   value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.mint600} onPress={() => router.push('/tabs/accounts')} />
           </View>
         ) : (
           <TouchableOpacity style={styles.linkAccountsCta} onPress={() => router.push('/tabs/accounts')}>
@@ -173,7 +173,7 @@ export default function DashboardScreen() {
                 label="Savings Rate"
                 value={income > 0 ? `${savingsRate.toFixed(1)}%` : '—'}
                 sub={savingsRate >= 20 ? 'Excellent' : savingsRate >= 10 ? 'On track' : 'Build it up'}
-                color={savingsRate >= 20 ? Colors.success : savingsRate >= 10 ? Colors.warning : Colors.error}
+                color={savingsRate >= 20 ? Colors.mint600 : savingsRate >= 10 ? Colors.mint400 : Colors.gray400}
                 icon="flash-outline"
               />
               <View style={styles.snapshotDivider} />
@@ -181,7 +181,7 @@ export default function DashboardScreen() {
                 label="Debt Ratio"
                 value={income > 0 ? `${debtRatio.toFixed(0)}%` : '—'}
                 sub={debtRatio <= 36 ? 'Healthy' : debtRatio <= 50 ? 'Moderate' : 'High'}
-                color={debtRatio <= 36 ? Colors.success : debtRatio <= 50 ? Colors.warning : Colors.error}
+                color={debtRatio <= 36 ? Colors.mint600 : debtRatio <= 50 ? Colors.mint400 : Colors.gray400}
                 icon="speedometer-outline"
               />
             </View>
@@ -203,9 +203,9 @@ export default function DashboardScreen() {
                       {
                         width: `${budgetPct}%`,
                         backgroundColor:
-                          budgetPct > 95 ? Colors.error :
-                          budgetPct > 80 ? Colors.warning :
-                          Colors.success,
+                          budgetPct > 95 ? Colors.gray400 :
+                          budgetPct > 80 ? Colors.gray400 :
+                          Colors.mint600,
                       },
                     ]}
                   />
@@ -286,11 +286,11 @@ export default function DashboardScreen() {
         <View style={CommonStyles.card}>
           <Text style={styles.cardTitle}>Score Breakdown</Text>
           <ScoreBar label="Monthly Surplus"   value={score.surplusScore}     max={55} color={Colors.mint600} />
-          <ScoreBar label="HELOC Utilization" value={score.utilizationScore} max={25} color={Colors.info} />
-          <ScoreBar label="Credit Score"      value={score.creditPoints}     max={20} color={Colors.success} />
+          <ScoreBar label="HELOC Utilization" value={score.utilizationScore} max={25} color={Colors.mint400} />
+          <ScoreBar label="Credit Score"      value={score.creditPoints}     max={20} color={Colors.mint600} />
           <View style={styles.mteRow}>
             <Text style={styles.mteLabel}>Home Equity Modifier</Text>
-            <Text style={[styles.mteValue, { color: score.mteModifier >= 0 ? Colors.success : Colors.error }]}>
+            <Text style={[styles.mteValue, { color: score.mteModifier >= 0 ? Colors.mint600 : Colors.gray400 }]}>
               {score.mteModifier >= 0 ? '+' : ''}{score.mteModifier} pts
             </Text>
           </View>
@@ -375,12 +375,12 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
 function AutomationRow({ label, subtitle, active }: { label: string; subtitle: string; active: boolean }) {
   return (
     <View style={styles.automationRow}>
-      <View style={[styles.automationDot, { backgroundColor: active ? Colors.success : Colors.gray300 }]} />
+      <View style={[styles.automationDot, { backgroundColor: active ? Colors.mint600 : Colors.gray300 }]} />
       <View style={{ flex: 1 }}>
         <Text style={styles.automationLabel}>{label}</Text>
         <Text style={styles.automationSub}>{subtitle}</Text>
       </View>
-      <Text style={[styles.automationStatus, { color: active ? Colors.success : Colors.textMuted }]}>{active ? 'Active' : 'Off'}</Text>
+      <Text style={[styles.automationStatus, { color: active ? Colors.mint600 : Colors.textMuted }]}>{active ? 'Active' : 'Off'}</Text>
     </View>
   );
 }

@@ -170,14 +170,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[5],
   },
   errorBanner: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     marginBottom: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.gray400,
   },
-  errorText: { color: Colors.error, fontSize: Typography.sm },
+  errorText: { color: Colors.gray400, fontSize: Typography.sm },
   inputGroup: { marginBottom: Spacing[4] },
   label: {
     fontSize: Typography.sm,

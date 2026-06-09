@@ -43,7 +43,7 @@ export default function ForgotPasswordScreen() {
 
         {sent ? (
           <View style={styles.successBanner}>
-            <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+            <Ionicons name="checkmark-circle" size={24} color={Colors.mint600} />
             <Text style={styles.successText}>
               Check your inbox — reset link sent to {email}
             </Text>
@@ -112,23 +112,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.success,
+    borderLeftColor: Colors.mint600,
     marginBottom: Spacing[5],
   },
-  successText: { flex: 1, fontSize: Typography.sm, color: '#166534', lineHeight: 20 },
+  successText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 20 },
   errorBanner: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     marginBottom: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.gray400,
   },
-  errorText: { color: Colors.error, fontSize: Typography.sm },
+  errorText: { color: Colors.gray400, fontSize: Typography.sm },
   inputGroup: { marginBottom: Spacing[5] },
   label: {
     fontSize: Typography.sm,

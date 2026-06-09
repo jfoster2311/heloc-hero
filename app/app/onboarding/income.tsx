@@ -27,9 +27,9 @@ export default function IncomeStep() {
   const isValid = incomeNum > 0 && expensesNum > 0;
 
   function getSurplusColor() {
-    if (grossPct >= 25) return Colors.success;
-    if (grossPct >= 10) return Colors.warning;
-    return Colors.error;
+    if (grossPct >= 25) return Colors.mint600;
+    if (grossPct >= 10) return Colors.mint400;
+    return Colors.gray400;
   }
 
   function getSurplusMessage() {
@@ -92,7 +92,7 @@ export default function IncomeStep() {
             <View style={styles.helocSurplusCard}>
               <View style={styles.helocSurplusRow}>
                 <Text style={styles.helocSurplusLabel}>After mortgage payment</Text>
-                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? Colors.mint600 : Colors.error }]}>
+                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? Colors.mint600 : Colors.gray400 }]}>
                   ${helocSurplus.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo
                 </Text>
               </View>

@@ -203,7 +203,7 @@ export default function CalculatorScreen() {
                 </View>
 
                 <View style={styles.savedRow}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.mint600} />
                   <Text style={styles.savedText}>
                     Pay off{' '}
                     <Text style={styles.savedBold}>{formatMonths(projection.monthsSaved)} sooner</Text>
@@ -226,13 +226,13 @@ export default function CalculatorScreen() {
                   label="Annual lump-sum to mortgage"
                   value={`$${(inputs.monthlySurplus * 12).toLocaleString()}`}
                   icon="flash-outline"
-                  color={Colors.success}
+                  color={Colors.mint600}
                 />
                 <BreakdownRow
                   label="Interest saved per year (est.)"
                   value={`$${Math.round(projection.interestSaved / (projection.monthsSaved / 12 || 1)).toLocaleString()}`}
                   icon="trending-down-outline"
-                  color={Colors.info}
+                  color={Colors.mint400}
                 />
               </View>
 
@@ -471,12 +471,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[3],
   },
   savedText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 18 },
-  savedBold: { fontWeight: Typography.bold, color: Colors.success },
+  savedBold: { fontWeight: Typography.bold, color: Colors.mint600 },
 
   breakdownRow: {
     flexDirection: 'row',

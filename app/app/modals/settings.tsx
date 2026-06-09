@@ -254,7 +254,7 @@ export default function SettingsModal() {
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
           <TouchableOpacity style={[styles.row, styles.dangerRow]} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={18} color={Colors.error} style={styles.rowIcon} />
+            <Ionicons name="log-out-outline" size={18} color={Colors.gray400} style={styles.rowIcon} />
             <Text style={styles.dangerText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   dangerRow: { borderBottomWidth: 0 },
   dangerText: {
     fontSize: Typography.base,
-    color: Colors.error,
+    color: Colors.gray400,
     fontWeight: Typography.medium,
   },
   version: {

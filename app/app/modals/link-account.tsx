@@ -183,7 +183,7 @@ export default function LinkAccountModal() {
 
         {/* Security note */}
         <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark-outline" size={16} color={Colors.success} />
+          <Ionicons name="shield-checkmark-outline" size={16} color={Colors.mint600} />
           <Text style={styles.securityText}>
             256-bit encryption. We never store your bank credentials. Read-only access.
           </Text>
@@ -266,13 +266,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   errorBanner: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.gray400,
   },
-  errorText: { color: Colors.error, fontSize: Typography.sm },
+  errorText: { color: Colors.gray400, fontSize: Typography.sm },
   typeList: { gap: Spacing[3] },
   typeItem: {
     flexDirection: 'row',
@@ -310,14 +310,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing[2],
     alignItems: 'flex-start',
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[3],
   },
   securityText: {
     flex: 1,
     fontSize: Typography.xs,
-    color: '#166534',
+    color: Colors.mint700,
     lineHeight: 18,
   },
   sandboxBtn: {

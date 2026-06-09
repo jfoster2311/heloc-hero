@@ -17,9 +17,9 @@ const ACCOUNT_ICONS: Record<string, string> = {
   savings:       'wallet-outline',
 };
 const ACCOUNT_COLORS: Record<string, string> = {
-  mortgage:      Colors.info,
-  'home equity': Colors.warning,
-  savings:       Colors.success,
+  mortgage:      Colors.mint600,
+  'home equity': Colors.mint400,
+  savings:       Colors.mint600,
 };
 
 function relativeTime(dateStr: string | null | undefined): string {
@@ -32,11 +32,11 @@ function relativeTime(dateStr: string | null | undefined): string {
 }
 
 function syncDotColor(dateStr: string | null | undefined): string {
-  if (!dateStr) return Colors.warning;
+  if (!dateStr) return Colors.mint400;
   const diffSeconds = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diffSeconds < 3600)  return Colors.success;  // < 1 hour: green
-  if (diffSeconds < 86400) return Colors.warning;  // < 24 hours: amber
-  return Colors.error;                              // > 24 hours: red
+  if (diffSeconds < 3600)  return Colors.mint600;  // < 1 hour: green
+  if (diffSeconds < 86400) return Colors.mint400;  // < 24 hours: amber
+  return Colors.gray400;                              // > 24 hours: red
 }
 
 function firstBalance(account: LinkedAccount | null): number | null {
@@ -94,7 +94,7 @@ export default function AccountsScreen() {
                 <Text style={styles.netWorthLabel}>Net Worth</Text>
                 <Text style={[
                   styles.netWorthValue,
-                  { color: netWorth >= 0 ? Colors.mint600 : Colors.error },
+                  { color: netWorth >= 0 ? Colors.mint600 : Colors.gray400 },
                 ]}>
                   {netWorth >= 0 ? '' : '−'}${fmt(Math.abs(netWorth))}
                 </Text>
@@ -115,11 +115,11 @@ export default function AccountsScreen() {
               {/* Assets */}
               <View style={styles.balanceCol}>
                 <Text style={styles.balanceColTitle}>Assets</Text>
-                <BalanceLine label="Home Value"  value={homeValue}    color={Colors.success} />
-                <BalanceLine label="Savings"     value={liveSavings}  color={Colors.success} />
+                <BalanceLine label="Home Value"  value={homeValue}    color={Colors.mint600} />
+                <BalanceLine label="Savings"     value={liveSavings}  color={Colors.mint600} />
                 <View style={styles.balanceTotalRow}>
                   <Text style={styles.balanceTotalLabel}>Total</Text>
-                  <Text style={[styles.balanceTotalValue, { color: Colors.success }]}>${fmt(totalAssets)}</Text>
+                  <Text style={[styles.balanceTotalValue, { color: Colors.mint600 }]}>${fmt(totalAssets)}</Text>
                 </View>
               </View>
 
@@ -128,11 +128,11 @@ export default function AccountsScreen() {
               {/* Liabilities */}
               <View style={styles.balanceCol}>
                 <Text style={styles.balanceColTitle}>Liabilities</Text>
-                <BalanceLine label="Mortgage"  value={liveMortgage}    color={Colors.error} isDebt />
-                <BalanceLine label="HELOC"     value={liveHeloc}       color={Colors.error} isDebt />
+                <BalanceLine label="Mortgage"  value={liveMortgage}    color={Colors.gray400} isDebt />
+                <BalanceLine label="HELOC"     value={liveHeloc}       color={Colors.gray400} isDebt />
                 <View style={styles.balanceTotalRow}>
                   <Text style={styles.balanceTotalLabel}>Total</Text>
-                  <Text style={[styles.balanceTotalValue, { color: Colors.error }]}>${fmt(totalLiabilities)}</Text>
+                  <Text style={[styles.balanceTotalValue, { color: Colors.gray400 }]}>${fmt(totalLiabilities)}</Text>
                 </View>
               </View>
             </View>
@@ -310,8 +310,8 @@ const styles = StyleSheet.create({
   netWorthBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.mint50, borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: 4, borderWidth: 1, borderColor: Colors.mint200 },
   netWorthBadgeText: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.medium },
   proportionBar:  { height: 8, borderRadius: 4, flexDirection: 'row', overflow: 'hidden', gap: 2 },
-  proportionAssets: { backgroundColor: Colors.success, borderRadius: 4 },
-  proportionLiabs:  { backgroundColor: Colors.error + 'aa', borderRadius: 4 },
+  proportionAssets: { backgroundColor: Colors.mint600, borderRadius: 4 },
+  proportionLiabs:  { backgroundColor: Colors.gray300, borderRadius: 4 },
   balanceColumns: { flexDirection: 'row', gap: Spacing[4] },
   balanceCol:     { flex: 1, gap: 2 },
   balanceColTitle: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary, marginBottom: Spacing[2], textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   checklistDotDone:  { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
   checklistLabel:    { flex: 1, fontSize: Typography.base, color: Colors.textSecondary },
   checklistLabelDone:{ color: Colors.textPrimary, fontWeight: Typography.medium },
-  checklistLinked:   { fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.medium },
+  checklistLinked:   { fontSize: Typography.xs, color: Colors.mint600, fontWeight: Typography.medium },
   checklistLinkBtn:  { paddingVertical: 2 },
   checklistLink:     { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
 });
