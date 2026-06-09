@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { open } from 'react-native-plaid-link-sdk';
 import { useAuth } from '../../hooks/useAuth';
+import { useIsPro } from '../../hooks/useIsPro';
 import { invokeFunction } from '../../lib/supabase';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { PlaidAccountType } from '../../lib/types';
@@ -37,6 +38,7 @@ const ACCOUNT_TYPES: { type: PlaidAccountType; label: string; desc: string; icon
 export default function LinkAccountModal() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isPro, loading: proLoading } = useIsPro();
   const [selectedType, setSelectedType] = useState<PlaidAccountType | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -100,6 +102,32 @@ export default function LinkAccountModal() {
     }
   }
 
+  if (!proLoading && !isPro) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Link an Account</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+            <Ionicons name="close" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.gateContainer}>
+          <Ionicons name="lock-closed-outline" size={48} color={Colors.mint400} />
+          <Text style={styles.gateTitle}>Pro Feature</Text>
+          <Text style={styles.gateBody}>
+            Link bank accounts with Plaid and see live balances with a Pro subscription.
+          </Text>
+          <TouchableOpacity
+            style={styles.gateBtn}
+            onPress={() => { router.back(); router.push('/modals/upgrade'); }}
+          >
+            <Text style={styles.gateBtnText}>View Pro Plans</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
@@ -112,7 +140,7 @@ export default function LinkAccountModal() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>
-          Choose which type of account you’re connecting. Powered by Plaid — bank-level security.
+          Choose which type of account you're connecting. Powered by Plaid — bank-level security.
         </Text>
 
         {error ? (
@@ -214,6 +242,23 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
   closeBtn: { padding: Spacing[1] },
+  gateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+    gap: Spacing[4],
+  },
+  gateTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  gateBody: { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center', lineHeight: 24 },
+  gateBtn: {
+    backgroundColor: Colors.mint600,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing[4],
+    paddingHorizontal: Spacing[8],
+    marginTop: Spacing[2],
+  },
+  gateBtnText: { color: Colors.white, fontWeight: Typography.semibold, fontSize: Typography.base },
   content: { padding: Spacing[5], gap: Spacing[4] },
   subtitle: {
     fontSize: Typography.base,

@@ -1,51 +1,96 @@
 // app/modals/upgrade.tsx
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Linking,
+  ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
-import { invokeFunction } from '../../lib/supabase';
+import { useIsPro } from '../../hooks/useIsPro';
+import {
+  getOfferings, purchasePackage, restorePurchases, purchasesAvailable,
+} from '../../lib/purchases';
 import { SUBSCRIPTION_PLANS } from '../../lib/types';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
-import type { SubscriptionTier } from '../../lib/types';
+
+const STATIC_PRICES: Record<string, string> = {
+  monthly: '$19.99/mo',
+  annual:  '$179/yr · ~$14.92/mo',
+};
 
 export default function UpgradeModal() {
   const router = useRouter();
-  const { user, tier } = useAuth();
-  const [loading, setLoading] = useState<SubscriptionTier | null>(null);
+  const { tier } = useAuth();
+  const { isPro, refresh: refreshPro } = useIsPro();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [offerings, setOfferings] = useState<any>(null);
+  const [loadingPkg, setLoadingPkg] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleUpgrade(selectedTier: SubscriptionTier) {
-    if (!user) return;
-    setLoading(selectedTier);
+  useEffect(() => {
+    if (purchasesAvailable()) {
+      getOfferings().then(o => setOfferings(o));
+    }
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function packagesFor(identifier: string): any[] {
+    if (!offerings?.current?.availablePackages) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return offerings.current.availablePackages.filter((p: any) =>
+      p.identifier.toLowerCase().includes(identifier),
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function handlePurchase(pkg: any) {
+    setLoadingPkg(pkg.identifier);
     setError('');
-
     try {
-      const { url } = await invokeFunction<{ url: string }>('stripe-checkout', {
-        userId: user.id,
-        tier: selectedTier,
-        successUrl: 'heloc-hero://upgrade-success',
-        cancelUrl: 'heloc-hero://upgrade-cancel',
-      });
-
-      if (url) await Linking.openURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start checkout');
+      const success = await purchasePackage(pkg);
+      if (success) {
+        await refreshPro();
+        router.back();
+      }
+    } catch {
+      setError('Purchase failed. Please try again.');
     } finally {
-      setLoading(null);
+      setLoadingPkg(null);
     }
   }
 
-  const nonFreePlans = SUBSCRIPTION_PLANS.filter(p => p.tier !== 'free');
+  async function handleRestore() {
+    setRestoring(true);
+    setError('');
+    try {
+      const restored = await restorePurchases();
+      if (restored) {
+        await refreshPro();
+        Alert.alert('Purchases Restored', 'Your Pro access has been restored.');
+        router.back();
+      } else {
+        Alert.alert('No Purchases Found', 'No active subscriptions were found for this Apple ID.');
+      }
+    } catch {
+      setError('Restore failed. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  const nonFreePlans = SUBSCRIPTION_PLANS.filter(
+    (p): p is (typeof SUBSCRIPTION_PLANS)[number] => p.tier !== ('free' as string),
+  );
+
+  const rcAvailable = purchasesAvailable();
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="close" size={24} color={Colors.textPrimary} />
@@ -62,7 +107,7 @@ export default function UpgradeModal() {
           </Text>
         </LinearGradient>
 
-        {/* 7-day trial — prominent banner */}
+        {/* 7-day trial banner */}
         <View style={styles.trialBanner}>
           <Ionicons name="gift-outline" size={20} color={Colors.mint600} />
           <View style={{ flex: 1 }}>
@@ -77,16 +122,21 @@ export default function UpgradeModal() {
           </View>
         ) : null}
 
-        {/* Plan cards — first non-free plan is the recommended one */}
+        {/* Plan cards */}
         {nonFreePlans.map((plan, idx) => {
           const isRecommended = idx === 0;
+          const isCurrent = tier === plan.tier || isPro;
+          const pkgKey = plan.tier === 'full' ? 'annual' : 'monthly';
+          const rcPkgs = packagesFor(pkgKey);
+          const staticPrice = STATIC_PRICES[pkgKey];
+
           return (
             <View
               key={plan.tier}
               style={[
                 styles.planCard,
                 isRecommended && styles.planCardHighlighted,
-                tier === plan.tier && styles.planCardCurrent,
+                isCurrent && styles.planCardCurrent,
               ]}
             >
               {isRecommended && (
@@ -100,11 +150,10 @@ export default function UpgradeModal() {
                 <View>
                   <Text style={styles.planName}>{plan.name}</Text>
                   <Text style={styles.planPrice}>
-                    ${plan.price}
-                    <Text style={styles.planPricePer}>/mo</Text>
+                    {rcPkgs[0]?.product?.priceString ?? staticPrice}
                   </Text>
                 </View>
-                {tier === plan.tier && (
+                {isCurrent && (
                   <View style={styles.currentBadge}>
                     <Text style={styles.currentBadgeText}>Current Plan</Text>
                   </View>
@@ -120,35 +169,57 @@ export default function UpgradeModal() {
                 ))}
               </View>
 
-              {tier !== plan.tier && (
-                <TouchableOpacity
-                  style={[
-                    styles.upgradeBtn,
-                    isRecommended && styles.upgradeBtnPrimary,
-                  ]}
-                  onPress={() => handleUpgrade(plan.tier)}
-                  disabled={!!loading}
-                >
-                  {loading === plan.tier ? (
-                    <ActivityIndicator
-                      color={isRecommended ? Colors.white : Colors.mint600}
-                      size="small"
-                    />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.upgradeBtnText,
-                        isRecommended && styles.upgradeBtnTextPrimary,
-                      ]}
-                    >
-                      Start {plan.name} — Free for 7 Days →
+              {!isCurrent && (
+                rcAvailable && rcPkgs.length > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.upgradeBtn, isRecommended && styles.upgradeBtnPrimary]}
+                    onPress={() => handlePurchase(rcPkgs[0])}
+                    disabled={!!loadingPkg}
+                    accessibilityLabel={`Start ${plan.name} free trial`}
+                  >
+                    {loadingPkg === rcPkgs[0]?.identifier ? (
+                      <ActivityIndicator color={isRecommended ? Colors.white : Colors.mint600} size="small" />
+                    ) : (
+                      <Text style={[styles.upgradeBtnText, isRecommended && styles.upgradeBtnTextPrimary]}>
+                        Start {plan.name} — Free for 7 Days
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.upgradeBtn, isRecommended && styles.upgradeBtnPrimary, styles.upgradeBtnDisabled]}>
+                    <Text style={[styles.upgradeBtnText, isRecommended && styles.upgradeBtnTextPrimary]}>
+                      {staticPrice} — Available in app
                     </Text>
-                  )}
-                </TouchableOpacity>
+                  </View>
+                )
               )}
             </View>
           );
         })}
+
+        {/* Restore + Manage */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleRestore}
+            disabled={restoring || !rcAvailable}
+            accessibilityLabel="Restore purchases"
+          >
+            {restoring ? (
+              <ActivityIndicator size="small" color={Colors.mint600} />
+            ) : (
+              <Text style={styles.actionBtnText}>Restore Purchases</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
+            accessibilityLabel="Manage subscription in App Store"
+          >
+            <Text style={styles.actionBtnText}>Manage Subscription</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Free tier reminder */}
         <View style={styles.freeTier}>
@@ -163,7 +234,9 @@ export default function UpgradeModal() {
         </View>
 
         <Text style={styles.legal}>
-          Cancel anytime. Billed monthly after trial ends.
+          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
+          automatically renews unless auto-renew is turned off at least 24 hours before the end of
+          the current period. Manage or cancel in App Store settings.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -204,13 +277,13 @@ const styles = StyleSheet.create({
   trialTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
   trialSubtitle: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
   errorBanner: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[3],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: Colors.gray300,
   },
-  errorText: { color: Colors.error, fontSize: Typography.sm },
+  errorText: { color: Colors.textSecondary, fontSize: Typography.sm },
   planCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
@@ -220,13 +293,8 @@ const styles = StyleSheet.create({
     gap: Spacing[4],
     ...Shadows.card,
   },
-  planCardHighlighted: {
-    borderColor: Colors.mint600,
-    borderWidth: 2,
-  },
-  planCardCurrent: {
-    borderColor: Colors.success,
-  },
+  planCardHighlighted: { borderColor: Colors.mint600, borderWidth: 2 },
+  planCardCurrent: { borderColor: Colors.mint400 },
   popularBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -244,17 +312,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   planName: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  planPrice: { fontSize: Typography['2xl'], fontWeight: Typography.extrabold, color: Colors.mint600 },
-  planPricePer: { fontSize: Typography.sm, color: Colors.textMuted, fontWeight: Typography.regular },
+  planPrice: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.mint600, marginTop: 2 },
   currentBadge: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: Colors.mint200,
   },
-  currentBadgeText: { fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.medium },
+  currentBadgeText: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.medium },
   featureList: { gap: Spacing[2] },
   featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[2] },
   featureText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
@@ -270,8 +337,24 @@ const styles = StyleSheet.create({
     borderColor: Colors.mint600,
     ...Shadows.glow,
   },
+  upgradeBtnDisabled: { opacity: 0.6 },
   upgradeBtnText: { color: Colors.mint600, fontSize: Typography.base, fontWeight: Typography.semibold },
   upgradeBtnTextPrimary: { color: Colors.white },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing[4],
+  },
+  actionBtn: {
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+  },
+  actionBtnText: {
+    fontSize: Typography.sm,
+    color: Colors.mint600,
+    fontWeight: Typography.medium,
+    textDecorationLine: 'underline',
+  },
   freeTier: {
     backgroundColor: Colors.gray50,
     borderRadius: Radius.lg,
@@ -281,5 +364,11 @@ const styles = StyleSheet.create({
   freeTierHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   freeTierTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   freeTierText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  legal: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  legal: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: Spacing[2],
+  },
 });

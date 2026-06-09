@@ -3,11 +3,22 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
+import { initPurchases, identifyPurchaser } from '../lib/purchases';
 
 export default function RootLayout() {
   const { profile, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Init RevenueCat on session load and when auth state changes
+  useEffect(() => {
+    if (loading) return;
+    if (profile?.id) {
+      initPurchases(profile.id).then(() => identifyPurchaser(profile.id));
+    } else {
+      initPurchases();
+    }
+  }, [profile?.id, loading]);
 
   useEffect(() => {
     if (loading) return;
