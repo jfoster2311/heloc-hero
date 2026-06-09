@@ -9,6 +9,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="income" />
       <Stack.Screen name="heloc-info" />
       <Stack.Screen name="credit-score" />
+      <Stack.Screen name="reveal" />
     </Stack>
   );
 }

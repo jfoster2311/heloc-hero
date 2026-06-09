@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import { useOnboardingStore } from '../../lib/onboardingStore';
-import { useAuth } from '../../hooks/useAuth';
+
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 const RANGES = [
@@ -17,23 +17,14 @@ const RANGES = [
 
 export default function CreditScoreStep() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { data, update, submit, saving, prevStep } = useOnboardingStore();
+  const { data, update, prevStep } = useOnboardingStore();
   const [selected, setSelected] = useState<number>(data.creditScore ?? 720);
   const [error, setError] = useState('');
 
   async function handleFinish() {
     update({ creditScore: selected });
-    if (!user) {
-      router.push('/auth/signup');
-      return;
-    }
-    const { error: saveError } = await submit(user.id);
-    if (saveError) {
-      setError(saveError);
-      return;
-    }
-    router.replace('/tabs/dashboard');
+    // Always go to reveal — reveal handles save + final routing
+    router.push('/onboarding/reveal');
   }
 
   const selectedRange = RANGES.find(r => r.value === selected);
@@ -46,22 +37,14 @@ export default function CreditScoreStep() {
       subtitle="This helps calculate your HELOC Hero Score™ and HELOC approval odds."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleFinish}
-      nextLabel={user ? 'Finish Setup' : 'Create Account →'}
-      loading={saving}
+      nextLabel="See My Results →"
+      loading={false}
     >
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
-
-      {!user && (
-        <View style={styles.signupPrompt}>
-          <Text style={styles.signupPromptText}>
-            Almost done! You'll create your free account on the next screen to save your results.
-          </Text>
-        </View>
-      )}
 
       <View style={styles.rangeList}>
         {RANGES.map(r => (
@@ -108,20 +91,6 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.error,
   },
   errorText: { color: Colors.error, fontSize: Typography.sm },
-  signupPrompt: {
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.md,
-    padding: Spacing[4],
-    marginBottom: Spacing[4],
-    borderWidth: 1,
-    borderColor: Colors.mint200,
-  },
-  signupPromptText: {
-    fontSize: Typography.sm,
-    color: Colors.mint700,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
   rangeList: { gap: Spacing[3], marginBottom: Spacing[5] },
   rangeItem: {
     flexDirection: 'row',
