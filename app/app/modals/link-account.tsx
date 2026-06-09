@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { open } from 'react-native-plaid-link-sdk';
+import { create, open } from 'react-native-plaid-link-sdk';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { invokeFunction } from '../../lib/supabase';
@@ -54,8 +54,8 @@ export default function LinkAccountModal() {
         { userId: user.id },
       );
 
+      create({ token: link_token });
       open({
-        tokenConfig: { token: link_token },
         onSuccess: async (success: { publicToken: string }) => {
           try {
             await invokeFunction('plaid-exchange-token', {
