@@ -107,6 +107,40 @@ export function formatMonths(months: number): string {
   return `${yrs} yr${yrs !== 1 ? 's' : ''} ${mo} mo`;
 }
 
+/**
+ * Standard amortization monthly P&I payment.
+ * annualRate is a decimal fraction (e.g. 0.065 for 6.5%).
+ */
+export function calcMonthlyPayment(
+  principal: number,
+  annualRate: number,
+  termMonths: number,
+): number {
+  if (principal <= 0 || termMonths <= 0) return 0;
+  const r = annualRate / 12;
+  if (r === 0) return principal / termMonths;
+  const factor = Math.pow(1 + r, termMonths);
+  return (principal * r * factor) / (factor - 1);
+}
+
+/**
+ * Remaining balance after elapsedMonths payments on a standard amortizing loan.
+ * annualRate is a decimal fraction (e.g. 0.065 for 6.5%).
+ */
+export function calcRemainingBalance(
+  principal: number,
+  annualRate: number,
+  termMonths: number,
+  elapsedMonths: number,
+): number {
+  if (principal <= 0 || termMonths <= 0 || elapsedMonths <= 0) return principal;
+  const r = annualRate / 12;
+  if (r === 0) return Math.max(0, principal * (1 - elapsedMonths / termMonths));
+  const payment = calcMonthlyPayment(principal, annualRate, termMonths);
+  const factor  = Math.pow(1 + r, elapsedMonths);
+  return Math.max(0, principal * factor - (payment * (factor - 1)) / r);
+}
+
 /** Illustrative projection for free-tier users */
 export function genericProjection(): PayoffProjection {
   return computeProjection({

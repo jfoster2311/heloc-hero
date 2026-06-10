@@ -40,6 +40,12 @@ export interface OnboardingData {
   helocLimit: number;
   helocRate: number;
   creditScore: number;
+  /** Original principal borrowed — used to calculate payment + balance */
+  loanOriginalAmount: number;
+  /** Loan term in years (15, 20, 30, etc.) */
+  loanTermYears: number;
+  /** Calendar year the mortgage was opened, e.g. 2019 */
+  loanOriginationYear: number;
 }
 
 export interface PlaidBalance {
