@@ -34,8 +34,12 @@ export default function RootLayout() {
         router.replace('/onboarding/welcome');
       }
     } else if (!profile.onboarding_complete) {
-      // Signed in but onboarding not finished
-      if (!inOnboarding) {
+      // Signed in but onboarding not finished.
+      // Exception: don't redirect while user is on the signup screen — signup.tsx
+      // calls onboardingStore.submit() + refresh() to set onboarding_complete: true
+      // before navigating, and we must not interrupt that sequence.
+      const inSignup = (segments as string[])[1] === 'signup';
+      if (!inOnboarding && !inSignup) {
         router.replace('/onboarding/home-info');
       }
     } else {

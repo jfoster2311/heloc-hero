@@ -43,7 +43,7 @@ function countUp(
 export default function RevealScreen() {
   const router = useRouter();
   const { data, submit, saving } = useOnboardingStore();
-  const { user } = useAuth();
+  const { user, refresh: refreshProfile } = useAuth();
 
   const projection = (() => {
     const surplus = Math.max(0,
@@ -149,6 +149,9 @@ export default function RevealScreen() {
   async function finishAndNavigate(goUpgrade: boolean) {
     if (user) {
       await submit(user.id);
+      // Sync onboarding_complete: true into the in-memory profile so _layout.tsx
+      // routes to tabs instead of looping back to onboarding.
+      await refreshProfile();
     }
     if (goUpgrade) {
       const dest = user ? '/tabs/dashboard' : '/auth/signup';
@@ -162,6 +165,9 @@ export default function RevealScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={{ backgroundColor: '#12B76A', padding: 16, borderRadius: 12, marginBottom: 12 }}>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', textAlign: 'center' }}>NEW BUILD v2 — IF YOU SEE THIS, RELOAD WORKED</Text>
+        </View>
 
         {/* Projection hero — animated */}
         <Animated.View style={{ opacity: heroOpacity, transform: [{ scale: heroScale }] }}>

@@ -9,10 +9,14 @@ import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { useOnboardingStore } from '../../lib/onboardingStore';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
 
 export default function SignupScreen() {
   const router = useRouter();
+  const { refresh: refreshProfile }              = useAuth();
+  const { submit: submitOnboarding, update: updateOnboarding } = useOnboardingStore();
   const [fullName, setFullName]         = useState('');
   const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
@@ -39,13 +43,23 @@ export default function SignupScreen() {
     setLoading(true);
     setError('');
 
-    const { error: signUpError } = await auth.signUp(email.trim(), password, fullName.trim());
+    const { error: signUpError, data } = await auth.signUp(email.trim(), password, fullName.trim());
 
     if (signUpError) {
       setError(signUpError.message);
       setLoading(false);
+      return;
     }
-    // useAuth listener handles navigation on success
+
+    if (data?.user) {
+      // Carry the name from this form into the onboarding store so submit() persists it.
+      updateOnboarding({ fullName: fullName.trim() });
+      // Persist onboarding answers + set onboarding_complete: true in Supabase.
+      await submitOnboarding(data.user.id);
+      // Re-fetch profile so _layout.tsx sees onboarding_complete: true and routes to tabs.
+      await refreshProfile();
+    }
+    // _layout.tsx redirect fires once profile.onboarding_complete is true.
   }
 
   return (

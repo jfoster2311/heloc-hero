@@ -12,10 +12,14 @@ export interface UseIsProResult {
 
 export function useIsPro(): UseIsProResult {
   const { tier } = useAuth();
-  const [isPro, setIsPro] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  // Dev bypass: Pro always active in __DEV__ builds so all gated screens are testable
+  // without a RevenueCat purchase. Production builds are unaffected — __DEV__ is false.
+  const [isPro,   setIsPro]   = useState<boolean>(__DEV__);
+  const [loading, setLoading] = useState<boolean>(!__DEV__);
 
   const check = useCallback(async () => {
+    if (__DEV__) return; // Dev bypass — isPro stays true, loading stays false
     setLoading(true);
     try {
       if (!purchasesAvailable()) {

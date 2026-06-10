@@ -29,14 +29,12 @@ export const auth = {
     });
 
     if (!error && data.user) {
-      // Insert user profile row (trigger may handle this in production)
-      await supabase.from('users').insert({
-        id: data.user.id,
-        email,
-        full_name: fullName,
-        tier: 'free',
-        onboarding_complete: false,
-      });
+      // Upsert profile row — ignoreDuplicates guards against the DB trigger
+      // or onAuthStateChange creating the row first (signup race condition).
+      await supabase.from('users').upsert(
+        { id: data.user.id, email, full_name: fullName, tier: 'free', onboarding_complete: false },
+        { onConflict: 'id', ignoreDuplicates: true },
+      );
     }
 
     return { data, error };
