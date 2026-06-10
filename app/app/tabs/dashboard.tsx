@@ -103,6 +103,30 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />}
       >
+        {/* Payoff headline — screen focal point */}
+        <View style={styles.payoffHeroCard}>
+          {!hasRealData && (
+            <View style={styles.payoffHeroBadge}>
+              <Text style={styles.payoffHeroBadgeText}>Example</Text>
+            </View>
+          )}
+          <Text style={styles.payoffHeroEyebrow}>PROJECTED MORTGAGE-FREE DATE</Text>
+          <Text style={styles.payoffHeroValue}>
+            {formatMonths(projection.acceleratedMonths)}
+          </Text>
+          <Text style={styles.payoffHeroDate}>
+            {fmtPayoffDate(projection.acceleratedPayoffDate)}
+          </Text>
+          {projection.monthsSaved > 0 && (
+            <View style={styles.payoffHeroSavingsRow}>
+              <Ionicons name="flash" size={13} color={Colors.mint600} />
+              <Text style={styles.payoffHeroSavingsSub}>
+                {formatMonths(projection.monthsSaved)} sooner than without HELOC Hero
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Score card */}
         <LinearGradient colors={['#1a9e7a', '#0d7a5e']} style={styles.scoreCard}>
           <View style={styles.scoreLeft}>
@@ -405,6 +429,9 @@ function firstLimit(account: LinkedAccount | null): number | null {
   return account.accounts[0].balances.limit ?? null;
 }
 function fmt(n: number) { return n.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+function fmtPayoffDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
 function fmtK(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(0)}k`;
@@ -423,6 +450,54 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
   settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.gray100, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
+
+  payoffHeroCard: {
+    backgroundColor: Colors.mint50,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    borderWidth:     1,
+    borderColor:     Colors.mint200,
+    alignItems:      'center',
+    gap:             Spacing[1],
+    ...Shadows.card,
+  },
+  payoffHeroBadge: {
+    position:          'absolute',
+    top:               Spacing[3],
+    right:             Spacing[3],
+    backgroundColor:   Colors.gray100,
+    borderRadius:      Radius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical:   2,
+  },
+  payoffHeroBadgeText: { fontSize: Typography.xs, color: Colors.textMuted },
+  payoffHeroEyebrow: {
+    fontSize:      10,
+    fontWeight:    Typography.extrabold,
+    color:         Colors.mint400,
+    letterSpacing: 1.4,
+    marginBottom:  Spacing[1],
+  },
+  payoffHeroValue: {
+    fontSize:   Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color:      Colors.mint700,
+  },
+  payoffHeroDate: {
+    fontSize:   Typography.base,
+    fontWeight: Typography.semibold,
+    color:      Colors.mint600,
+  },
+  payoffHeroSavingsRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           5,
+    marginTop:     Spacing[1],
+  },
+  payoffHeroSavingsSub: {
+    fontSize: Typography.sm,
+    color:    Colors.mint600,
+  },
 
   scoreCard:     { borderRadius: Radius.lg, padding: Spacing[5], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...Shadows.glow },
   scoreLeft:     { flex: 1 },

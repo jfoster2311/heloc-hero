@@ -10,8 +10,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
-import { computeProjection, genericProjection } from '../../lib/projections';
+import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
+
+function fmtPayoffDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
 
 // Ease-out cubic counter using requestAnimationFrame.
 function countUp(
@@ -57,7 +61,7 @@ export default function RevealScreen() {
     return genericProjection();
   })();
 
-  const targetYears    = projection.monthsSaved / 12;
+  const targetMonths   = projection.monthsSaved;
   const targetInterest = Math.max(0, Math.round(projection.interestSaved));
   const hasRealNumbers = projection.monthsSaved > 0;
 
@@ -65,7 +69,7 @@ export default function RevealScreen() {
   const heroOpacity   = useRef(new Animated.Value(0)).current;
   const heroScale     = useRef(new Animated.Value(0.97)).current;
   const progressAnim  = useRef(new Animated.Value(0)).current;
-  const [displayYears,    setDisplayYears]    = useState(0);
+  const [displayMonths,   setDisplayMonths]   = useState(0);
   const [displayInterest, setDisplayInterest] = useState(0);
   const [animDone,        setAnimDone]        = useState(false);
 
@@ -80,7 +84,7 @@ export default function RevealScreen() {
         heroOpacity.setValue(1);
         heroScale.setValue(1);
         progressAnim.setValue(1);
-        setDisplayYears(targetYears);
+        setDisplayMonths(targetMonths);
         setDisplayInterest(targetInterest);
         setAnimDone(true);
         return;
@@ -108,10 +112,10 @@ export default function RevealScreen() {
         }),
       ]).start();
 
-      // Phase 2 (650ms): years saved count up.
+      // Phase 2 (650ms): months saved count up.
       const t2 = setTimeout(() => {
         if (cancelled) return;
-        countUp(0, targetYears, 500, (v) => setDisplayYears(v));
+        countUp(0, targetMonths, 500, (v) => setDisplayMonths(v));
       }, 650);
 
       // Phase 3 (1250ms): interest saved count up → haptic at payoff beat.
@@ -139,7 +143,7 @@ export default function RevealScreen() {
   }, []);
 
   // ─── Display values (clamp to final once animation is done) ────────────────
-  const shownYears    = animDone ? targetYears    : displayYears;
+  const shownMonths   = animDone ? targetMonths   : displayMonths;
   const shownInterest = animDone ? targetInterest : displayInterest;
 
   async function finishAndNavigate(goUpgrade: boolean) {
@@ -162,7 +166,7 @@ export default function RevealScreen() {
         {/* Projection hero — animated */}
         <Animated.View style={{ opacity: heroOpacity, transform: [{ scale: heroScale }] }}>
           <LinearGradient colors={Gradients.hero} style={styles.hero}>
-            <Text style={styles.heroLabel}>YOUR ESTIMATED RESULTS</Text>
+            <Text style={styles.heroLabel}>YOUR PROJECTED RESULTS</Text>
 
             {/* Anticipation bar — fills left-to-right before numbers appear */}
             <View style={styles.progressTrack}>
@@ -176,29 +180,50 @@ export default function RevealScreen() {
               />
             </View>
 
-            <View style={styles.heroNumbers}>
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatValue}>{shownYears.toFixed(1)} yrs</Text>
-                <Text style={styles.heroStatLabel}>Projected sooner</Text>
-              </View>
-              <View style={styles.heroDivider} />
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatValue}>
-                  {shownInterest > 0 ? `$${Math.round(shownInterest / 1000)}k` : '—'}
+            {/* PRIMARY: time saved — the largest element */}
+            <View style={styles.gapBlock}>
+              <Text style={styles.gapValue}>
+                {formatMonths(Math.max(0, Math.round(shownMonths)))}
+              </Text>
+              <Text style={styles.gapSublabel}>SOONER, PROJECTED</Text>
+            </View>
+
+            {/* SECONDARY: before / after payoff dates */}
+            <View style={styles.datesRow}>
+              <View style={styles.dateCol}>
+                <Text style={styles.dateColLabel}>WITHOUT</Text>
+                <Text style={styles.dateColValue}>
+                  {fmtPayoffDate(projection.originalPayoffDate)}
                 </Text>
-                <Text style={styles.heroStatLabel}>Est. interest saved</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.35)" />
+              <View style={styles.dateCol}>
+                <Text style={[styles.dateColLabel, styles.dateColLabelAccel]}>WITH HELOC HERO</Text>
+                <Text style={[styles.dateColValue, styles.dateColValueAccel]}>
+                  {fmtPayoffDate(projection.acceleratedPayoffDate)}
+                </Text>
               </View>
             </View>
 
-            {hasRealNumbers ? (
-              <Text style={styles.heroDisclaimer}>
-                Based on your numbers. Projected, not guaranteed.
-              </Text>
-            ) : (
-              <Text style={styles.heroDisclaimer}>
-                Enter your details to see personalized projections.
-              </Text>
+            {/* TERTIARY: interest saved */}
+            {shownInterest > 100 && (
+              <View style={styles.interestRow}>
+                <Ionicons name="cash-outline" size={13} color="rgba(255,255,255,0.55)" />
+                <Text style={styles.interestText}>
+                  Est.{' '}
+                  <Text style={styles.interestBold}>
+                    ${Math.round(shownInterest / 1000)}k
+                  </Text>
+                  {' '}in interest saved
+                </Text>
+              </View>
             )}
+
+            <Text style={styles.heroDisclaimer}>
+              {hasRealNumbers
+                ? 'Based on your numbers. Projected, not guaranteed.'
+                : 'Enter your details to see personalized projections.'}
+            </Text>
           </LinearGradient>
         </Animated.View>
 
@@ -323,27 +348,61 @@ const styles = StyleSheet.create({
     borderRadius:    1,
   },
 
-  heroNumbers: {
+  // Gap — the hero number
+  gapBlock: { alignItems: 'center', gap: 4 },
+  gapValue: {
+    fontSize:      44,
+    fontWeight:    Typography.extrabold,
+    color:         Colors.white,
+    lineHeight:    52,
+    textAlign:     'center',
+  },
+  gapSublabel: {
+    fontSize:      11,
+    fontWeight:    Typography.bold,
+    color:         'rgba(255,255,255,0.6)',
+    letterSpacing: 1.2,
+  },
+
+  // Before / after dates
+  datesRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            Spacing[4],
+  },
+  dateCol:           { alignItems: 'center', gap: 3 },
+  dateColLabel: {
+    fontSize:      10,
+    fontWeight:    Typography.bold,
+    color:         'rgba(255,255,255,0.45)',
+    letterSpacing: 1,
+  },
+  dateColLabelAccel: { color: 'rgba(255,255,255,0.75)' },
+  dateColValue: {
+    fontSize:   Typography.base,
+    fontWeight: Typography.semibold,
+    color:      'rgba(255,255,255,0.65)',
+  },
+  dateColValueAccel: { color: Colors.white },
+
+  // Interest saved (tertiary)
+  interestRow: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           Spacing[6],
+    gap:           Spacing[1] + 2,
   },
-  heroStat:      { alignItems: 'center' },
-  heroStatValue: {
-    fontSize:   Typography['4xl'],
-    fontWeight: Typography.extrabold,
-    color:      Colors.white,
-    lineHeight: 48,
+  interestText: {
+    fontSize: Typography.sm,
+    color:    'rgba(255,255,255,0.6)',
   },
-  heroStatLabel: {
-    fontSize:  Typography.xs,
-    color:     'rgba(255,255,255,0.7)',
-    marginTop: 2,
+  interestBold: {
+    fontWeight: Typography.semibold,
+    color:      'rgba(255,255,255,0.85)',
   },
-  heroDivider: { width: 1, height: 48, backgroundColor: 'rgba(255,255,255,0.25)' },
+
   heroDisclaimer: {
     fontSize:  Typography.xs,
-    color:     'rgba(255,255,255,0.55)',
+    color:     'rgba(255,255,255,0.45)',
     textAlign: 'center',
   },
 
