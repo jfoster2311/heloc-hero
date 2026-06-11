@@ -25,6 +25,7 @@ export default function SignupScreen() {
   const [showConfirm, setShowConfirm]   = useState(false);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState('');
+  const [confirmationSent, setConfirmationSent] = useState('');
 
   async function handleSignUp() {
     if (!fullName || !email || !password) {
@@ -51,15 +52,57 @@ export default function SignupScreen() {
       return;
     }
 
-    if (data?.user) {
-      // Carry the name from this form into the onboarding store so submit() persists it.
-      updateOnboarding({ fullName: fullName.trim() });
-      // Persist onboarding answers + set onboarding_complete: true in Supabase.
-      await submitOnboarding(data.user.id);
-      // Re-fetch profile so _layout.tsx sees onboarding_complete: true and routes to tabs.
-      await refreshProfile();
+    if (!data?.user) {
+      setError('Sign-up failed. Please try again.');
+      setLoading(false);
+      return;
     }
+
+    if (!data.session) {
+      // Supabase requires email confirmation — session won't exist until confirmed.
+      // Don't navigate; just tell the user to check their inbox.
+      setConfirmationSent(email.trim());
+      setLoading(false);
+      return;
+    }
+
+    // Session exists — confirmation not required. Proceed immediately.
+    updateOnboarding({ fullName: fullName.trim() });
+    await submitOnboarding(data.user.id);
+    await refreshProfile();
     // _layout.tsx redirect fires once profile.onboarding_complete is true.
+  }
+
+  if (confirmationSent) {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={[styles.container, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
+          <LinearGradient colors={Gradients.primary} style={styles.header}>
+            <Text style={styles.logoText}>HELOC</Text>
+            <Text style={styles.logoSubText}>HERO</Text>
+          </LinearGradient>
+          <View style={[styles.card, { alignItems: 'center', gap: Spacing[4] }]}>
+            <Ionicons name="mail-outline" size={48} color={Colors.mint600} />
+            <Text style={styles.title}>Check your email</Text>
+            <Text style={[styles.subtitle, { textAlign: 'center' }]}>
+              We sent a confirmation link to:
+            </Text>
+            <Text style={{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary, textAlign: 'center' }}>
+              {confirmationSent}
+            </Text>
+            <Text style={[styles.subtitle, { textAlign: 'center' }]}>
+              Open the link to activate your account, then come back and sign in.
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, { marginTop: Spacing[2], alignSelf: 'stretch' }]}
+              onPress={() => router.replace('/auth/login' as never)}
+            >
+              <Text style={styles.buttonText}>Go to Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
   }
 
   return (
