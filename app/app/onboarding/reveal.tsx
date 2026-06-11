@@ -165,10 +165,6 @@ export default function RevealScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={{ backgroundColor: '#12B76A', padding: 16, borderRadius: 12, marginBottom: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', textAlign: 'center' }}>NEW BUILD v2 — IF YOU SEE THIS, RELOAD WORKED</Text>
-        </View>
-
         {/* Projection hero — animated */}
         <Animated.View style={{ opacity: heroOpacity, transform: [{ scale: heroScale }] }}>
           <LinearGradient colors={Gradients.hero} style={styles.hero}>
