@@ -4,48 +4,59 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import FormField from '../../components/ui/FormField';
+import SliderField from '../../components/ui/SliderField';
+import ChipField from '../../components/ui/ChipField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { calcMonthlyPayment, calcRemainingBalance } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+
+const TERM_OPTIONS = [
+  { value: 15, label: '15 yr' },
+  { value: 20, label: '20 yr' },
+  { value: 25, label: '25 yr' },
+  { value: 30, label: '30 yr' },
+];
+
+function fmtDollar(v: number) {
+  return '$' + Math.round(v).toLocaleString('en-US');
+}
+
+function fmtRate(v: number) {
+  return v.toFixed(2) + '%';
+}
 
 export default function HomeInfoStep() {
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
-  const [homeValue,          setHomeValue]          = useState(String(data.homeValue ?? ''));
-  const [originalLoanAmount, setOriginalLoanAmount] = useState(String(data.loanOriginalAmount ?? ''));
-  const [originationYear,    setOriginationYear]    = useState(String(data.loanOriginationYear ?? ''));
-  const [loanTermYears,      setLoanTermYears]      = useState(String(data.loanTermYears ?? '30'));
-  const [mortgageRate,       setMortgageRate]       = useState(
-    data.mortgageRate ? String(data.mortgageRate * 100) : '',
-  );
-  const [monthlyPayment,     setMonthlyPayment]     = useState(
-    String(data.monthlyPayment ?? ''),
-  );
-  const [mortgageBalance,    setMortgageBalance]    = useState(String(data.mortgageBalance ?? ''));
-  const [paymentEstimated,   setPaymentEstimated]   = useState(false);
-  const [balanceEstimated,   setBalanceEstimated]   = useState(false);
+  // Primary slider inputs (numeric)
+  const [homeValue,          setHomeValue]          = useState(data.homeValue          ?? 450_000);
+  const [originalLoanAmount, setOriginalLoanAmount] = useState(data.loanOriginalAmount ?? 380_000);
+  const [mortgageRatePct,    setMortgageRatePct]    = useState(data.mortgageRate ? data.mortgageRate * 100 : 6.5);
+  const [loanTermYears,      setLoanTermYears]      = useState<number>(data.loanTermYears ?? 30);
 
-  // Auto-calculate monthly payment and current balance when loan parameters are available.
+  // Origination year — text (too many values for a slider)
+  const [originationYear, setOriginationYear] = useState(String(data.loanOriginationYear ?? ''));
+
+  // Payment + balance: auto-computed; user can tap to override
+  const [monthlyPayment,   setMonthlyPayment]   = useState(data.monthlyPayment  ? String(Math.round(data.monthlyPayment))  : '');
+  const [mortgageBalance,  setMortgageBalance]  = useState(data.mortgageBalance ? String(Math.round(data.mortgageBalance)) : '');
+  const [paymentEstimated, setPaymentEstimated] = useState(false);
+  const [balanceEstimated, setBalanceEstimated] = useState(false);
+
+  // Auto-compute payment + balance whenever loan parameters change
   useEffect(() => {
-    const principal = parseFloat(originalLoanAmount);
-    const rate      = parseFloat(mortgageRate) / 100;
-    const termYrs   = parseFloat(loanTermYears);
-    const year      = parseInt(originationYear, 10);
-    const now       = new Date();
-
+    const year = parseInt(originationYear, 10);
+    const now  = new Date();
     if (
-      principal > 0 && rate > 0 && termYrs > 0 &&
+      originalLoanAmount > 0 && mortgageRatePct > 0 && loanTermYears > 0 &&
       year >= 1970 && year <= now.getFullYear()
     ) {
-      const termMonths    = Math.round(termYrs * 12);
-      const payment       = calcMonthlyPayment(principal, rate, termMonths);
-      const elapsedMonths = Math.min(
-        (now.getFullYear() - year) * 12 + now.getMonth(),
-        termMonths - 1,
-      );
-      const balance = calcRemainingBalance(principal, rate, termMonths, elapsedMonths);
-
+      const rate         = mortgageRatePct / 100;
+      const termMonths   = Math.round(loanTermYears * 12);
+      const payment      = calcMonthlyPayment(originalLoanAmount, rate, termMonths);
+      const elapsed      = Math.min((now.getFullYear() - year) * 12 + now.getMonth(), termMonths - 1);
+      const balance      = calcRemainingBalance(originalLoanAmount, rate, termMonths, elapsed);
       setMonthlyPayment(Math.round(payment).toString());
       setPaymentEstimated(true);
       setMortgageBalance(Math.round(balance).toString());
@@ -54,30 +65,33 @@ export default function HomeInfoStep() {
       setPaymentEstimated(false);
       setBalanceEstimated(false);
     }
-  }, [originalLoanAmount, mortgageRate, loanTermYears, originationYear]);
+  }, [originalLoanAmount, mortgageRatePct, loanTermYears, originationYear]);
+
+  const mortgageBalNum = parseFloat(mortgageBalance) || 0;
+  const monthlyPayNum  = parseFloat(monthlyPayment)  || 0;
 
   const isValid =
-    parseFloat(homeValue) > 0 &&
-    parseFloat(mortgageBalance) > 0 &&
-    parseFloat(mortgageRate) > 0 &&
-    parseFloat(monthlyPayment) > 0;
+    homeValue > 0 &&
+    mortgageBalNum > 0 &&
+    mortgageRatePct > 0 &&
+    monthlyPayNum > 0;
 
   function handleNext() {
     update({
-      homeValue:           parseFloat(homeValue),
-      mortgageBalance:     parseFloat(mortgageBalance),
-      mortgageRate:        parseFloat(mortgageRate) / 100,
-      monthlyPayment:      parseFloat(monthlyPayment),
-      loanOriginalAmount:  parseFloat(originalLoanAmount) || undefined,
-      loanTermYears:       parseFloat(loanTermYears) || undefined,
+      homeValue,
+      mortgageBalance:     mortgageBalNum,
+      mortgageRate:        mortgageRatePct / 100,
+      monthlyPayment:      monthlyPayNum,
+      loanOriginalAmount:  originalLoanAmount || undefined,
+      loanTermYears,
       loanOriginationYear: parseInt(originationYear, 10) || undefined,
     });
     nextStep();
     router.push('/onboarding/income');
   }
 
-  const equity    = parseFloat(homeValue) - parseFloat(mortgageBalance);
-  const equityPct = parseFloat(homeValue) > 0 ? (equity / parseFloat(homeValue)) * 100 : 0;
+  const equity    = homeValue - mortgageBalNum;
+  const equityPct = homeValue > 0 ? (equity / homeValue) * 100 : 0;
 
   return (
     <OnboardingStep
@@ -89,23 +103,40 @@ export default function HomeInfoStep() {
       onNext={handleNext}
       nextDisabled={!isValid}
     >
-      <FormField
+      <SliderField
         label="Home Value (estimated)"
-        prefix="$"
         value={homeValue}
-        onChangeText={setHomeValue}
-        keyboardType="decimal-pad"
-        placeholder="450,000"
+        min={50_000}
+        max={2_000_000}
+        step={5_000}
+        format={fmtDollar}
         hint="Use Zillow or your last appraisal"
+        onChange={setHomeValue}
       />
-      <FormField
+      <SliderField
         label="Original Loan Amount"
-        prefix="$"
         value={originalLoanAmount}
-        onChangeText={setOriginalLoanAmount}
-        keyboardType="decimal-pad"
-        placeholder="380,000"
+        min={50_000}
+        max={1_500_000}
+        step={5_000}
+        format={fmtDollar}
         hint="The amount you originally borrowed"
+        onChange={setOriginalLoanAmount}
+      />
+      <SliderField
+        label="Mortgage Interest Rate"
+        value={mortgageRatePct}
+        min={2}
+        max={15}
+        step={0.25}
+        format={fmtRate}
+        onChange={setMortgageRatePct}
+      />
+      <ChipField
+        label="Loan Term"
+        options={TERM_OPTIONS}
+        value={loanTermYears}
+        onChange={setLoanTermYears}
       />
       <FormField
         label="Year Loan Was Opened"
@@ -114,23 +145,6 @@ export default function HomeInfoStep() {
         keyboardType="number-pad"
         placeholder="2019"
         hint="Used to estimate your current balance"
-      />
-      <FormField
-        label="Loan Term"
-        suffix=" yrs"
-        value={loanTermYears}
-        onChangeText={setLoanTermYears}
-        keyboardType="number-pad"
-        placeholder="30"
-        hint="Typically 15, 20, or 30 years"
-      />
-      <FormField
-        label="Mortgage Interest Rate"
-        suffix="%"
-        value={mortgageRate}
-        onChangeText={setMortgageRate}
-        keyboardType="decimal-pad"
-        placeholder="6.5"
       />
       <FormField
         label="Monthly P&I Payment"
@@ -150,9 +164,7 @@ export default function HomeInfoStep() {
         onChangeText={(v) => { setMortgageBalance(v); setBalanceEstimated(false); }}
         keyboardType="decimal-pad"
         placeholder="350,000"
-        hint={balanceEstimated
-          ? 'Estimated from elapsed payments — tap to adjust'
-          : undefined}
+        hint={balanceEstimated ? 'Estimated from elapsed payments — tap to adjust' : undefined}
       />
 
       {isValid && (
@@ -171,27 +183,27 @@ export default function HomeInfoStep() {
 const styles = StyleSheet.create({
   equityCard: {
     backgroundColor: Colors.mint50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.mint200,
-    marginTop: Spacing[2],
+    borderRadius:    Radius.lg,
+    padding:         Spacing[4],
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     Colors.mint200,
+    marginTop:       Spacing[2],
   },
   equityLabel: {
-    fontSize: Typography.sm,
-    color: Colors.mint700,
+    fontSize:   Typography.sm,
+    color:      Colors.mint700,
     fontWeight: Typography.medium,
   },
   equityValue: {
-    fontSize: Typography['3xl'],
+    fontSize:   Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
-    marginTop: Spacing[1],
+    color:      Colors.mint600,
+    marginTop:  Spacing[1],
   },
   equityPct: {
-    fontSize: Typography.sm,
-    color: Colors.mint600,
+    fontSize:  Typography.sm,
+    color:     Colors.mint600,
     marginTop: 2,
   },
 });

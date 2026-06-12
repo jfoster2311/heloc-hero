@@ -1,30 +1,31 @@
 // app/onboarding/income.tsx
-import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
-import FormField from '../../components/ui/FormField';
+import SliderField from '../../components/ui/SliderField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+
+function fmtDollar(v: number) {
+  return '$' + Math.round(v).toLocaleString('en-US') + '/mo';
+}
 
 export default function IncomeStep() {
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
-  const [income,   setIncome]   = useState(String(data.monthlyIncome   ?? ''));
-  const [expenses, setExpenses] = useState(String(data.monthlyExpenses ?? ''));
+  // Sliders — numeric state directly
+  const income   = data.monthlyIncome   ?? 8_000;
+  const expenses = data.monthlyExpenses ?? 5_500;
 
-  const incomeNum   = parseFloat(income)   || 0;
-  const expensesNum = parseFloat(expenses) || 0;
-  const grossSurplus = incomeNum - expensesNum;
-  const grossPct     = incomeNum > 0 ? (grossSurplus / incomeNum) * 100 : 0;
+  const grossSurplus = income - expenses;
+  const grossPct     = income > 0 ? (grossSurplus / income) * 100 : 0;
 
-  // Mortgage payment was entered in step 1 and is available in the store
+  // Mortgage payment from step 1
   const mortgagePayment = data.monthlyPayment ?? 0;
-  // True HELOC surplus = income − living expenses − mortgage payment
   const helocSurplus    = Math.max(0, grossSurplus - mortgagePayment);
 
-  const isValid = incomeNum > 0 && expensesNum > 0;
+  const isValid = income > 0 && expenses > 0;
 
   function getSurplusColor() {
     if (grossPct >= 25) return Colors.mint600;
@@ -33,14 +34,14 @@ export default function IncomeStep() {
   }
 
   function getSurplusMessage() {
-    if (grossSurplus <= 0) return 'Expenses exceed income — let\'s work on this together.';
+    if (grossSurplus <= 0) return "Expenses exceed income — let's work on this together.";
     if (grossPct >= 30)    return 'Excellent cash flow — this is your mortgage-crushing engine.';
     if (grossPct >= 15)    return 'Good surplus. Even this amount dramatically accelerates payoff.';
     return 'Small surplus is fine — the HELOC strategy still saves you significantly.';
   }
 
   function handleNext() {
-    update({ monthlyIncome: incomeNum, monthlyExpenses: expensesNum });
+    update({ monthlyIncome: income, monthlyExpenses: expenses });
     nextStep();
     router.push('/onboarding/heloc-info');
   }
@@ -55,28 +56,29 @@ export default function IncomeStep() {
       onNext={handleNext}
       nextDisabled={!isValid}
     >
-      <FormField
+      <SliderField
         label="Monthly Take-Home Income"
-        prefix="$"
         value={income}
-        onChangeText={setIncome}
-        keyboardType="decimal-pad"
-        placeholder="8,000"
+        min={1_000}
+        max={30_000}
+        step={250}
+        format={fmtDollar}
         hint="After-tax income across all household earners"
+        onChange={(v) => update({ monthlyIncome: v })}
       />
-      <FormField
+      <SliderField
         label="Monthly Expenses (excluding mortgage)"
-        prefix="$"
         value={expenses}
-        onChangeText={setExpenses}
-        keyboardType="decimal-pad"
-        placeholder="5,500"
+        min={500}
+        max={20_000}
+        step={250}
+        format={fmtDollar}
         hint="Food, utilities, subscriptions, car payments, etc."
+        onChange={(v) => update({ monthlyExpenses: v })}
       />
 
       {isValid && (
         <>
-          {/* Gross surplus (income minus living expenses) */}
           <View style={[styles.surplusCard, { borderColor: getSurplusColor() }]}>
             <Text style={styles.surplusLabel}>Gross Monthly Surplus</Text>
             <Text style={[styles.surplusValue, { color: getSurplusColor() }]}>
@@ -87,7 +89,6 @@ export default function IncomeStep() {
             <Text style={styles.surplusMsg}>{getSurplusMessage()}</Text>
           </View>
 
-          {/* Net HELOC surplus — only show when mortgage payment is known from step 1 */}
           {mortgagePayment > 0 && grossSurplus > 0 && (
             <View style={styles.helocSurplusCard}>
               <View style={styles.helocSurplusRow}>
@@ -123,8 +124,8 @@ const styles = StyleSheet.create({
     padding: Spacing[4], borderWidth: 1, borderColor: Colors.mint200,
     gap: Spacing[1],
   },
-  helocSurplusRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  helocSurplusLabel:{ fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
-  helocSurplusValue:{ fontSize: Typography.base, fontWeight: Typography.extrabold },
-  helocSurplusSub:  { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
+  helocSurplusRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  helocSurplusLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  helocSurplusValue: { fontSize: Typography.base, fontWeight: Typography.extrabold },
+  helocSurplusSub:   { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
 });
