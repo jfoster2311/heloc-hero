@@ -67,7 +67,7 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
         onLayout={e => setTrackWidth(e.nativeEvent.layout.width)}
         {...pan.panHandlers}
         accessibilityRole="adjustable"
-        accessibilityValue={{ min, max, now: value }}
+        accessibilityValue={{ min: Math.round(min), max: Math.round(max), now: Math.round(value) }}
       >
         <View style={styles.track}>
           <View style={[styles.fill, { width: Math.max(0, fillWidth) }]} />
