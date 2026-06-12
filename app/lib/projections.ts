@@ -2,23 +2,33 @@
 import type { PayoffProjection, CalculatorInputs } from './types';
 
 /**
- * Calculates mortgage payoff timelines with and without HELOC acceleration.
+ * Calculates mortgage payoff timelines with and without HELOC cycling.
  *
- * Strategy model:
- *  - Each month the regular P&I payment reduces mortgage balance.
- *  - monthlySurplus (income − all living expenses − mortgage payment)
- *    accumulates in the HELOC.
- *  - Every 12 months the accumulated surplus is dumped as an extra
- *    lump-sum principal payment.
- *  - HELOC interest cost on the accumulated balance is deducted from
- *    the effective surplus so projections aren’t overly optimistic.
+ * True cycling model:
+ *  1. Draw the HELOC (up to helocLimit, capped at 12× surplus) and dump
+ *     the full amount onto the mortgage principal immediately.
+ *  2. Each month, make the regular P&I payment AND replenish the HELOC
+ *     from monthly surplus (after covering HELOC interest on the drawn
+ *     balance).
+ *  3. Once the HELOC is fully replenished (drawn balance = 0), dump again.
+ *  4. Repeat until the mortgage is paid off.
+ *
+ * Capping at 12× surplus guarantees the HELOC can be replenished in
+ * roughly one year at any realistic HELOC rate.
  */
 export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
-  const { mortgageBalance, mortgageRate, monthlyPayment, monthlySurplus, helocRate } = inputs;
-  const monthlyRate       = mortgageRate / 12;
-  const helocMonthlyRate  = (helocRate ?? 0.085) / 12;
+  const { mortgageBalance, mortgageRate, monthlyPayment, monthlySurplus, helocRate, helocLimit } = inputs;
+  const monthlyRate      = mortgageRate / 12;
+  const helocMonthlyRate = (helocRate ?? 0.085) / 12;
 
-  // Guard: if payment can’t cover the first month’s interest the loan
+  // Maximum dump per cycle: user's helocLimit, capped at 12× surplus.
+  // 12× ensures replenishment within ~12 months even after HELOC interest.
+  const maxDump      = Math.max(0, monthlySurplus * 12);
+  const effectiveDump = helocLimit && helocLimit > 0
+    ? Math.min(helocLimit, maxDump)
+    : maxDump;
+
+  // Guard: if payment can't cover the first month's interest the loan
   // would grow forever — return a clearly capped result.
   if (monthlyRate > 0 && monthlyPayment <= mortgageBalance * monthlyRate) {
     const cap = new Date();
@@ -33,57 +43,55 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
     };
   }
 
-  // ─── Standard payoff (no extra payments) ───
-  let balance         = mortgageBalance;
-  let originalMonths  = 0;
+  // ─── Standard payoff (no extra payments) ───────────────────────────────────
+  let balance          = mortgageBalance;
+  let originalMonths   = 0;
   let totalStdInterest = 0;
 
   while (balance > 0.01 && originalMonths < 720) {
     const interest  = balance * monthlyRate;
     totalStdInterest += interest;
     const principal = Math.max(0, monthlyPayment - interest);
-    balance = Math.max(0, balance - principal);
+    balance         = Math.max(0, balance - principal);
     originalMonths++;
   }
 
-  // ─── Accelerated payoff (annual HELOC dump) ───
+  // ─── HELOC cycling payoff ──────────────────────────────────────────────────
   balance = mortgageBalance;
   let acceleratedMonths = 0;
-  let accumulated       = 0;
-  let totalAccInterest  = 0;
-  const DUMP_INTERVAL   = 12;
+  let helocDrawn        = 0;       // outstanding HELOC balance this cycle
+  let totalAccInterest  = 0;       // mortgage interest + HELOC interest paid
 
   while (balance > 0.01 && acceleratedMonths < 720) {
-    // Regular mortgage payment
-    const interest  = balance * monthlyRate;
-    totalAccInterest += interest;
-    const principal = Math.max(0, monthlyPayment - interest);
-    balance = Math.max(0, balance - principal);
-
-    // Accumulate surplus, minus the HELOC interest cost on the running balance.
-    // Approximation: average HELOC balance this month = accumulated / 2.
-    const helocInterestThisMonth = (accumulated / 2) * helocMonthlyRate;
-    accumulated += Math.max(0, monthlySurplus - helocInterestThisMonth);
-    acceleratedMonths++;
-
-    // Annual lump-sum principal dump
-    if (acceleratedMonths % DUMP_INTERVAL === 0 && accumulated > 0) {
-      balance     = Math.max(0, balance - accumulated);
-      accumulated = 0;
+    // When HELOC is fully replenished, execute the next principal dump.
+    if (helocDrawn <= 0 && effectiveDump > 0) {
+      const dump  = Math.min(effectiveDump, balance);
+      balance    -= dump;
+      helocDrawn  = dump;
+      if (balance <= 0.01) break;   // dump cleared the mortgage
     }
+
+    // Regular mortgage P&I payment.
+    const mortgageInterest = balance * monthlyRate;
+    totalAccInterest      += mortgageInterest;
+    const principal        = Math.max(0, monthlyPayment - mortgageInterest);
+    balance                = Math.max(0, balance - principal);
+
+    // Replenish HELOC from monthly surplus (after covering HELOC interest).
+    const helocInterest = helocDrawn * helocMonthlyRate;
+    totalAccInterest   += helocInterest;
+    const helocPayment  = Math.max(0, monthlySurplus - helocInterest);
+    helocDrawn          = Math.max(0, helocDrawn - helocPayment);
+
+    acceleratedMonths++;
   }
 
-  // Final dump: if any surplus remains after the last full year
-  if (balance > 0.01 && accumulated > 0) {
-    balance = Math.max(0, balance - accumulated);
-    // If this clears the loan, don’t add any more interest
-  }
-
-  const monthsSaved    = Math.max(0, originalMonths - acceleratedMonths);
-  const interestSaved  = Math.max(0, Math.round(totalStdInterest - totalAccInterest));
+  const monthsSaved   = Math.max(0, originalMonths - acceleratedMonths);
+  // interestSaved already nets out all HELOC interest paid during cycling.
+  const interestSaved = Math.max(0, Math.round(totalStdInterest - totalAccInterest));
 
   const now = new Date();
-  const originalPayoffDate = new Date(now);
+  const originalPayoffDate    = new Date(now);
   originalPayoffDate.setMonth(originalPayoffDate.getMonth() + originalMonths);
   const acceleratedPayoffDate = new Date(now);
   acceleratedPayoffDate.setMonth(acceleratedPayoffDate.getMonth() + acceleratedMonths);
