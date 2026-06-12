@@ -20,7 +20,7 @@ export default function IncomeStep() {
   const grossPct     = incomeNum > 0 ? (grossSurplus / incomeNum) * 100 : 0;
 
   // Mortgage payment was entered in step 1 and is available in the store
-  const mortgagePayment = data.mortgageMonthlyPayment ?? 0;
+  const mortgagePayment = data.monthlyPayment ?? 0;
   // True HELOC surplus = income − living expenses − mortgage payment
   const helocSurplus    = Math.max(0, grossSurplus - mortgagePayment);
 

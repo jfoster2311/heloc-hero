@@ -46,16 +46,18 @@ export default function RevealScreen() {
   const { user, refresh: refreshProfile } = useAuth();
 
   const projection = (() => {
+    // mortgageRate and helocRate are already stored as decimals (e.g. 0.065)
     const surplus = Math.max(0,
       (data.monthlyIncome ?? 0) - (data.monthlyExpenses ?? 0) - (data.monthlyPayment ?? 0),
     );
     if (data.mortgageBalance && data.mortgageRate && data.monthlyPayment) {
       return computeProjection({
         mortgageBalance: data.mortgageBalance,
-        mortgageRate:    data.mortgageRate / 100,
+        mortgageRate:    data.mortgageRate,
         monthlyPayment:  data.monthlyPayment,
         monthlySurplus:  surplus || 600,
-        helocRate:       (data.helocRate ?? 8.5) / 100,
+        helocRate:       data.helocRate ?? 0.085,
+        helocLimit:      data.helocLimit || undefined,
       });
     }
     return genericProjection();

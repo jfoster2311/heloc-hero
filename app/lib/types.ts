@@ -30,9 +30,8 @@ export interface OnboardingData {
   homeValue: number;
   mortgageBalance: number;
   mortgageRate: number;
+  /** Monthly P&I payment — canonical field name used everywhere */
   monthlyPayment: number;
-  /** Alias used in home-info step */
-  mortgageMonthlyPayment: number;
   monthlyIncome: number;
   monthlyExpenses: number;
   hasHeloc: boolean;
@@ -109,6 +108,8 @@ export interface CalculatorInputs {
   monthlyPayment: number;
   monthlySurplus: number;
   helocRate: number;
+  /** Optional HELOC credit limit; capped internally at 12× surplus */
+  helocLimit?: number;
 }
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ export default function HomeInfoStep() {
     data.mortgageRate ? String(data.mortgageRate * 100) : '',
   );
   const [monthlyPayment,     setMonthlyPayment]     = useState(
-    String(data.mortgageMonthlyPayment ?? ''),
+    String(data.monthlyPayment ?? ''),
   );
   const [mortgageBalance,    setMortgageBalance]    = useState(String(data.mortgageBalance ?? ''));
   const [paymentEstimated,   setPaymentEstimated]   = useState(false);
@@ -64,13 +64,13 @@ export default function HomeInfoStep() {
 
   function handleNext() {
     update({
-      homeValue:              parseFloat(homeValue),
-      mortgageBalance:        parseFloat(mortgageBalance),
-      mortgageRate:           parseFloat(mortgageRate) / 100,
-      mortgageMonthlyPayment: parseFloat(monthlyPayment),
-      loanOriginalAmount:     parseFloat(originalLoanAmount) || undefined,
-      loanTermYears:          parseFloat(loanTermYears) || undefined,
-      loanOriginationYear:    parseInt(originationYear, 10) || undefined,
+      homeValue:           parseFloat(homeValue),
+      mortgageBalance:     parseFloat(mortgageBalance),
+      mortgageRate:        parseFloat(mortgageRate) / 100,
+      monthlyPayment:      parseFloat(monthlyPayment),
+      loanOriginalAmount:  parseFloat(originalLoanAmount) || undefined,
+      loanTermYears:       parseFloat(loanTermYears) || undefined,
+      loanOriginationYear: parseInt(originationYear, 10) || undefined,
     });
     nextStep();
     router.push('/onboarding/income');
