@@ -36,7 +36,10 @@ export default function HomeInfoStep() {
   const [loanTermYears,      setLoanTermYears]      = useState<number>(data.loanTermYears ?? 30);
 
   // Origination year — text (too many values for a slider)
-  const [originationYear, setOriginationYear] = useState(String(data.loanOriginationYear ?? ''));
+  // Default to 5 years ago so auto-compute fires on mount and Continue is enabled.
+  const [originationYear, setOriginationYear] = useState(
+    String(data.loanOriginationYear ?? (new Date().getFullYear() - 5))
+  );
 
   // Payment + balance: auto-computed; user can tap to override
   const [monthlyPayment,   setMonthlyPayment]   = useState(data.monthlyPayment  ? String(Math.round(data.monthlyPayment))  : '');
