@@ -13,6 +13,35 @@ import { useAuth } from '../../hooks/useAuth';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
 
+// ── Particle system (module-level so Math.random runs once at load) ──────────
+const GREENS = ['#12B76A', '#4ade80', '#6ee7b7', '#34d399', 'rgba(74,222,128,0.8)'];
+interface Particle { angle: number; dist: number; size: number; color: string }
+const PARTICLES: Particle[] = Array.from({ length: 26 }, (_, i) => ({
+  angle: (i / 26) * Math.PI * 2 + (Math.random() * 0.48 - 0.24),
+  dist:  60 + Math.random() * 90,
+  size:  3 + Math.random() * 5,
+  color: GREENS[i % GREENS.length],
+}));
+
+function ParticleDot({ p, anim }: { p: Particle; anim: Animated.Value }) {
+  const tx = anim.interpolate({ inputRange: [0, 1], outputRange: [0, p.dist * Math.cos(p.angle)] });
+  const ty = anim.interpolate({ inputRange: [0, 1], outputRange: [0, p.dist * Math.sin(p.angle)] });
+  const op = anim.interpolate({ inputRange: [0, 0.1, 0.6, 1], outputRange: [0, 1, 0.85, 0] });
+  const sc = anim.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1.4, 0.7] });
+  return (
+    <Animated.View style={{
+      position:        'absolute',
+      width:           p.size,
+      height:          p.size,
+      borderRadius:    p.size / 2,
+      backgroundColor: p.color,
+      opacity:         op,
+      transform:       [{ translateX: tx }, { translateY: ty }, { scale: sc }],
+    }} />
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function fmtPayoffDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
@@ -46,7 +75,6 @@ export default function RevealScreen() {
   const { user, refresh: refreshProfile } = useAuth();
 
   const projection = (() => {
-    // mortgageRate and helocRate are already stored as decimals (e.g. 0.065)
     const surplus = Math.max(0,
       (data.monthlyIncome ?? 0) - (data.monthlyExpenses ?? 0) - (data.monthlyPayment ?? 0),
     );
@@ -67,10 +95,26 @@ export default function RevealScreen() {
   const targetInterest = Math.max(0, Math.round(projection.interestSaved));
   const hasRealNumbers = projection.monthsSaved > 0;
 
-  // ─── Animation state ───────────────────────────────────────────────────────
-  const heroOpacity   = useRef(new Animated.Value(0)).current;
-  const heroScale     = useRef(new Animated.Value(0.97)).current;
-  const progressAnim  = useRef(new Animated.Value(0)).current;
+  // ── Ritual animated values ─────────────────────────────────────────────────
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
+  const ritualOpacity  = useRef(new Animated.Value(0)).current;
+  const spinnerRotate  = useRef(new Animated.Value(0)).current;
+  const glowScale      = useRef(new Animated.Value(1)).current;
+  const glowOpacity    = useRef(new Animated.Value(0.35)).current;
+  const particleBurst  = useRef(new Animated.Value(0)).current;
+  // Refs so loops can be stopped from the effect cleanup (they live in .then() scope)
+  const spinnerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const glowLoopRef    = useRef<Animated.CompositeAnimation | null>(null);
+
+  const spinnerDeg = spinnerRotate.interpolate({
+    inputRange:  [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  // ── Main reveal animated values ───────────────────────────────────────────
+  const heroOpacity  = useRef(new Animated.Value(0)).current;
+  const heroScale    = useRef(new Animated.Value(0.97)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
   const [displayMonths,   setDisplayMonths]   = useState(0);
   const [displayInterest, setDisplayInterest] = useState(0);
   const [animDone,        setAnimDone]        = useState(false);
@@ -82,7 +126,8 @@ export default function RevealScreen() {
       if (cancelled) return;
 
       if (reduced) {
-        // Skip animation — show final values immediately.
+        // Skip ritual + animations — show final values immediately.
+        overlayOpacity.setValue(0);
         heroOpacity.setValue(1);
         heroScale.setValue(1);
         progressAnim.setValue(1);
@@ -92,67 +137,114 @@ export default function RevealScreen() {
         return;
       }
 
-      // Phase 1 (0-650ms): hero fades/scales in + progress bar fills.
-      Animated.parallel([
-        Animated.timing(heroOpacity, {
-          toValue:         1,
-          duration:        650,
-          easing:          Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(heroScale, {
-          toValue:         1,
-          duration:        700,
-          easing:          Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(progressAnim, {
-          toValue:         1,
-          duration:        550,
-          easing:          Easing.inOut(Easing.quad),
-          useNativeDriver: false,  // width interpolation requires JS driver
-        }),
-      ]).start();
+      // ── Phase 0 (0ms): Ritual — dark screen + spinning ring ─────────────
+      Animated.timing(ritualOpacity, {
+        toValue: 1, duration: 260, useNativeDriver: true,
+      }).start();
 
-      // Phase 2 (650ms): months saved count up.
-      const t2 = setTimeout(() => {
+      const spinnerLoop = Animated.loop(
+        Animated.timing(spinnerRotate, {
+          toValue: 1, duration: 1100, easing: Easing.linear, useNativeDriver: true,
+        }),
+      );
+      spinnerLoopRef.current = spinnerLoop;
+      spinnerLoop.start();
+
+      const glowLoop = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(glowScale,   { toValue: 1.2,  duration: 720, useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.9,  duration: 720, useNativeDriver: true }),
+          ]),
+          Animated.parallel([
+            Animated.timing(glowScale,   { toValue: 0.85, duration: 720, useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.25, duration: 720, useNativeDriver: true }),
+          ]),
+        ]),
+      );
+      glowLoopRef.current = glowLoop;
+      glowLoop.start();
+
+      // 950ms: stop loops, fade out ritual overlay (400ms)
+      const tOverlay = setTimeout(() => {
+        if (cancelled) return;
+        glowLoopRef.current?.stop();
+        spinnerLoopRef.current?.stop();
+        Animated.timing(overlayOpacity, {
+          toValue: 0, duration: 400, useNativeDriver: true,
+        }).start();
+      }, 950);
+
+      // ── Phase 1 (1150ms): hero fades/scales in + progress bar fills ──────
+      const tPhase1 = setTimeout(() => {
+        if (cancelled) return;
+        Animated.parallel([
+          Animated.timing(heroOpacity, {
+            toValue:         1,
+            duration:        650,
+            easing:          Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(heroScale, {
+            toValue:         1,
+            duration:        700,
+            easing:          Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(progressAnim, {
+            toValue:         1,
+            duration:        550,
+            easing:          Easing.inOut(Easing.quad),
+            useNativeDriver: false,   // width interpolation requires JS driver
+          }),
+        ]).start();
+      }, 1150);
+
+      // ── Phase 2 (1800ms): months-saved count-up ───────────────────────────
+      const tPhase2 = setTimeout(() => {
         if (cancelled) return;
         countUp(0, targetMonths, 500, (v) => setDisplayMonths(v));
-      }, 650);
+      }, 1800);
 
-      // Phase 3 (1250ms): interest saved count up → haptic at payoff beat.
-      const t3 = setTimeout(() => {
+      // ── Phase 3 (2400ms): interest count-up → particle burst + haptic ─────
+      const tPhase3 = setTimeout(() => {
         if (cancelled) return;
         countUp(0, targetInterest, 600, (v) => setDisplayInterest(v), () => {
           if (!cancelled) {
             setAnimDone(true);
-            // Guard haptics — native module, not available in Expo Go.
+            Animated.timing(particleBurst, {
+              toValue:         1,
+              duration:        850,
+              easing:          Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start();
             import('expo-haptics').then((Haptics) => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             }).catch(() => {});
           }
         });
-      }, 1250);
+      }, 2400);
 
-      return () => {
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
+      // Suppress unused-variable lint warnings; timeouts are guarded by `cancelled`
+      void tOverlay; void tPhase1; void tPhase2; void tPhase3;
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Stop loops immediately so they don't outlive the component.
+      spinnerLoopRef.current?.stop();
+      glowLoopRef.current?.stop();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Display values (clamp to final once animation is done) ────────────────
+  // ── Display values (clamp to final once animation is done) ────────────────
   const shownMonths   = animDone ? targetMonths   : displayMonths;
   const shownInterest = animDone ? targetInterest : displayInterest;
 
   async function finishAndNavigate(goUpgrade: boolean) {
     if (user) {
       await submit(user.id);
-      // Sync onboarding_complete: true into the in-memory profile so _layout.tsx
-      // routes to tabs instead of looping back to onboarding.
       await refreshProfile();
     }
     if (goUpgrade) {
@@ -184,7 +276,7 @@ export default function RevealScreen() {
               />
             </View>
 
-            {/* PRIMARY: time saved — the largest element */}
+            {/* PRIMARY: time saved */}
             <View style={styles.gapBlock}>
               <Text style={styles.gapValue}>
                 {formatMonths(Math.max(0, Math.round(shownMonths)))}
@@ -262,13 +354,13 @@ export default function RevealScreen() {
             HELOC Hero is a strategy engine that does three things no budget app can:
           </Text>
           <View style={styles.thingsList}>
-            <ThingRow icon="calculator-outline" text="Calculates the exact principal dump amount each cycle" />
-            <ThingRow icon="time-outline"       text="Times each dump to maximize daily interest reduction" />
+            <ThingRow icon="calculator-outline"   text="Calculates the exact principal dump amount each cycle" />
+            <ThingRow icon="time-outline"         text="Times each dump to maximize daily interest reduction" />
             <ThingRow icon="trending-down-outline" text="Shows a live payoff curve that updates with your real balances" />
           </View>
         </View>
 
-        {/* Primary CTA — upgrade */}
+        {/* Primary CTA */}
         <View style={styles.ctas}>
           <TouchableOpacity
             style={styles.primaryBtn}
@@ -308,6 +400,37 @@ export default function RevealScreen() {
           Results vary based on interest rates, spending, and strategy consistency.
         </Text>
       </ScrollView>
+
+      {/* ── Particle burst layer (above ScrollView, ignores touches) ──────── */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {/* Origin sits at the approximate center of the hero number */}
+        <View style={styles.particleOrigin}>
+          {PARTICLES.map((p, i) => (
+            <ParticleDot key={i} p={p} anim={particleBurst} />
+          ))}
+        </View>
+      </View>
+
+      {/* ── Ritual overlay (above everything, covers full screen) ──────────── */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, styles.ritualOverlay, { opacity: overlayOpacity }]}
+        pointerEvents="none"
+      >
+        <Animated.View style={[styles.ritualWrap, { opacity: ritualOpacity }]}>
+          {/* Outer glow — pulsing green ring */}
+          <Animated.View style={[
+            styles.glowRing,
+            { opacity: glowOpacity, transform: [{ scale: glowScale }] },
+          ]} />
+          {/* Spinner arc */}
+          <Animated.View style={[
+            styles.spinnerArc,
+            { transform: [{ rotate: spinnerDeg }] },
+          ]} />
+          {/* Center dot */}
+          <View style={styles.centerDot} />
+        </Animated.View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -325,6 +448,7 @@ const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: Colors.mint700 },
   container: { flexGrow: 1, backgroundColor: Colors.surface },
 
+  // ── Hero card ──────────────────────────────────────────────────────────────
   hero: {
     paddingTop:        Spacing[10],
     paddingBottom:     Spacing[8],
@@ -352,14 +476,13 @@ const styles = StyleSheet.create({
     borderRadius:    1,
   },
 
-  // Gap — the hero number
-  gapBlock: { alignItems: 'center', gap: 4 },
+  gapBlock:    { alignItems: 'center', gap: 4 },
   gapValue: {
-    fontSize:      44,
-    fontWeight:    Typography.extrabold,
-    color:         Colors.white,
-    lineHeight:    52,
-    textAlign:     'center',
+    fontSize:   44,
+    fontWeight: Typography.extrabold,
+    color:      Colors.white,
+    lineHeight: 52,
+    textAlign:  'center',
   },
   gapSublabel: {
     fontSize:      11,
@@ -368,12 +491,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
 
-  // Before / after dates
-  datesRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            Spacing[4],
-  },
+  datesRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[4] },
   dateCol:           { alignItems: 'center', gap: 3 },
   dateColLabel: {
     fontSize:      10,
@@ -389,20 +507,9 @@ const styles = StyleSheet.create({
   },
   dateColValueAccel: { color: Colors.white },
 
-  // Interest saved (tertiary)
-  interestRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           Spacing[1] + 2,
-  },
-  interestText: {
-    fontSize: Typography.sm,
-    color:    'rgba(255,255,255,0.6)',
-  },
-  interestBold: {
-    fontWeight: Typography.semibold,
-    color:      'rgba(255,255,255,0.85)',
-  },
+  interestRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] + 2 },
+  interestText: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.6)' },
+  interestBold: { fontWeight: Typography.semibold, color: 'rgba(255,255,255,0.85)' },
 
   heroDisclaimer: {
     fontSize:  Typography.xs,
@@ -410,6 +517,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  // ── No-HELOC card ──────────────────────────────────────────────────────────
   noHelocCard: {
     marginHorizontal: Spacing[5],
     backgroundColor:  Colors.mint50,
@@ -419,7 +527,7 @@ const styles = StyleSheet.create({
     borderColor:      Colors.mint200,
     ...Shadows.card,
   },
-  noHelocRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  noHelocRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   noHelocIcon: {
     width:           40,
     height:          40,
@@ -437,6 +545,7 @@ const styles = StyleSheet.create({
   },
   noHelocBody: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 18 },
 
+  // ── "Not a budgeting app" card ─────────────────────────────────────────────
   differentCard: {
     margin:          Spacing[5],
     padding:         Spacing[5],
@@ -447,29 +556,13 @@ const styles = StyleSheet.create({
     gap:             Spacing[3],
     ...Shadows.card,
   },
-  differentTitle: {
-    fontSize:   Typography.lg,
-    fontWeight: Typography.bold,
-    color:      Colors.mint700,
-  },
-  differentBody: {
-    fontSize:   Typography.sm,
-    color:      Colors.textSecondary,
-    lineHeight: 21,
-  },
-  thingsList: { gap: Spacing[3], marginTop: Spacing[1] },
-  thingRow: {
-    flexDirection: 'row',
-    alignItems:    'flex-start',
-    gap:           Spacing[3],
-  },
-  thingText: {
-    flex:       1,
-    fontSize:   Typography.sm,
-    color:      Colors.textPrimary,
-    lineHeight: 20,
-  },
+  differentTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.mint700 },
+  differentBody:  { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  thingsList:     { gap: Spacing[3], marginTop: Spacing[1] },
+  thingRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
+  thingText:      { flex: 1, fontSize: Typography.sm, color: Colors.textPrimary, lineHeight: 20 },
 
+  // ── CTAs ───────────────────────────────────────────────────────────────────
   ctas: {
     paddingHorizontal: Spacing[6],
     paddingBottom:     Spacing[6],
@@ -486,11 +579,7 @@ const styles = StyleSheet.create({
     gap:             Spacing[2],
     ...Shadows.glow,
   },
-  primaryBtnText: {
-    color:      Colors.white,
-    fontSize:   Typography.base,
-    fontWeight: Typography.bold,
-  },
+  primaryBtnText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
   pricing: {
     fontSize:  Typography.xs,
     color:     Colors.textMuted,
@@ -503,10 +592,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap:            6,
   },
-  riskReversalText: {
-    fontSize: Typography.xs,
-    color:    Colors.mint600,
-  },
+  riskReversalText: { fontSize: Typography.xs, color: Colors.mint600 },
   secondaryBtn: {
     borderRadius:    Radius.md,
     paddingVertical: Spacing[4],
@@ -532,5 +618,51 @@ const styles = StyleSheet.create({
     textAlign:         'center',
     paddingHorizontal: Spacing[6],
     paddingBottom:     Spacing[8],
+  },
+
+  // ── Particle burst ─────────────────────────────────────────────────────────
+  particleOrigin: {
+    position: 'absolute',
+    top:      170,   // approximate center of the hero number on most devices
+    left:     '50%', // left edge at horizontal center; particles radiate symmetrically
+  },
+
+  // ── Ritual overlay ─────────────────────────────────────────────────────────
+  ritualOverlay: {
+    backgroundColor: '#081A0F',
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  ritualWrap: {
+    width:          120,
+    height:         120,
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+  // Outer glow: large translucent circle that pulses in/out
+  glowRing: {
+    position:        'absolute',
+    width:           120,
+    height:          120,
+    borderRadius:    60,
+    backgroundColor: 'rgba(18, 183, 106, 0.18)',
+  },
+  // Spinner: circle with one visible arc, rotates continuously
+  spinnerArc: {
+    position:         'absolute',
+    width:            74,
+    height:           74,
+    borderRadius:     37,
+    borderWidth:      2.5,
+    borderColor:      'transparent',
+    borderTopColor:   '#12B76A',
+    borderRightColor: 'rgba(18, 183, 106, 0.4)',
+  },
+  // Center: small solid dot
+  centerDot: {
+    width:           10,
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: '#12B76A',
   },
 });
