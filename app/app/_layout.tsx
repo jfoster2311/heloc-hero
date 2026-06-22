@@ -28,6 +28,16 @@ export default function RootLayout() {
     const inOnboarding = segments[0] === 'onboarding';
     const inTabs       = segments[0] === 'tabs';
 
+    // ── DEV-ONLY BYPASS ───────────────────────────────────────────────────────
+    // Skip Supabase auth + onboarding guards in development so every tab is
+    // reviewable without an email sign-in. __DEV__ is stripped to false by
+    // Metro in production builds — this block is dead code in the App Store.
+    if (__DEV__) {
+      if (!inTabs) router.replace('/tabs/dashboard');
+      return;
+    }
+    // ── END DEV BYPASS ────────────────────────────────────────────────────────
+
     if (!profile) {
       // Not signed in — land on the welcome / onboarding flow
       if (!inAuth && !inOnboarding) {
