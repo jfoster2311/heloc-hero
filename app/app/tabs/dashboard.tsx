@@ -1,13 +1,14 @@
 // app/tabs/dashboard.tsx
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl,
+  TouchableOpacity, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
+import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useStreak } from '../../hooks/useStreak';
 import NotificationPrimer from '../../components/NotificationPrimer';
@@ -61,6 +62,28 @@ export default function DashboardScreen() {
 
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
 
+  // ── DEV-ONLY: restart / reset onboarding flow ─────────────────────────────
+  // __DEV__ is false in production — Metro dead-strips this function entirely.
+  function handleDevTools() {
+    if (!__DEV__) return;
+    Alert.alert('DEV Tools', 'Onboarding flow', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Preview (keep data)',
+        onPress: () => router.replace('/onboarding/welcome' as never),
+      },
+      {
+        text: 'Reset + Preview',
+        style: 'destructive',
+        onPress: () => {
+          useOnboardingStore.getState().reset();
+          router.replace('/onboarding/welcome' as never);
+        },
+      },
+    ]);
+  }
+  // ── END DEV TOOLS ──────────────────────────────────────────────────────────
+
   const score = hasRealData
     ? computeHelocScore({
         monthlyIncome:   income,
@@ -93,9 +116,21 @@ export default function DashboardScreen() {
           </Text>
           <Text style={styles.headerSub}>Your mortgage payoff dashboard</Text>
         </View>
-        <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/modals/settings')}>
-          <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* DEV-ONLY badge — never visible in production builds */}
+          {__DEV__ && (
+            <TouchableOpacity
+              style={styles.devBadge}
+              onPress={handleDevTools}
+              accessibilityLabel="DEV tools"
+            >
+              <Text style={styles.devBadgeText}>DEV</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/modals/settings')}>
+            <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -445,6 +480,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing[5], paddingVertical: Spacing[4],
     backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  headerRight:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  devBadge: {
+    backgroundColor: '#7C3AED',   // purple — unmistakably not production UI
+    borderRadius:    Radius.sm,
+    paddingHorizontal: Spacing[2],
+    paddingVertical:   3,
+  },
+  devBadgeText: {
+    fontSize:      10,
+    fontWeight:    Typography.extrabold,
+    color:         '#fff',
+    letterSpacing: 1,
   },
   greeting:  { fontSize: Typography.xl,  fontWeight: Typography.bold, color: Colors.textPrimary },
   headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },

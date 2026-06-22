@@ -33,7 +33,9 @@ export default function RootLayout() {
     // reviewable without an email sign-in. __DEV__ is stripped to false by
     // Metro in production builds — this block is dead code in the App Store.
     if (__DEV__) {
-      if (!inTabs) router.replace('/tabs/dashboard');
+      // Allow onboarding screens so the DEV "restart onboarding" button works.
+      // Everything else (auth screens, index, etc.) still lands on /tabs/dashboard.
+      if (!inTabs && !inOnboarding) router.replace('/tabs/dashboard');
       return;
     }
     // ── END DEV BYPASS ────────────────────────────────────────────────────────
