@@ -235,6 +235,13 @@ export default function DashboardScreen() {
           onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
         />
 
+        {/* ── Credit Score ────────────────────────────────────────────────── */}
+        <CreditScoreCard
+          score={profile?.credit_score ?? 700}
+          selfReported={profile?.credit_score != null}
+          onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+        />
+
         {/* Account stats */}
         {hasLinkedAccounts ? (
           <View style={styles.statsRow}>
@@ -316,6 +323,18 @@ export default function DashboardScreen() {
               </View>
             )}
           </View>
+        )}
+
+        {/* ── Budget / Cash Flow ──────────────────────────────────────────── */}
+        {income > 0 && (
+          <BudgetSpendingCard
+            income={income}
+            livingExpenses={livingExpenses}
+            mortgagePayment={mortgagePayment}
+            helocInterest={helocInterestMin}
+            surplus={surplus}
+            onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+          />
         )}
 
         {/* Payoff projection */}
@@ -405,6 +424,11 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* ── Rates Placeholder ───────────────────────────────────────────── */}
+        <RatesPlaceholderCard
+          onPress={() => { hapticLight(); router.push('/tabs/learn' as never); }}
+        />
 
         {/* Quick actions */}
         <View style={styles.quickActionsRow}>
@@ -682,6 +706,162 @@ function NextDumpCard({
         <Text style={styles.utilNote}>Estimated · link accounts for live data</Text>
       )}
     </TouchableOpacity>
+  );
+}
+
+function BudgetSpendingCard({
+  income, livingExpenses, mortgagePayment, helocInterest, surplus, onPress,
+}: {
+  income: number; livingExpenses: number; mortgagePayment: number;
+  helocInterest: number; surplus: number; onPress: () => void;
+}) {
+  const totalOut = livingExpenses + mortgagePayment + (helocInterest > 1 ? helocInterest : 0);
+  const commPct  = income > 0 ? Math.min((totalOut / income) * 100, 100) : 0;
+  const barColor = commPct > 95 ? Colors.gray400 : commPct > 80 ? Colors.mint400 : Colors.mint600;
+
+  return (
+    <TouchableOpacity style={styles.bfCard} onPress={onPress} activeOpacity={0.85}>
+      <Text style={styles.cardEyebrow}>MONTHLY CASH FLOW</Text>
+
+      <View style={styles.bfIncomeRow}>
+        <Text style={styles.bfIncomeLabel}>Monthly income</Text>
+        <Text style={styles.bfIncomePrimary}>${fmt(income)}</Text>
+      </View>
+
+      <View style={styles.bfDivider} />
+
+      <View style={styles.bfLineRow}>
+        <View style={styles.bfLineLeft}>
+          <Ionicons name="home-outline" size={14} color={Colors.textMuted} />
+          <Text style={styles.bfLineLabel}>Mortgage payment</Text>
+        </View>
+        <Text style={styles.bfLineAmt}>−${fmt(mortgagePayment)}</Text>
+      </View>
+      <View style={styles.bfLineRow}>
+        <View style={styles.bfLineLeft}>
+          <Ionicons name="cart-outline" size={14} color={Colors.textMuted} />
+          <Text style={styles.bfLineLabel}>Living expenses</Text>
+        </View>
+        <Text style={styles.bfLineAmt}>−${fmt(livingExpenses)}</Text>
+      </View>
+      {helocInterest > 1 && (
+        <View style={styles.bfLineRow}>
+          <View style={styles.bfLineLeft}>
+            <Ionicons name="card-outline" size={14} color={Colors.textMuted} />
+            <Text style={styles.bfLineLabel}>HELOC interest (est.)</Text>
+          </View>
+          <Text style={styles.bfLineAmt}>−${fmt(Math.round(helocInterest))}</Text>
+        </View>
+      )}
+
+      <View style={styles.bfDivider} />
+
+      <View style={styles.bfSurplusRow}>
+        <Text style={styles.bfSurplusLabel}>Monthly surplus</Text>
+        <Text style={[styles.bfSurplusAmt, { color: surplus >= 0 ? Colors.mint600 : Colors.gray400 }]}>
+          {surplus >= 0 ? '+' : ''}${fmt(surplus)}
+        </Text>
+      </View>
+
+      <View style={styles.bfAllocTrack}>
+        <View style={[styles.bfAllocFill, { width: `${commPct}%` as any, backgroundColor: barColor }]} />
+      </View>
+      <Text style={styles.bfAllocNote}>
+        {commPct.toFixed(0)}% of income committed  ·  {surplus >= 0
+          ? `$${fmt(surplus)}/mo free for HELOC`
+          : 'over budget — reduce expenses to cycle effectively'}
+      </Text>
+
+      <View style={styles.bfFooter}>
+        <Text style={styles.bfFooterText}>View budget details</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.mint600} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function CreditScoreCard({
+  score, selfReported, onPress,
+}: {
+  score: number; selfReported: boolean; onPress: () => void;
+}) {
+  const band = score >= 800 ? { label: 'Exceptional', color: Colors.mint600 }
+             : score >= 740 ? { label: 'Very Good',   color: Colors.mint600 }
+             : score >= 670 ? { label: 'Good',         color: Colors.mint400 }
+             : score >= 580 ? { label: 'Fair',          color: Colors.gray400 }
+             :                 { label: 'Poor',          color: Colors.gray400 };
+
+  const scorePct = Math.min(Math.max(((score - 300) / 550) * 100, 0), 100);
+
+  return (
+    <TouchableOpacity style={styles.creditCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.creditHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardEyebrow}>CREDIT SCORE</Text>
+          <Text style={styles.utilNote}>
+            {selfReported
+              ? 'Self-reported · link accounts for live data'
+              : 'Example · enter your score in settings'}
+          </Text>
+        </View>
+        <View style={[styles.creditBandBadge, { backgroundColor: `${band.color}22` }]}>
+          <Text style={[styles.creditBandBadgeText, { color: band.color }]}>{band.label}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.creditScoreNum}>{score}</Text>
+
+      <View style={styles.creditTrack}>
+        <View style={[styles.creditFill, { width: `${scorePct}%` as any, backgroundColor: band.color }]} />
+      </View>
+      <View style={styles.creditRangeRow}>
+        <Text style={styles.creditRangeLabel}>300 · Poor</Text>
+        <Text style={styles.creditRangeLabel}>850 · Exceptional</Text>
+      </View>
+
+      <View style={styles.creditInsightRow}>
+        <Ionicons name="information-circle-outline" size={13} color={Colors.textMuted} />
+        <Text style={styles.creditInsightText}>
+          A higher score qualifies you for better HELOC rates and larger credit limits
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function RatesPlaceholderCard({ onPress }: { onPress: () => void }) {
+  return (
+    <View style={styles.ratesCard}>
+      <View style={styles.ratesHeader}>
+        <Text style={styles.cardEyebrow}>HELOC RATES</Text>
+        <View style={styles.ratesComingSoonBadge}>
+          <Text style={styles.ratesComingSoonText}>Coming soon</Text>
+        </View>
+      </View>
+
+      <View style={styles.ratesStatsRow}>
+        <View style={styles.ratesStatItem}>
+          <Text style={styles.ratesStatNum}>7 – 10%</Text>
+          <Text style={styles.ratesStatLabel}>typical variable range</Text>
+        </View>
+        <View style={styles.ratesStatDivider} />
+        <View style={styles.ratesStatItem}>
+          <Text style={styles.ratesStatNum}>10+ yr</Text>
+          <Text style={styles.ratesStatLabel}>draw period to look for</Text>
+        </View>
+      </View>
+
+      <Text style={styles.ratesBody}>
+        Live rate comparison and personalized lender matching are coming to HELOC Hero Pro.
+        For the cycling strategy, look for an interest-only HELOC with a 10+ year draw period.
+      </Text>
+
+      <TouchableOpacity style={styles.ratesCTARow} onPress={onPress} activeOpacity={0.85}>
+        <Ionicons name="school-outline" size={15} color={Colors.mint600} />
+        <Text style={styles.ratesCTAText}>Learn what to look for in a HELOC</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.mint400} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1183,6 +1363,232 @@ const styles = StyleSheet.create({
   dumpCTAText: {
     fontSize:   Typography.sm,
     fontWeight: Typography.semibold,
+    color:      Colors.mint600,
+  },
+
+  // ── Budget / Cash Flow card ──────────────────────────────────────────────────
+  bfCard: {
+    backgroundColor: Colors.surface,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    gap:             Spacing[3],
+    ...Shadows.card,
+  },
+  bfIncomeRow: {
+    flexDirection:  'row',
+    alignItems:     'baseline',
+    justifyContent: 'space-between',
+  },
+  bfIncomeLabel: {
+    fontSize:   Typography.sm,
+    color:      Colors.textMuted,
+    fontWeight: Typography.medium,
+  },
+  bfIncomePrimary: {
+    fontSize:   Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    color:      Colors.textPrimary,
+  },
+  bfDivider: {
+    height:          1,
+    backgroundColor: Colors.gray100,
+  },
+  bfLineRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingVertical: 3,
+  },
+  bfLineLeft: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           Spacing[2],
+    flex:          1,
+  },
+  bfLineLabel: {
+    fontSize: Typography.sm,
+    color:    Colors.textSecondary,
+  },
+  bfLineAmt: {
+    fontSize:   Typography.sm,
+    fontWeight: Typography.medium,
+    color:      Colors.textPrimary,
+  },
+  bfSurplusRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingVertical: Spacing[1],
+  },
+  bfSurplusLabel: {
+    fontSize:   Typography.sm,
+    fontWeight: Typography.semibold,
+    color:      Colors.textPrimary,
+  },
+  bfSurplusAmt: {
+    fontSize:   Typography.xl,
+    fontWeight: Typography.extrabold,
+  },
+  bfAllocTrack: {
+    height:          10,
+    backgroundColor: Colors.gray100,
+    borderRadius:    5,
+    overflow:        'hidden',
+  },
+  bfAllocFill: {
+    height:       10,
+    borderRadius: 5,
+  },
+  bfAllocNote: {
+    fontSize:   Typography.xs,
+    color:      Colors.textMuted,
+    lineHeight: 18,
+  },
+  bfFooter: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'flex-end',
+    gap:            Spacing[1],
+    paddingTop:     Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  bfFooterText: {
+    fontSize:   Typography.sm,
+    fontWeight: Typography.medium,
+    color:      Colors.mint600,
+  },
+
+  // ── Credit Score card ──────────────────────────────────────────────────────
+  creditCard: {
+    backgroundColor: Colors.surface,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    gap:             Spacing[3],
+    ...Shadows.card,
+  },
+  creditHeader: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    gap:           Spacing[3],
+  },
+  creditBandBadge: {
+    borderRadius:      Radius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical:   4,
+  },
+  creditBandBadgeText: {
+    fontSize:   Typography.xs,
+    fontWeight: Typography.bold,
+  },
+  creditScoreNum: {
+    fontSize:   56,
+    fontWeight: Typography.extrabold,
+    color:      Colors.textPrimary,
+    lineHeight: 62,
+  },
+  creditTrack: {
+    height:          14,
+    backgroundColor: Colors.gray100,
+    borderRadius:    7,
+    overflow:        'hidden',
+  },
+  creditFill: {
+    height:       14,
+    borderRadius: 7,
+  },
+  creditRangeRow: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    marginTop:      -Spacing[1],
+  },
+  creditRangeLabel: {
+    fontSize: Typography.xs,
+    color:    Colors.textMuted,
+  },
+  creditInsightRow: {
+    flexDirection:  'row',
+    alignItems:     'flex-start',
+    gap:            Spacing[1] + 2,
+    paddingTop:     Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  creditInsightText: {
+    flex:       1,
+    fontSize:   Typography.sm,
+    color:      Colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  // ── Rates Placeholder card ──────────────────────────────────────────────────
+  ratesCard: {
+    backgroundColor: Colors.surface,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    gap:             Spacing[4],
+    borderWidth:     1,
+    borderColor:     Colors.border,
+    ...Shadows.card,
+  },
+  ratesHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+  },
+  ratesComingSoonBadge: {
+    backgroundColor:   Colors.gray100,
+    borderRadius:      Radius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical:   4,
+  },
+  ratesComingSoonText: {
+    fontSize:   Typography.xs,
+    fontWeight: Typography.medium,
+    color:      Colors.textMuted,
+  },
+  ratesStatsRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+  },
+  ratesStatItem: {
+    flex:       1,
+    alignItems: 'center',
+    gap:        Spacing[1],
+  },
+  ratesStatNum: {
+    fontSize:   Typography.xl,
+    fontWeight: Typography.extrabold,
+    color:      Colors.mint700,
+  },
+  ratesStatLabel: {
+    fontSize:  Typography.xs,
+    color:     Colors.textMuted,
+    textAlign: 'center',
+  },
+  ratesStatDivider: {
+    width:            1,
+    height:           40,
+    backgroundColor:  Colors.gray100,
+    marginHorizontal: Spacing[3],
+  },
+  ratesBody: {
+    fontSize:   Typography.sm,
+    color:      Colors.textSecondary,
+    lineHeight: 21,
+  },
+  ratesCTARow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            Spacing[2],
+    paddingTop:     Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  ratesCTAText: {
+    flex:       1,
+    fontSize:   Typography.sm,
+    fontWeight: Typography.medium,
     color:      Colors.mint600,
   },
 });
