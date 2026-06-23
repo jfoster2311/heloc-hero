@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
 import { useOnboardingStore } from '../../lib/onboardingStore';
+import { hapticLight } from '../../lib/haptics';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useStreak } from '../../hooks/useStreak';
 import NotificationPrimer from '../../components/NotificationPrimer';
@@ -61,6 +62,16 @@ export default function DashboardScreen() {
     : 0;
 
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
+
+  // ── Card data: HELOC utilization + next-dump ────────────────────────────
+  // When Plaid isn't linked, fall back to a surplus-derived estimate so cards
+  // look populated (per CLAUDE.md: use demo seed values where live data absent).
+  const fallbackHelocLimit  = Math.max(25_000, Math.min(Math.max(0, surplus) * 12, 150_000)) || 50_000;
+  const displayHelocBalance = helocBalance ?? 0;
+  const displayHelocLimit   = helocLimit   ?? fallbackHelocLimit;
+  const effectiveDump       = displayHelocLimit > 0
+    ? Math.min(displayHelocLimit, Math.max(0, surplus * 12))
+    : Math.max(0, surplus * 12);
 
   // ── DEV-ONLY: restart / reset onboarding flow ─────────────────────────────
   // __DEV__ is false in production — Metro dead-strips this function entirely.
@@ -175,9 +186,20 @@ export default function DashboardScreen() {
           <View style={styles.scoreGauge}><ScoreRing score={score.total} /></View>
         </LinearGradient>
 
+        {/* ── Interest Saved Hero ─────────────────────────────────────────── */}
+        <InterestHeroCard
+          interestSaved={projection.interestSaved}
+          monthsSaved={projection.monthsSaved}
+          hasDumped={streak > 0}
+          onCTA={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+        />
+
         {/* Upgrade prompt — free tier */}
         {tier === 'free' && (
-          <TouchableOpacity style={styles.upgradeBanner} onPress={() => router.push('/modals/upgrade')}>
+          <TouchableOpacity
+            style={styles.upgradeBanner}
+            onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
+          >
             <Ionicons name="star-outline" size={18} color={Colors.mint600} />
             <Text style={styles.upgradeText}>
               Connect real accounts for a live score, projections & budget tracking
@@ -195,6 +217,23 @@ export default function DashboardScreen() {
             </Text>
           </View>
         )}
+
+        {/* ── HELOC Utilization ───────────────────────────────────────────── */}
+        <HelocUtilCard
+          balance={displayHelocBalance}
+          limit={displayHelocLimit}
+          hasLiveData={helocBalance !== null}
+          onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+        />
+
+        {/* ── Next Dump ───────────────────────────────────────────────────── */}
+        <NextDumpCard
+          surplus={surplus}
+          helocDrawn={displayHelocBalance}
+          dumpAmount={effectiveDump}
+          hasLiveData={helocBalance !== null}
+          onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+        />
 
         {/* Account stats */}
         {hasLinkedAccounts ? (
@@ -453,6 +492,199 @@ function QuickAction({ icon, label, onPress }: { icon: string; label: string; on
   );
 }
 
+// ─── New card sub-components ───────────────────────────────────────────────────────────
+
+function InterestHeroCard({
+  interestSaved, monthsSaved, hasDumped, onCTA,
+}: {
+  interestSaved: number; monthsSaved: number; hasDumped: boolean; onCTA: () => void;
+}) {
+  const savedK   = Math.round(interestSaved / 1_000);
+  const savedFmt = '$' + Math.round(interestSaved).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const yearsFmt = formatMonths(monthsSaved);
+
+  if (!hasDumped) {
+    return (
+      <View style={styles.interestCard}>
+        <Text style={styles.cardEyebrow}>YOUR POTENTIAL SAVINGS</Text>
+
+        <View style={styles.interestColdStats}>
+          <View style={styles.interestColdStat}>
+            <Text style={styles.interestColdStatNum}>
+              {savedK > 0 ? `~$${savedK}k` : '—'}
+            </Text>
+            <Text style={styles.interestColdStatLabel}>projected interest saved</Text>
+          </View>
+          <View style={styles.interestColdStatDivider} />
+          <View style={styles.interestColdStat}>
+            <Text style={styles.interestColdStatNum}>~{yearsFmt}</Text>
+            <Text style={styles.interestColdStatLabel}>off your payoff date</Text>
+          </View>
+        </View>
+
+        <Text style={styles.interestColdBody}>
+          One dump changes everything. Start cycling to watch these estimates become real savings.
+        </Text>
+
+        <TouchableOpacity style={styles.interestCTA} onPress={onCTA} activeOpacity={0.82}>
+          <Text style={styles.interestCTAText}>Start your first cycle</Text>
+          <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <LinearGradient colors={['#1a9e7a', '#0d7a5e']} style={styles.interestCardHot}>
+      <View style={styles.interestHotBadge}>
+        <Ionicons name="flash" size={14} color={Colors.mint100} />
+        <Text style={styles.interestHotEyebrow}>PROJECTED INTEREST SAVED</Text>
+      </View>
+      <Text style={styles.interestHotNum}>{savedFmt}</Text>
+      <View style={styles.interestHotSubRow}>
+        <Ionicons name="trending-up-outline" size={14} color="rgba(255,255,255,0.8)" />
+        <Text style={styles.interestHotSub}>
+          {yearsFmt} sooner · your strategy is working
+        </Text>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function HelocUtilCard({
+  balance, limit, hasLiveData, onPress,
+}: {
+  balance: number; limit: number; hasLiveData: boolean; onPress: () => void;
+}) {
+  const pct       = limit > 0 ? Math.min((balance / limit) * 100, 100) : 0;
+  const available = Math.max(0, limit - balance);
+  const barColor  = pct > 80 ? Colors.gray400 : Colors.mint600;
+  const insight   = pct > 80 ? 'High utilization — consider replenishing soon'
+                  : pct > 40 ? 'Moderate — keep adding surplus to prep for your next dump'
+                  : pct > 0  ? 'Replenishing well — keep the surplus flowing'
+                  : 'HELOC fully replenished — ready to dump';
+
+  return (
+    <TouchableOpacity style={styles.utilCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.utilHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardEyebrow}>HELOC UTILIZATION</Text>
+          {!hasLiveData && (
+            <Text style={styles.utilNote}>Estimated · link accounts for live data</Text>
+          )}
+        </View>
+        <Text style={styles.utilPct}>{pct.toFixed(0)}%</Text>
+      </View>
+
+      <View style={styles.utilAmountRow}>
+        <Text style={styles.utilDrawnAmt}>${fmt(balance)}</Text>
+        <Text style={styles.utilAmtSep}> drawn  ·  </Text>
+        <Text style={styles.utilAvailAmt}>${fmt(available)}</Text>
+        <Text style={styles.utilAmtSep}> available</Text>
+      </View>
+
+      <View style={styles.utilTrack}>
+        <View style={[styles.utilFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
+
+      <View style={styles.utilRangeRow}>
+        <Text style={styles.utilRangeLabel}>$0</Text>
+        <Text style={styles.utilRangeLabel}>${fmt(limit)} limit</Text>
+      </View>
+
+      <View style={styles.utilFooterRow}>
+        <Ionicons name="information-circle-outline" size={13} color={Colors.textMuted} />
+        <Text style={styles.utilFooterText}>{insight}</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.gray300} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function NextDumpCard({
+  surplus, helocDrawn, dumpAmount, hasLiveData, onPress,
+}: {
+  surplus: number; helocDrawn: number; dumpAmount: number;
+  hasLiveData: boolean; onPress: () => void;
+}) {
+  const monthsUntil = surplus > 0 && helocDrawn > 0
+    ? Math.max(1, Math.ceil(helocDrawn / surplus))
+    : 0;
+  const readyNow  = monthsUntil === 0;
+  const dumpFmt   = '$' + fmt(Math.round(dumpAmount));
+  const replenPct = dumpAmount > 0 && helocDrawn <= dumpAmount
+    ? Math.round((1 - helocDrawn / dumpAmount) * 100)
+    : 0;
+
+  return (
+    <TouchableOpacity
+      style={[styles.dumpCard, readyNow && styles.dumpCardReady]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.dumpHeader}>
+        <Text style={styles.cardEyebrow}>NEXT DUMP</Text>
+        <View style={[styles.dumpBadge, { backgroundColor: readyNow ? Colors.mint600 : Colors.mint100 }]}>
+          <Text style={[styles.dumpBadgeText, { color: readyNow ? Colors.white : Colors.mint700 }]}>
+            {readyNow ? 'Ready now' : `~${monthsUntil} mo`}
+          </Text>
+        </View>
+      </View>
+
+      {readyNow ? (
+        <>
+          <Text style={styles.dumpTitle}>Your HELOC is replenished.</Text>
+          <Text style={styles.dumpBody}>
+            Dump{' '}
+            <Text style={styles.dumpAmount}>{dumpFmt}</Text>
+            {' '}onto your mortgage principal to accelerate your payoff.
+          </Text>
+
+          <View style={styles.dumpImpactRow}>
+            <Ionicons name="flash" size={15} color={Colors.mint600} />
+            <Text style={styles.dumpImpactText}>
+              Reduces your principal by{' '}
+              <Text style={styles.dumpImpactBold}>{dumpFmt}</Text>
+              {' '}immediately
+            </Text>
+          </View>
+
+          <View style={styles.dumpActionBtn}>
+            <Text style={styles.dumpActionBtnText}>Execute dump</Text>
+            <Ionicons name="arrow-forward" size={15} color={Colors.white} />
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={styles.dumpTitle}>Replenishing HELOC…</Text>
+          <Text style={styles.dumpBody}>
+            On track to dump{' '}
+            <Text style={styles.dumpAmount}>{dumpFmt}</Text>
+            {' '}in ~{monthsUntil} month{monthsUntil !== 1 ? 's' : ''}.
+          </Text>
+
+          <View style={styles.dumpReplenTrack}>
+            <View style={[styles.dumpReplenFill, { width: `${replenPct}%` as any }]} />
+          </View>
+          <View style={styles.dumpReplenRow}>
+            <Text style={styles.dumpReplenLabel}>{replenPct}% replenished</Text>
+            <Text style={styles.dumpReplenLabel}>{dumpFmt} target</Text>
+          </View>
+
+          <View style={styles.dumpCTARow}>
+            <Text style={styles.dumpCTAText}>View cycle details</Text>
+            <Ionicons name="arrow-forward" size={14} color={Colors.mint600} />
+          </View>
+        </>
+      )}
+
+      {!hasLiveData && (
+        <Text style={styles.utilNote}>Estimated · link accounts for live data</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ─── Utilities ─────────────────────────────────────────────────────────────────────────
 
 function firstBalance(account: LinkedAccount | null): number | null {
@@ -671,4 +903,286 @@ const styles = StyleSheet.create({
   quickAction:      { flex: 1, alignItems: 'center', gap: Spacing[2] },
   quickActionIcon:  { width: 52, height: 52, borderRadius: Radius.lg, backgroundColor: Colors.mint50, borderWidth: 1, borderColor: Colors.mint200, alignItems: 'center', justifyContent: 'center' },
   quickActionLabel: { fontSize: Typography.xs, color: Colors.textSecondary, textAlign: 'center' },
+
+  // ── Shared eyebrow ──────────────────────────────────────────────────────────
+  cardEyebrow: {
+    fontSize:      10,
+    fontWeight:    Typography.extrabold,
+    color:         Colors.mint400,
+    letterSpacing: 1.4,
+    marginBottom:  Spacing[1],
+  },
+
+  // ── Interest Saved Hero card ────────────────────────────────────────────────
+  interestCard: {
+    backgroundColor: Colors.mint50,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[6],
+    borderWidth:     1,
+    borderColor:     Colors.mint200,
+    gap:             Spacing[4],
+    ...Shadows.card,
+  },
+  interestCardHot: {
+    borderRadius: Radius.xl,
+    padding:      Spacing[6],
+    gap:          Spacing[2],
+    ...Shadows.glow,
+  },
+  interestHotBadge: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           Spacing[1] + 2,
+  },
+  interestHotEyebrow: {
+    fontSize:      10,
+    fontWeight:    Typography.extrabold,
+    color:         'rgba(255,255,255,0.75)',
+    letterSpacing: 1.4,
+  },
+  interestHotNum: {
+    fontSize:   56,
+    fontWeight: Typography.extrabold,
+    color:      Colors.white,
+    lineHeight: 64,
+    marginTop:  Spacing[1],
+  },
+  interestHotSubRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           Spacing[1] + 2,
+    marginTop:     Spacing[1],
+  },
+  interestHotSub: {
+    fontSize:   Typography.sm,
+    color:      'rgba(255,255,255,0.85)',
+    fontWeight: Typography.medium,
+  },
+  interestColdStats: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           Spacing[3],
+  },
+  interestColdStat: {
+    flex:       1,
+    alignItems: 'center',
+    gap:        Spacing[1],
+  },
+  interestColdStatDivider: {
+    width:           1,
+    height:          44,
+    backgroundColor: Colors.mint200,
+  },
+  interestColdStatNum: {
+    fontSize:   Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    color:      Colors.mint700,
+    lineHeight: 30,
+  },
+  interestColdStatLabel: {
+    fontSize:  Typography.xs,
+    color:     Colors.textMuted,
+    textAlign: 'center',
+  },
+  interestColdBody: {
+    fontSize:   Typography.sm,
+    color:      Colors.textSecondary,
+    lineHeight: 21,
+  },
+  interestCTA: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'center',
+    backgroundColor: Colors.mint600,
+    borderRadius:    Radius.md,
+    paddingVertical: Spacing[4],
+    gap:             Spacing[2],
+    ...Shadows.glow,
+  },
+  interestCTAText: {
+    color:      Colors.white,
+    fontWeight: Typography.semibold,
+    fontSize:   Typography.base,
+  },
+
+  // ── HELOC Utilization card ──────────────────────────────────────────────────
+  utilCard: {
+    backgroundColor: Colors.surface,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    gap:             Spacing[3],
+    ...Shadows.card,
+  },
+  utilHeader: { flexDirection: 'row', alignItems: 'flex-start' },
+  utilPct: {
+    fontSize:   Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color:      Colors.mint600,
+    lineHeight: 38,
+  },
+  utilAmountRow: {
+    flexDirection: 'row',
+    alignItems:    'baseline',
+    flexWrap:      'wrap',
+  },
+  utilDrawnAmt: {
+    fontSize:   Typography.xl,
+    fontWeight: Typography.bold,
+    color:      Colors.textPrimary,
+  },
+  utilAmtSep: {
+    fontSize: Typography.base,
+    color:    Colors.textMuted,
+  },
+  utilAvailAmt: {
+    fontSize:   Typography.xl,
+    fontWeight: Typography.bold,
+    color:      Colors.mint600,
+  },
+  utilNote: {
+    fontSize:  Typography.xs,
+    color:     Colors.textMuted,
+    marginTop: 2,
+  },
+  utilTrack: {
+    height:          14,
+    backgroundColor: Colors.gray100,
+    borderRadius:    7,
+    overflow:        'hidden',
+  },
+  utilFill: {
+    height:       14,
+    borderRadius: 7,
+  },
+  utilRangeRow: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    marginTop:      -Spacing[1],
+  },
+  utilRangeLabel: {
+    fontSize: Typography.xs,
+    color:    Colors.textMuted,
+  },
+  utilFooterRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            Spacing[1] + 2,
+    paddingTop:     Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  utilFooterText: {
+    flex:     1,
+    fontSize: Typography.sm,
+    color:    Colors.textSecondary,
+  },
+
+  // ── Next Dump card ──────────────────────────────────────────────────────────
+  dumpCard: {
+    backgroundColor: Colors.surface,
+    borderRadius:    Radius.xl,
+    padding:         Spacing[5],
+    gap:             Spacing[3],
+    borderWidth:     1.5,
+    borderColor:     Colors.mint200,
+    ...Shadows.card,
+  },
+  dumpCardReady: {
+    borderColor:     Colors.mint600,
+    backgroundColor: Colors.mint50,
+  },
+  dumpHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+  },
+  dumpBadge: {
+    borderRadius:      Radius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical:   4,
+  },
+  dumpBadgeText: {
+    fontSize:   Typography.xs,
+    fontWeight: Typography.bold,
+  },
+  dumpTitle: {
+    fontSize:   Typography.base,
+    fontWeight: Typography.semibold,
+    color:      Colors.textPrimary,
+  },
+  dumpAmount: {
+    color:      Colors.mint600,
+    fontWeight: Typography.bold,
+  },
+  dumpBody: {
+    fontSize:   Typography.sm,
+    color:      Colors.textSecondary,
+    lineHeight: 20,
+  },
+  dumpImpactRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             Spacing[2],
+    backgroundColor: Colors.mint100,
+    borderRadius:    Radius.md,
+    padding:         Spacing[3],
+  },
+  dumpImpactText: {
+    flex:       1,
+    fontSize:   Typography.sm,
+    color:      Colors.mint700,
+    lineHeight: 20,
+  },
+  dumpImpactBold: {
+    fontWeight: Typography.bold,
+    color:      Colors.mint700,
+  },
+  dumpActionBtn: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'center',
+    backgroundColor: Colors.mint600,
+    borderRadius:    Radius.md,
+    paddingVertical: Spacing[3] + 2,
+    gap:             Spacing[2],
+    ...Shadows.glow,
+  },
+  dumpActionBtnText: {
+    fontSize:   Typography.base,
+    fontWeight: Typography.semibold,
+    color:      Colors.white,
+  },
+  dumpReplenTrack: {
+    height:          10,
+    backgroundColor: Colors.gray100,
+    borderRadius:    5,
+    overflow:        'hidden',
+  },
+  dumpReplenFill: {
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: Colors.mint400,
+  },
+  dumpReplenRow: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    marginTop:      -Spacing[1],
+  },
+  dumpReplenLabel: {
+    fontSize: Typography.xs,
+    color:    Colors.textMuted,
+  },
+  dumpCTARow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            Spacing[1],
+    paddingTop:     Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  dumpCTAText: {
+    fontSize:   Typography.sm,
+    fontWeight: Typography.semibold,
+    color:      Colors.mint600,
+  },
 });
