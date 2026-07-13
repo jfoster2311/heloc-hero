@@ -2,8 +2,13 @@
 import { useRef, useState } from 'react';
 import { View, Text, PanResponder, StyleSheet } from 'react-native';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { hapticSelection } from '../../lib/haptics';
 
-const THUMB = 24;
+const THUMB = 38;
+const TRACK_HEIGHT = 12;
+// Touch target taller than the visual thumb, so the drag area exceeds what's drawn
+// (plain Views can't take a hitSlop prop the way Touchables can).
+const HIT_HEIGHT = 44;
 
 interface Props {
   label: string;
@@ -24,12 +29,24 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
   const [trackWidth, setTrackWidth] = useState(1);
 
   // Refs keep values fresh inside PanResponder (created once, no stale closures)
-  const refs = useRef({ min, max, step, onChange, trackWidth, startRatio: 0 });
+  const refs = useRef({ min, max, step, onChange, trackWidth, startRatio: 0, lastValue: value });
   refs.current.min       = min;
   refs.current.max       = max;
   refs.current.step      = step;
   refs.current.onChange  = onChange;
   refs.current.trackWidth = trackWidth;
+  refs.current.lastValue = value;
+
+  function moveTo(ratioRaw: number) {
+    const { min: mn, max: mx, step: st, onChange: cb } = refs.current;
+    const ratio = Math.max(0, Math.min(1, ratioRaw));
+    const next = snap(mn + ratio * (mx - mn), st, mn, mx);
+    if (next !== refs.current.lastValue) {
+      hapticSelection();
+      refs.current.lastValue = next;
+    }
+    cb(next);
+  }
 
   const pan = useRef(
     PanResponder.create({
@@ -38,15 +55,14 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
       // so vertical scrolling in the parent ScrollView still works.
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > Math.abs(g.dy) + 2,
       onPanResponderGrant: (e) => {
-        const { min: mn, max: mx, step: st, onChange: cb, trackWidth: tw } = refs.current;
-        const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / tw));
-        refs.current.startRatio = ratio;
-        cb(snap(mn + ratio * (mx - mn), st, mn, mx));
+        const tw = refs.current.trackWidth;
+        const ratio = e.nativeEvent.locationX / tw;
+        refs.current.startRatio = Math.max(0, Math.min(1, ratio));
+        moveTo(ratio);
       },
       onPanResponderMove: (_, g) => {
-        const { min: mn, max: mx, step: st, onChange: cb, trackWidth: tw, startRatio } = refs.current;
-        const ratio = Math.max(0, Math.min(1, startRatio + g.dx / tw));
-        cb(snap(mn + ratio * (mx - mn), st, mn, mx));
+        const { trackWidth: tw, startRatio } = refs.current;
+        moveTo(startRatio + g.dx / tw);
       },
     })
   ).current;
@@ -86,17 +102,17 @@ const styles = StyleSheet.create({
   labelRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
   label:      { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
   valueText:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint600 },
-  trackWrap:  { height: THUMB, justifyContent: 'center' },
+  trackWrap:  { height: Math.max(HIT_HEIGHT, THUMB), justifyContent: 'center' },
   track: {
-    height:          4,
-    borderRadius:    2,
+    height:          TRACK_HEIGHT,
+    borderRadius:    TRACK_HEIGHT / 2,
     backgroundColor: Colors.gray200,
     overflow:        'hidden',
   },
   fill: {
     height:          '100%',
     backgroundColor: Colors.mint400,
-    borderRadius:    2,
+    borderRadius:    TRACK_HEIGHT / 2,
   },
   thumb: {
     position:        'absolute',
@@ -111,7 +127,7 @@ const styles = StyleSheet.create({
     shadowOpacity:   0.18,
     shadowRadius:    3,
     elevation:       3,
-    top:             0,
+    top:             (Math.max(HIT_HEIGHT, THUMB) - THUMB) / 2,
   },
   hint: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[1] },
 });
