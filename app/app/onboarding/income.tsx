@@ -2,13 +2,16 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
-import SliderField from '../../components/ui/SliderField';
+import AmountCardField, { AmountPreset } from '../../components/ui/AmountCardField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 function fmtDollar(v: number) {
   return '$' + Math.round(v).toLocaleString('en-US') + '/mo';
 }
+
+const INCOME_PRESETS: AmountPreset[] = [4_000, 6_000, 8_000, 12_000].map(v => ({ value: v, label: fmtDollar(v) }));
+const EXPENSE_PRESETS: AmountPreset[] = [2_500, 4_000, 5_500, 8_000].map(v => ({ value: v, label: fmtDollar(v) }));
 
 export default function IncomeStep() {
   const router = useRouter();
@@ -56,22 +59,24 @@ export default function IncomeStep() {
       onNext={handleNext}
       nextDisabled={!isValid}
     >
-      <SliderField
+      <AmountCardField
         label="Monthly Take-Home Income"
         value={income}
-        min={1_000}
-        max={30_000}
-        step={250}
+        presets={INCOME_PRESETS}
+        customMin={1_000}
+        customMax={30_000}
+        customStep={250}
         format={fmtDollar}
         hint="After-tax income across all household earners"
         onChange={(v) => update({ monthlyIncome: v })}
       />
-      <SliderField
+      <AmountCardField
         label="Monthly Expenses (excluding mortgage)"
         value={expenses}
-        min={500}
-        max={20_000}
-        step={250}
+        presets={EXPENSE_PRESETS}
+        customMin={500}
+        customMax={20_000}
+        customStep={250}
         format={fmtDollar}
         hint="Food, utilities, subscriptions, car payments, etc."
         onChange={(v) => update({ monthlyExpenses: v })}

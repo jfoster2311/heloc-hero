@@ -5,13 +5,24 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import FormField from '../../components/ui/FormField';
-import SliderField from '../../components/ui/SliderField';
+import AmountCardField, { AmountPreset } from '../../components/ui/AmountCardField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import type { HelocStatus } from '../../lib/lenders';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 function fmtDollar(v: number) {
   return '$' + Math.round(v).toLocaleString('en-US');
+}
+
+// Presets scale with the user's own surplus: 25%/50%/75%/100% of a realistic
+// 12x-monthly-surplus ceiling, snapped to the nearest $5k and floored at $10k.
+function buildHelocPresets(surplus: number): AmountPreset[] {
+  const ceiling = Math.max(25_000, Math.min(surplus * 12, 300_000));
+  const amounts = [0.25, 0.5, 0.75, 1].map(frac =>
+    Math.max(10_000, Math.round((ceiling * frac) / 5_000) * 5_000)
+  );
+  const unique = Array.from(new Set(amounts));
+  return unique.map(v => ({ value: v, label: fmtDollar(v) }));
 }
 
 export default function HelocInfoStep() {
@@ -40,6 +51,7 @@ export default function HelocInfoStep() {
   const [projectedLimit, setProjectedLimit] = useState(
     (!hasHeloc && data.helocLimit) ? data.helocLimit : defaultProjected,
   );
+  const helocPresets = buildHelocPresets(surplus);
 
   const isValid = !hasHeloc || (parseFloat(helocLimit) > 0);
 
@@ -127,12 +139,13 @@ export default function HelocInfoStep() {
           </View>
 
           {/* Projected HELOC amount — used to estimate potential acceleration */}
-          <SliderField
+          <AmountCardField
             label="Projected HELOC Amount"
             value={projectedLimit}
-            min={10_000}
-            max={300_000}
-            step={5_000}
+            presets={helocPresets}
+            customMin={10_000}
+            customMax={300_000}
+            customStep={5_000}
             format={fmtDollar}
             hint="How much you might realistically borrow — used to estimate your payoff acceleration"
             onChange={setProjectedLimit}
