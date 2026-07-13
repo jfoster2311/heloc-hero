@@ -55,6 +55,7 @@ export default function IncomeStep() {
       totalSteps={4}
       title="What's your monthly cash flow?"
       subtitle="Your surplus is the engine of this strategy. Don't worry if it's small."
+      whyWeAsk="We use this to project your monthly HELOC paydown — never shared."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleNext}
       nextDisabled={!isValid}

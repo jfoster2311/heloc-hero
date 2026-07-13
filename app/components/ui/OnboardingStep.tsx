@@ -12,6 +12,7 @@ interface Props {
   totalSteps: number;
   title: string;
   subtitle?: string;
+  whyWeAsk?: string;
   onBack?: () => void;
   onNext: () => void;
   nextLabel?: string;
@@ -21,7 +22,7 @@ interface Props {
 }
 
 export default function OnboardingStep({
-  step, totalSteps, title, subtitle,
+  step, totalSteps, title, subtitle, whyWeAsk,
   onBack, onNext, nextLabel = 'Continue',
   nextDisabled = false, loading = false, children,
 }: Props) {
@@ -81,6 +82,12 @@ export default function OnboardingStep({
         >
           <Text style={styles.title}>{title}</Text>
           {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          {whyWeAsk && (
+            <View style={styles.whyWeAsk}>
+              <Ionicons name="lock-closed-outline" size={13} color={Colors.textMuted} />
+              <Text style={styles.whyWeAskText}>{whyWeAsk}</Text>
+            </View>
+          )}
           {children}
         </ScrollView>
 
@@ -161,6 +168,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing[6],
     lineHeight: 24,
+  },
+  whyWeAsk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[1],
+    marginTop: -Spacing[4],
+    marginBottom: Spacing[5],
+  },
+  whyWeAskText: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    flexShrink: 1,
   },
   footer: {
     padding: Spacing[4],

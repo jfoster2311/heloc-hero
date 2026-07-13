@@ -102,6 +102,7 @@ export default function HomeInfoStep() {
       totalSteps={4}
       title="Tell us about your home"
       subtitle="This lets us calculate exactly how much interest you can save."
+      whyWeAsk="We use this to calculate your home equity — never shared."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleNext}
       nextDisabled={!isValid}

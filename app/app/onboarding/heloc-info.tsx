@@ -72,6 +72,7 @@ export default function HelocInfoStep() {
       totalSteps={4}
       title="Do you have a HELOC?"
       subtitle="A HELOC (Home Equity Line of Credit) is the core tool in this strategy. Don't have one? We'll help you find the best options."
+      whyWeAsk="We use this to estimate your payoff acceleration — never shared."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleNext}
       nextDisabled={!isValid}

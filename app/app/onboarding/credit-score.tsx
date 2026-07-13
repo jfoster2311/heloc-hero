@@ -35,6 +35,7 @@ export default function CreditScoreStep() {
       totalSteps={4}
       title="Estimate your credit score"
       subtitle="This helps calculate your HELOC Hero Score™ and HELOC approval odds."
+      whyWeAsk="We use this to estimate HELOC approval odds — never shared."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleFinish}
       nextLabel="See My Results →"
