@@ -28,19 +28,22 @@ function snap(raw: number, step: number, min: number, max: number): number {
 export default function SliderField({ label, value, min, max, step = 1, format, hint, onChange }: Props) {
   const [trackWidth, setTrackWidth] = useState(1);
 
+  const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+
   // Refs keep values fresh inside PanResponder (created once, no stale closures)
-  const refs = useRef({ min, max, step, onChange, trackWidth, startRatio: 0, lastValue: value });
+  const refs = useRef({ min, max, step, onChange, trackWidth, startRatio: 0, lastValue: value, ratio });
   refs.current.min       = min;
   refs.current.max       = max;
   refs.current.step      = step;
   refs.current.onChange  = onChange;
   refs.current.trackWidth = trackWidth;
   refs.current.lastValue = value;
+  refs.current.ratio     = ratio;
 
   function moveTo(ratioRaw: number) {
     const { min: mn, max: mx, step: st, onChange: cb } = refs.current;
-    const ratio = Math.max(0, Math.min(1, ratioRaw));
-    const next = snap(mn + ratio * (mx - mn), st, mn, mx);
+    const clamped = Math.max(0, Math.min(1, ratioRaw));
+    const next = snap(mn + clamped * (mx - mn), st, mn, mx);
     if (next !== refs.current.lastValue) {
       hapticSelection();
       refs.current.lastValue = next;
@@ -54,11 +57,10 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
       // Only steal the gesture when the move is more horizontal than vertical,
       // so vertical scrolling in the parent ScrollView still works.
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > Math.abs(g.dy) + 2,
-      onPanResponderGrant: (e) => {
-        const tw = refs.current.trackWidth;
-        const ratio = e.nativeEvent.locationX / tw;
-        refs.current.startRatio = Math.max(0, Math.min(1, ratio));
-        moveTo(ratio);
+      // Grab from wherever the thumb already sits — don't snap to the touch
+      // point, or the thumb visibly jumps before the drag starts.
+      onPanResponderGrant: () => {
+        refs.current.startRatio = refs.current.ratio;
       },
       onPanResponderMove: (_, g) => {
         const { trackWidth: tw, startRatio } = refs.current;
@@ -66,8 +68,6 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
       },
     })
   ).current;
-
-  const ratio     = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
   const usableW   = Math.max(0, trackWidth - THUMB);
   const thumbLeft = ratio * usableW;
   const fillWidth = thumbLeft + THUMB / 2;
