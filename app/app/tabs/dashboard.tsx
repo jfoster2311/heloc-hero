@@ -250,7 +250,10 @@ export default function DashboardScreen() {
             <StatCard label="Savings"   value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.mint600} onPress={() => router.push('/tabs/accounts')} />
           </View>
         ) : (
-          <TouchableOpacity style={styles.linkAccountsCta} onPress={() => router.push('/tabs/accounts')}>
+          <TouchableOpacity
+            style={styles.linkAccountsCta}
+            onPress={() => router.push(tier === 'free' ? '/modals/upgrade' : '/modals/link-account')}
+          >
             <View style={styles.linkAccountsIcon}><Ionicons name="link-outline" size={22} color={Colors.mint600} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.linkAccountsTitle}>Link Your Bank Accounts</Text>

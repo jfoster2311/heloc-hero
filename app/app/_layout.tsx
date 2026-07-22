@@ -27,22 +27,29 @@ export default function RootLayout() {
     const inAuth       = segments[0] === 'auth';
     const inOnboarding = segments[0] === 'onboarding';
     const inTabs       = segments[0] === 'tabs';
+    // Modals (link-account, upgrade, settings, get-heloc) are presented on top of
+    // the tab stack. They must NEVER be force-closed by the auth/onboarding guard —
+    // otherwise every modal open bounces straight back to the dashboard. This was
+    // the "Add accounts → dashboard" bug: pushing /modals/link-account changed
+    // segments to ['modals', …], the guard saw !inTabs, and replaced it away.
+    const inModals     = segments[0] === 'modals';
 
     // ── DEV-ONLY BYPASS ───────────────────────────────────────────────────────
     // Skip Supabase auth + onboarding guards in development so every tab is
     // reviewable without an email sign-in. __DEV__ is stripped to false by
     // Metro in production builds — this block is dead code in the App Store.
     if (__DEV__) {
-      // Allow onboarding screens so the DEV "restart onboarding" button works.
+      // Allow onboarding screens so the DEV "restart onboarding" button works,
+      // and modals so link-account/upgrade/settings/get-heloc can open.
       // Everything else (auth screens, index, etc.) still lands on /tabs/dashboard.
-      if (!inTabs && !inOnboarding) router.replace('/tabs/dashboard');
+      if (!inTabs && !inOnboarding && !inModals) router.replace('/tabs/dashboard');
       return;
     }
     // ── END DEV BYPASS ────────────────────────────────────────────────────────
 
     if (!profile) {
       // Not signed in — land on the welcome / onboarding flow
-      if (!inAuth && !inOnboarding) {
+      if (!inAuth && !inOnboarding && !inModals) {
         router.replace('/onboarding/welcome');
       }
     } else if (!profile.onboarding_complete) {
@@ -51,12 +58,12 @@ export default function RootLayout() {
       // calls onboardingStore.submit() + refresh() to set onboarding_complete: true
       // before navigating, and we must not interrupt that sequence.
       const inSignup = (segments as string[])[1] === 'signup';
-      if (!inOnboarding && !inSignup) {
+      if (!inOnboarding && !inSignup && !inModals) {
         router.replace('/onboarding/home-info');
       }
     } else {
       // Fully signed in → main app
-      if (!inTabs) {
+      if (!inTabs && !inModals) {
         router.replace('/tabs/dashboard');
       }
     }
