@@ -10,11 +10,11 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.heloichero.app",
+      "bundleIdentifier": "com.jfoster2311.helochwero",
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.heloichero.app"
+      "package": "com.jfoster2311.helochwero"
     },
     "plugins": [
       "expo-router",
