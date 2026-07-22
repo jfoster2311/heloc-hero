@@ -34,10 +34,14 @@ export function useAccounts(userId: string | null): AccountsState {
     return (data as LinkedAccount[]) ?? [];
   }, [userId]);
 
-  /** Trigger a Plaid balance refresh for a specific plaid_item_id */
-  async function triggerPlaidRefresh(plaidItemId: string): Promise<void> {
+  /**
+   * Trigger a Plaid balance refresh for all of the user's linked accounts.
+   * The plaid-get-balances function keys off userId (optionally accountType) —
+   * NOT plaid_item_id — and refreshes every account in a single call.
+   */
+  async function triggerPlaidRefresh(uid: string): Promise<void> {
     try {
-      await invokeFunction('plaid-get-balances', { plaidItemId });
+      await invokeFunction('plaid-get-balances', { userId: uid });
     } catch {
       // Ignore — Plaid errors shouldn't break the UI
     }
@@ -64,7 +68,8 @@ export function useAccounts(userId: string | null): AccountsState {
 
       if (toRefresh.length > 0) {
         hasAutoRefreshed.current = true;
-        await Promise.allSettled(toRefresh.map(a => triggerPlaidRefresh(a.plaid_item_id)));
+        // One call refreshes every linked account for this user.
+        await triggerPlaidRefresh(userId);
         // Re-fetch local after Plaid sync
         const updated = await fetchLocal();
         if (updated) setAccounts(updated);
