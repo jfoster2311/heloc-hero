@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
+import { useIsPro } from '../../hooks/useIsPro';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { hapticLight } from '../../lib/haptics';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -23,6 +24,7 @@ const ASSUMED_HELOC_RATE = 0.085;
 export default function DashboardScreen() {
   const router = useRouter();
   const { profile, tier } = useAuth();
+  const { isPro } = useIsPro();
   const { streak } = useStreak(profile?.id);
   const { accounts, refreshing, refresh, mortgageAccount, helocAccount, savingsAccount } =
     useAccounts(profile?.id ?? null);
@@ -252,7 +254,7 @@ export default function DashboardScreen() {
         ) : (
           <TouchableOpacity
             style={styles.linkAccountsCta}
-            onPress={() => router.push(tier === 'free' ? '/modals/upgrade' : '/modals/link-account')}
+            onPress={() => router.push(isPro ? '/modals/link-account' : '/modals/upgrade')}
           >
             <View style={styles.linkAccountsIcon}><Ionicons name="link-outline" size={22} color={Colors.mint600} /></View>
             <View style={{ flex: 1 }}>

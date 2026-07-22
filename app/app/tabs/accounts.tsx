@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
+import { useIsPro } from '../../hooks/useIsPro';
 import { useAccounts } from '../../hooks/useAccounts';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
 import type { LinkedAccount, PlaidAccount } from '../../lib/types';
@@ -47,11 +48,14 @@ function fmt(n: number) { return n.toLocaleString('en-US', { maximumFractionDigi
 
 export default function AccountsScreen() {
   const router = useRouter();
-  const { profile, tier } = useAuth();
+  const { profile } = useAuth();
+  const { isPro, loading: proLoading } = useIsPro();
   const { accounts, refreshing, refresh, mortgageAccount, helocAccount, savingsAccount } =
     useAccounts(profile?.id ?? null);
 
-  const canLink = tier === 'medium' || tier === 'full';
+  // Single source of truth for Pro status (RevenueCat, with Supabase tier fallback).
+  // Must match the gate in modals/link-account.tsx or the button and the modal disagree.
+  const canLink = isPro;
 
   // Balance sheet values
   const homeValue      = profile?.home_value ?? 0;
@@ -155,8 +159,9 @@ export default function AccountsScreen() {
           </View>
         )}
 
-        {/* Upgrade prompt for free tier */}
-        {!canLink && (
+        {/* Upgrade prompt for free tier — held back until Pro status resolves
+            so Pro users don't see an upgrade banner flash on mount */}
+        {!proLoading && !canLink && (
           <TouchableOpacity style={styles.upgradeBanner} onPress={() => router.push('/modals/upgrade')}>
             <View style={styles.upgradeBannerIcon}><Ionicons name="lock-closed" size={18} color={Colors.mint600} /></View>
             <View style={{ flex: 1 }}>
