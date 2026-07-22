@@ -105,6 +105,22 @@ export const Gradients = {
   hero:    ['#1a9e7a', '#147a5e'] as const,
 };
 
+// Deep-green aurora used by the full-bleed dark screens (welcome, reveal).
+// Layered rather than a single ramp: a dark vertical base, a mint glow raked
+// across it, and a pale wash at the very top. Grain sits over the whole stack.
+export const Aurora = {
+  deepest:  '#081A0F',
+  deep:     '#0C2A18',
+  mid:      '#0F3D22',
+  glow:     '#12B76A',
+  glowSoft: '#4ade80',
+  pale:     '#E8F9F1',
+
+  base:      ['#081A0F', '#0C2A18', '#0F3D22'] as const,
+  glowRake:  ['rgba(18,183,106,0.50)', 'rgba(18,183,106,0.10)', 'rgba(18,183,106,0)'] as const,
+  paleWash:  ['rgba(232,249,241,0.40)', 'rgba(232,249,241,0)'] as const,
+};
+
 export const CommonStyles = StyleSheet.create({
   screenContainer: {
     flex: 1,
