@@ -17,7 +17,13 @@
       "package": "com.heloichero.app"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allows HELOC Hero to unlock the app with Face ID after it has been in the background."
+        }
+      ]
     ],
     "scheme": "heloc-hero",
     "experiments": {
