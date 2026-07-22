@@ -22,8 +22,7 @@
 --   • fixing supabase/functions/delete-account to target the real tables
 --
 -- Apply via: Supabase Dashboard → SQL Editor (per CLAUDE.md), or reviewed apply_migration.
-
-begin;
+-- (No explicit BEGIN/COMMIT — the migration runner wraps this file in one transaction.)
 
 -- ─── 1) users: profile + financial columns the app expects ───────────────────
 alter table public.users add column if not exists email               text;
@@ -161,5 +160,3 @@ set
                         )
 from public.user_profiles up
 where u.id = up.user_id;
-
-commit;
