@@ -124,10 +124,14 @@ export default function RevealScreen() {
   const [reduceMotion, setReduceMotion] = useState(false);
 
   // Board geometry: full original term, avatar stops on the projected year.
-  const boardTotalYears = Math.max(1, Math.round(projection.originalMonths / 12));
+  // ceil, not round: the tile is the year payoff happens *in*. Month 170 is
+  // 14.2 years, but year 14 ends at month 168 — so that payoff lands in year
+  // 15. Rounding would show a year they have not actually reached yet, and it
+  // errs optimistic, which is the wrong direction for a projected number.
+  const boardTotalYears = Math.max(1, Math.ceil(projection.originalMonths / 12));
   const boardTargetYear = Math.min(
     boardTotalYears,
-    Math.max(1, Math.round(projection.acceleratedMonths / 12)),
+    Math.max(1, Math.ceil(projection.acceleratedMonths / 12)),
   );
 
   // ── Main reveal animated values ───────────────────────────────────────────

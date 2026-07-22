@@ -45,8 +45,10 @@ export default function PayoffBoard({
   reduceMotion = false,
   onArrive,
 }: Props) {
-  const total = Math.max(1, Math.round(totalYears));
-  const target = Math.min(Math.max(1, Math.round(targetYear)), total);
+  // Callers pass whole years already (see reveal.tsx on why it ceils rather
+  // than rounds); these just clamp to a drawable range.
+  const total = Math.max(1, Math.ceil(totalYears));
+  const target = Math.min(Math.max(1, Math.ceil(targetYear)), total);
 
   const [boardW, setBoardW] = useState(0);
   const [walked, setWalked] = useState(0); // years walked so far (1-based); 0 = not started
