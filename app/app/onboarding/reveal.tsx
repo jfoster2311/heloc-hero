@@ -1,5 +1,5 @@
 // app/onboarding/reveal.tsx — personalized projection reveal + conversion CTA
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, AccessibilityInfo,
@@ -8,25 +8,30 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AuroraBackground from '../../components/Aurora';
+import PayoffBoard from '../../components/PayoffBoard';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
-import { hapticLight, hapticMedium, hapticSuccess } from '../../lib/haptics';
+import { hapticMedium } from '../../lib/haptics';
 
-// ── Race ritual timeline (ms) ──────────────────────────────────────────────
-// An original "racing toward your goal" motif — a token speeds down a track,
-// blows past a dim marker for the old, slower payoff pace, and arrives early
-// at the accelerated one. No board-game imagery, names, or iconography.
-const RACE_TRACK_IN     = 450;  // track + markers fade in
-const RACE_HOLD_BEFORE  = 450;  // beat of anticipation before the token takes off
-const RACE_DURATION     = 2500; // token travels start -> finish
-const RACE_GHOST_AT     = 0.6;  // fraction of RACE_DURATION when it passes the "old pace" marker
-const RACE_GHOST_PCT    = 62;   // that marker's position along the track (%)
-const RACE_ARRIVAL_HOLD = 900;  // hold on the arrival flash before crossfading out
-const RACE_FADE_OUT     = 550;  // dark overlay fade-out into the hero reveal
-const TOKEN_SIZE = 22;
-const RACE_TRACK_HEIGHT = 6;
+// ── Board ritual timeline (ms) ─────────────────────────────────────────────
+// Black beat, then the aurora rises slowly while the projection "computes",
+// then an avatar walks the year board and stops on the projected payoff year.
+// The walk's own length is dynamic, so everything after arrival is sequenced
+// from the board's onArrive rather than a fixed offset chain.
+//
+// The board is a plain path of year tiles in HELOC Hero's own identity — no
+// board-game trade dress (ring layout, corner squares, property bands, or
+// licensed iconography).
+const DARK_HOLD      = 400;   // pure black before anything appears
+const AURORA_IN      = 1300;  // gradient rises slowly — the "calculating" beat
+const BOARD_IN       = 600;   // board + caption fade in, overlapping the aurora
+const BOARD_IN_AT    = 500;   // when the board starts fading in, after DARK_HOLD
+const WALK_LEAD_IN   = 350;   // beat between the aurora settling and the first hop
+const ARRIVAL_HOLD   = 1100;  // hold on the landed tile before crossfading out
+const RITUAL_FADE_OUT = 550;  // overlay fade-out into the hero reveal
 
 // ── Particle system (module-level so Math.random runs once at load) ──────────
 const GREENS = ['#12B76A', '#4ade80', '#6ee7b7', '#34d399', 'rgba(74,222,128,0.8)'];
@@ -112,13 +117,18 @@ export default function RevealScreen() {
 
   // ── Ritual animated values ─────────────────────────────────────────────────
   const overlayOpacity = useRef(new Animated.Value(1)).current;
-  const ritualOpacity  = useRef(new Animated.Value(0)).current; // track + markers fade-in
-  const tokenProgress  = useRef(new Animated.Value(0)).current; // 0 = start, 1 = finish
-  const ghostPulse     = useRef(new Animated.Value(0)).current; // punch as token passes the old-pace marker
-  const finishPulse    = useRef(new Animated.Value(0)).current; // arrival bounce on the finish flag
-  const arrivalFlash   = useRef(new Animated.Value(0)).current; // arrival glow flash
+  const auroraOpacity  = useRef(new Animated.Value(0)).current; // gradient rises out of black
+  const ritualOpacity  = useRef(new Animated.Value(0)).current; // board + caption fade-in
   const particleBurst  = useRef(new Animated.Value(0)).current;
-  const [raceWidth, setRaceWidth] = useState(1);
+  const [boardActive, setBoardActive] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  // Board geometry: full original term, avatar stops on the projected year.
+  const boardTotalYears = Math.max(1, Math.round(projection.originalMonths / 12));
+  const boardTargetYear = Math.min(
+    boardTotalYears,
+    Math.max(1, Math.round(projection.acceleratedMonths / 12)),
+  );
 
   // ── Main reveal animated values ───────────────────────────────────────────
   const heroOpacity  = useRef(new Animated.Value(0)).current;
@@ -128,14 +138,65 @@ export default function RevealScreen() {
   const [displayInterest, setDisplayInterest] = useState(0);
   const [animDone,        setAnimDone]        = useState(false);
 
+  const cancelledRef = useRef(false);
+
+  /** Crossfade the ritual out and run the hero count-ups. Fired on arrival. */
+  const runHeroReveal = useCallback(() => {
+    const t0 = setTimeout(() => {
+      if (cancelledRef.current) return;
+      Animated.timing(overlayOpacity, {
+        toValue: 0, duration: RITUAL_FADE_OUT, useNativeDriver: true,
+      }).start();
+    }, ARRIVAL_HOLD);
+
+    const heroAt = ARRIVAL_HOLD + 200;
+
+    const t1 = setTimeout(() => {
+      if (cancelledRef.current) return;
+      Animated.parallel([
+        Animated.timing(heroOpacity, {
+          toValue: 1, duration: 650, easing: Easing.out(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.timing(heroScale, {
+          toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        }),
+        Animated.timing(progressAnim, {
+          toValue: 1, duration: 550, easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,   // width interpolation requires JS driver
+        }),
+      ]).start();
+    }, heroAt);
+
+    const t2 = setTimeout(() => {
+      if (cancelledRef.current) return;
+      countUp(0, targetMonths, 500, (v) => setDisplayMonths(v));
+    }, heroAt + 650);
+
+    const t3 = setTimeout(() => {
+      if (cancelledRef.current) return;
+      countUp(0, targetInterest, 600, (v) => setDisplayInterest(v), () => {
+        if (cancelledRef.current) return;
+        setAnimDone(true);
+        Animated.timing(particleBurst, {
+          toValue: 1, duration: 850, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        }).start();
+        hapticMedium();
+      });
+    }, heroAt + 1250);
+
+    void t0; void t1; void t2; void t3;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetMonths, targetInterest]);
+
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
 
     AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
-      if (cancelled) return;
+      if (cancelledRef.current) return;
+      setReduceMotion(reduced);
 
       if (reduced) {
-        // Skip ritual + animations — show final values immediately.
+        // Skip the ritual entirely — show final values immediately.
         overlayOpacity.setValue(0);
         heroOpacity.setValue(1);
         heroScale.setValue(1);
@@ -146,115 +207,33 @@ export default function RevealScreen() {
         return;
       }
 
-      // ── Phase 0 (0ms): dark screen + track/markers fade in ───────────────
-      Animated.timing(ritualOpacity, {
-        toValue: 1, duration: RACE_TRACK_IN, easing: Easing.out(Easing.quad), useNativeDriver: true,
-      }).start();
-
-      // ── Race (after a beat of anticipation): token speeds to the finish ──
-      const tRaceStart = setTimeout(() => {
-        if (cancelled) return;
-        Animated.timing(tokenProgress, {
-          toValue:         1,
-          duration:        RACE_DURATION,
-          easing:          Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
+      // ── Beat 1: hold on black, then raise the aurora slowly ──────────────
+      const tAurora = setTimeout(() => {
+        if (cancelledRef.current) return;
+        Animated.timing(auroraOpacity, {
+          toValue: 1, duration: AURORA_IN, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
         }).start();
-      }, RACE_TRACK_IN + RACE_HOLD_BEFORE);
+      }, DARK_HOLD);
 
-      // Punch the "old pace" marker as the token blows past it, mid-race.
-      const tGhostPass = setTimeout(() => {
-        if (cancelled) return;
-        hapticLight();
-        Animated.sequence([
-          Animated.timing(ghostPulse, { toValue: 1, duration: 150, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(ghostPulse, { toValue: 0, duration: 300, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-        ]).start();
-      }, RACE_TRACK_IN + RACE_HOLD_BEFORE + RACE_DURATION * RACE_GHOST_AT);
-
-      const tArrival = RACE_TRACK_IN + RACE_HOLD_BEFORE + RACE_DURATION;
-
-      // Arrival: flash + bounce on the finish marker.
-      const tArrivalBurst = setTimeout(() => {
-        if (cancelled) return;
-        hapticSuccess();
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(finishPulse, { toValue: 1, duration: 220, easing: Easing.out(Easing.back(2)), useNativeDriver: true }),
-            Animated.timing(finishPulse, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          ]),
-          Animated.sequence([
-            Animated.timing(arrivalFlash, { toValue: 1, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-            Animated.timing(arrivalFlash, { toValue: 0, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-          ]),
-        ]).start();
-      }, tArrival);
-
-      const tOverlayFadeStart = tArrival + RACE_ARRIVAL_HOLD;
-
-      // Fade out the dark overlay into the hero reveal.
-      const tOverlay = setTimeout(() => {
-        if (cancelled) return;
-        Animated.timing(overlayOpacity, {
-          toValue: 0, duration: RACE_FADE_OUT, useNativeDriver: true,
+      // ── Beat 2: board fades in over the rising gradient ──────────────────
+      const tBoard = setTimeout(() => {
+        if (cancelledRef.current) return;
+        Animated.timing(ritualOpacity, {
+          toValue: 1, duration: BOARD_IN, easing: Easing.out(Easing.quad), useNativeDriver: true,
         }).start();
-      }, tOverlayFadeStart);
+      }, DARK_HOLD + BOARD_IN_AT);
 
-      // ── Phase 1: hero fades/scales in + progress bar fills (slight crossfade) ─
-      const tPhase1Delay = tOverlayFadeStart + 200;
-      const tPhase1 = setTimeout(() => {
-        if (cancelled) return;
-        Animated.parallel([
-          Animated.timing(heroOpacity, {
-            toValue:         1,
-            duration:        650,
-            easing:          Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(heroScale, {
-            toValue:         1,
-            duration:        700,
-            easing:          Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(progressAnim, {
-            toValue:         1,
-            duration:        550,
-            easing:          Easing.inOut(Easing.quad),
-            useNativeDriver: false,   // width interpolation requires JS driver
-          }),
-        ]).start();
-      }, tPhase1Delay);
+      // ── Beat 3: the walk. Everything after it is driven by onArrive. ─────
+      const tWalk = setTimeout(() => {
+        if (cancelledRef.current) return;
+        setBoardActive(true);
+      }, DARK_HOLD + AURORA_IN + WALK_LEAD_IN);
 
-      // ── Phase 2: months-saved count-up ────────────────────────────────────
-      const tPhase2 = setTimeout(() => {
-        if (cancelled) return;
-        countUp(0, targetMonths, 500, (v) => setDisplayMonths(v));
-      }, tPhase1Delay + 650);
-
-      // ── Phase 3: interest count-up → particle burst + haptic ─────────────
-      const tPhase3 = setTimeout(() => {
-        if (cancelled) return;
-        countUp(0, targetInterest, 600, (v) => setDisplayInterest(v), () => {
-          if (!cancelled) {
-            setAnimDone(true);
-            Animated.timing(particleBurst, {
-              toValue:         1,
-              duration:        850,
-              easing:          Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }).start();
-            hapticMedium();
-          }
-        });
-      }, tPhase1Delay + 1250);
-
-      // Suppress unused-variable lint warnings; timeouts are guarded by `cancelled`
-      void tRaceStart; void tGhostPass; void tArrivalBurst; void tOverlay; void tPhase1; void tPhase2; void tPhase3;
+      void tAurora; void tBoard; void tWalk;
     });
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -432,101 +411,24 @@ export default function RevealScreen() {
         </View>
       </View>
 
-      {/* ── Ritual overlay: racing-toward-your-goal reveal (full screen) ───── */}
+      {/* ── Ritual overlay: black → aurora rises → avatar walks the board ──── */}
       <Animated.View
         style={[StyleSheet.absoluteFill, styles.ritualOverlay, { opacity: overlayOpacity }]}
         pointerEvents="none"
       >
-        <Animated.View style={[styles.raceScene, { opacity: ritualOpacity }]}>
-          <Text style={styles.raceCaptionText}>Fast-forwarding your mortgage timeline…</Text>
+        {/* Gradient rises out of black while the projection computes */}
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: auroraOpacity }]}>
+          <AuroraBackground style={StyleSheet.absoluteFill} />
+        </Animated.View>
 
-          <View
-            style={styles.raceRunway}
-            onLayout={(e) => setRaceWidth(e.nativeEvent.layout.width)}
-          >
-            <View style={styles.raceTrack} />
-
-            {/* Start marker */}
-            <View style={[styles.raceMarker, styles.raceMarkerStart]}>
-              <View style={styles.raceStartDot} />
-              <Text style={styles.raceMarkerLabel}>TODAY</Text>
-            </View>
-
-            {/* Ghost marker — the old, slower payoff pace */}
-            <Animated.View
-              style={[
-                styles.raceMarker,
-                { left: `${RACE_GHOST_PCT}%` },
-                {
-                  transform: [{
-                    scale: ghostPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }),
-                  }],
-                },
-              ]}
-            >
-              <Ionicons name="flag-outline" size={13} color="rgba(255,255,255,0.4)" />
-              <Text style={styles.raceMarkerLabelGhost}>OLD PACE</Text>
-            </Animated.View>
-
-            {/* Finish marker — the accelerated payoff */}
-            <Animated.View
-              style={[
-                styles.raceMarker,
-                styles.raceMarkerFinish,
-                {
-                  transform: [{
-                    scale: finishPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }),
-                  }],
-                },
-              ]}
-            >
-              <Animated.View style={[
-                styles.raceFinishFlash,
-                {
-                  opacity: arrivalFlash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.85] }),
-                  transform: [{ scale: arrivalFlash.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.6] }) }],
-                },
-              ]} />
-              <View style={styles.raceFinishGlow} />
-              <Ionicons name="flag" size={15} color="#12B76A" />
-              <Text style={styles.raceMarkerLabelFinish}>YOUR PAYOFF</Text>
-            </Animated.View>
-
-            {/* Comet trail — faint echoes behind the racing token */}
-            {[18, 34, 50].map((offset, i) => (
-              <Animated.View
-                key={offset}
-                style={[
-                  styles.cometDot,
-                  {
-                    opacity: 0.3 - i * 0.09,
-                    transform: [{
-                      translateX: tokenProgress.interpolate({
-                        inputRange:  [0, 1],
-                        outputRange: [-offset, Math.max(0, raceWidth - TOKEN_SIZE - offset)],
-                        extrapolate: 'clamp',
-                      }),
-                    }],
-                  },
-                ]}
-              />
-            ))}
-
-            {/* Racing token */}
-            <Animated.View
-              style={[
-                styles.cometHead,
-                {
-                  transform: [{
-                    translateX: tokenProgress.interpolate({
-                      inputRange:  [0, 1],
-                      outputRange: [0, Math.max(0, raceWidth - TOKEN_SIZE)],
-                    }),
-                  }],
-                },
-              ]}
-            />
-          </View>
+        <Animated.View style={[styles.boardScene, { opacity: ritualOpacity }]}>
+          <PayoffBoard
+            totalYears={boardTotalYears}
+            targetYear={boardTargetYear}
+            active={boardActive}
+            reduceMotion={reduceMotion}
+            onArrive={runHeroReveal}
+          />
         </Animated.View>
       </Animated.View>
     </SafeAreaView>
@@ -731,98 +633,9 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
   },
-  raceScene: {
+  boardScene: {
     width:             '100%',
-    paddingHorizontal: Spacing[8],
+    paddingHorizontal: Spacing[6],
     alignItems:        'center',
-    gap:               Spacing[10],
-  },
-  raceCaptionText: {
-    fontSize:      Typography.sm,
-    fontWeight:    Typography.semibold,
-    color:         'rgba(255,255,255,0.55)',
-    letterSpacing: 0.4,
-    textAlign:     'center',
-  },
-  raceRunway: {
-    width:          '100%',
-    height:         56,
-    justifyContent: 'center',
-  },
-  raceTrack: {
-    height:          RACE_TRACK_HEIGHT,
-    borderRadius:    RACE_TRACK_HEIGHT / 2,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  raceMarker: {
-    position:  'absolute',
-    top:       -24,
-    alignItems: 'center',
-    gap:       4,
-  },
-  raceMarkerStart:  { left: -3 },
-  raceMarkerFinish: { right: -6 },
-  raceStartDot: {
-    width:           8,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-  },
-  raceMarkerLabel: {
-    fontSize:      9,
-    fontWeight:    Typography.bold,
-    color:         'rgba(255,255,255,0.5)',
-    letterSpacing: 0.8,
-  },
-  raceMarkerLabelGhost: {
-    fontSize:      9,
-    fontWeight:    Typography.bold,
-    color:         'rgba(255,255,255,0.35)',
-    letterSpacing: 0.8,
-  },
-  raceMarkerLabelFinish: {
-    fontSize:      9,
-    fontWeight:    Typography.extrabold,
-    color:         '#12B76A',
-    letterSpacing: 0.8,
-  },
-  // Ambient ring around the finish flag, always faintly visible
-  raceFinishGlow: {
-    position:        'absolute',
-    width:           32,
-    height:          32,
-    borderRadius:    16,
-    backgroundColor: 'rgba(18, 183, 106, 0.3)',
-  },
-  // Bigger flash that flares up only on arrival
-  raceFinishFlash: {
-    position:        'absolute',
-    width:           60,
-    height:          60,
-    borderRadius:    30,
-    backgroundColor: 'rgba(74, 222, 128, 0.55)',
-  },
-  // Racing token
-  cometHead: {
-    position:        'absolute',
-    top:             (RACE_TRACK_HEIGHT - TOKEN_SIZE) / 2,
-    width:           TOKEN_SIZE,
-    height:          TOKEN_SIZE,
-    borderRadius:    TOKEN_SIZE / 2,
-    backgroundColor: '#12B76A',
-    shadowColor:     '#12B76A',
-    shadowOffset:    { width: 0, height: 0 },
-    shadowOpacity:   0.8,
-    shadowRadius:    8,
-    elevation:       6,
-  },
-  // Faint trailing echoes behind the token
-  cometDot: {
-    position:        'absolute',
-    top:             (RACE_TRACK_HEIGHT - TOKEN_SIZE * 0.55) / 2,
-    width:           TOKEN_SIZE * 0.55,
-    height:          TOKEN_SIZE * 0.55,
-    borderRadius:    (TOKEN_SIZE * 0.55) / 2,
-    backgroundColor: '#4ade80',
   },
 });
