@@ -1,124 +1,91 @@
-// app/tabs/dashboard.tsx
+// app/tabs/dashboard.tsx — one hero and four cards. Everything else behind a tap.
 //
-// One number owns this screen: the Payoff Clock. Everything else is context.
+// The hero is a date, not a countdown. "March 2037" is a thing a person can
+// picture and check against their own plans; "13 yrs 2 mo" is an abstraction
+// they have to convert before it means anything. The conclusion is annotated
+// directly beneath it, because a bare number is homework.
 //
-// Design constraints it is built to satisfy:
-//  · Exactly one accent element (Von Restorff). The payoff figure and its
-//    progress bar are mint; every other datum is grey or secondary. This screen
-//    previously carried EIGHT hero-scale numbers — two at 56pt, one at 52pt,
-//    plus 3xl/2xl figures for utilization, credit and interest saved — most of
-//    them mint. Nothing stood out because everything did.
-//  · Hierarchy by de-emphasising, not emphasising. The payoff number is a
-//    restrained 30pt; the separation comes from muting its surroundings.
-//  · Five data elements (Miller's Law): payoff clock, this cycle, your
-//    position, readiness score, pinned action. Related metrics are chunked into
-//    one card instead of each claiming a tile — this screen used to carry ~16
-//    sections, several of them duplicates (two payoff comparisons, two budget
-//    bars, two "interest saved" figures).
-//  · Progress states its own conclusion and carries 25/50/75 milestone marks,
-//    so someone years from payoff still has a near-term goal (Zeigarnik and
-//    goal-gradient).
-//  · The primary action is pinned in the thumb zone (Fitts's Law) rather than
-//    stranded at the bottom of a long scroll.
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl, Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// The four cards, in this order and no other:
+//   1. Safe to Move   — the decision, in the thumb zone, reasoning always visible
+//   2. Interest       — realized first, projected second, servicer figure alongside
+//   3. Line status    — balance, available, limit, and the threshold gauge
+//   4. Watch items    — only when there is genuinely something to watch
+//
+// Explicitly not on this screen: amortization tables, transaction lists, rate
+// history, per-account balances, month-by-month schedules. Every one of those
+// is a real thing a user might want and none of them is what this screen is
+// for. Ranking is the feature.
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TAB_BAR_CLEARANCE } from './_layout';
+import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import {
+  Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow,
+} from '../../components/ui/primitives';
+import NotificationPrimer from '../../components/NotificationPrimer';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
-import { useOnboardingStore } from '../../lib/onboardingStore';
-import { hapticLight } from '../../lib/haptics';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useStreak } from '../../hooks/useStreak';
-import NotificationPrimer from '../../components/NotificationPrimer';
-import { computeHelocScore, genericHelocScore } from '../../lib/helocScore';
-import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
-import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
-import { resolveHelocRate, deriveCreditLimit, termsAreStale } from '../../lib/helocTerms';
-import { isPaidTier } from '../../lib/pricing';
+import { useFinancials } from '../../hooks/useFinancials';
+import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { useCycleReminders } from '../../hooks/useCycleReminders';
-import type { LinkedAccount } from '../../lib/types';
-
-const MILESTONES = [25, 50, 75];
+import { useOnboardingStore } from '../../lib/onboardingStore';
+import { computeRealized } from '../../lib/realized';
+import { formatMonths } from '../../lib/projections';
+import { monthsBetween } from '../../lib/mortgage';
+import { MILESTONES } from '../../lib/config';
+import { isPaidTier } from '../../lib/pricing';
+import { hapticLight } from '../../lib/haptics';
+import { Colors, Typography, Spacing, Radius, Tracking, OnDark, CommonStyles } from '../../lib/theme';
+import type { WatchItem } from '../../lib/watchItems';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
-  const { streak } = useStreak(profile?.id);
-  const { accounts, refreshing, refresh, mortgageAccount, helocAccount, savingsAccount } =
-    useAccounts(profile?.id ?? null);
+  const f = useFinancials();
+  const { totalDumped } = useDumpHistory(profile?.id);
+  const [moveDismissed, setMoveDismissed] = useState(false);
 
-  const mortgageBalance   = firstBalance(mortgageAccount);
-  const helocBalance      = firstBalance(helocAccount);
-  // Plaid populates `limit` inconsistently for lines of credit; drawn +
-  // available is the dependable derivation. See lib/helocTerms.
-  const helocLimit        = deriveCreditLimit(
-    firstBalances(helocAccount),
-    profile?.heloc_credit_limit ?? null,
-  ).limit;
-  // The user's own APR when we have it — Plaid never supplies one for a HELOC.
-  const { rate: helocRate, isAssumed: helocRateAssumed } =
-    resolveHelocRate(profile?.heloc_rate);
-  const helocTermsStale = termsAreStale(profile?.heloc_terms_updated_at);
-  const savingsBalance    = firstBalance(savingsAccount);
-  const hasLinkedAccounts = accounts.length > 0;
+  const realized = computeRealized({
+    totalMoved:      totalDumped,
+    mortgageBalance: f.mortgageBalance ?? 0,
+    mortgageRate:    f.mortgage.rate.value ?? 0.065,
+    monthlyPayment:  f.payment,
+    helocRate:       f.helocRate,
+    monthlySurplus:  Math.max(0, f.surplus),
+    helocLimit:      f.helocLimit ?? 0,
+  });
 
-  const income          = profile?.monthly_income   ?? 0;
-  const livingExpenses  = profile?.monthly_expenses ?? 0;
-  const mortgagePayment = profile?.monthly_payment  ?? 0;
-  const surplus         = income - livingExpenses - mortgagePayment;
+  useCycleReminders(profile?.id, {
+    helocDrawn:     f.helocDrawn ?? 0,
+    monthlySurplus: Math.max(0, f.surplus),
+    dumpAmount:     f.safeToMove.recommendedAmount ?? 0,
+    enabled:        isPaidTier(tier),
+  });
 
-  const homeValue  = profile?.home_value ?? 0;
-  const liveDebt   = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
-  const homeEquity = Math.max(0, homeValue - liveDebt);
+  // ── The two dates the hero compares ──────────────────────────────────────
+  // Baseline comes from the note's own terms when the servicer reports them, so
+  // the comparison isn't the app grading its own homework against a schedule
+  // the user is already ahead of.
+  const payoffDate = f.projection.acceleratedPayoffDate;
+  const baselineDate = f.baseline.payoffDate ?? f.projection.originalPayoffDate;
+  const baselineIsReported = f.baseline.payoffDate !== null;
+  const monthsAhead = Math.max(0, monthsBetween(payoffDate, baselineDate));
 
-  // Ownership is the progress metric because it means something on day one.
-  // Principal-paid-since-signup sits at 0% for every new user — exactly when a
-  // progress bar most needs to show them something.
-  const ownedPct = homeValue > 0
-    ? Math.min(Math.max((homeEquity / homeValue) * 100, 0), 100)
-    : 0;
-  const underwater = homeValue > 0 && liveDebt > homeValue;
+  // Percent complete prefers principal retired against the original note. Home
+  // ownership is the fallback, because principal-since-signup is 0% on day one
+  // — precisely when a progress bar most needs to show something.
+  const pct = f.baseline.percentComplete !== null
+    ? f.baseline.percentComplete * 100
+    : f.homeValue && f.equity !== null
+      ? clamp(0, (f.equity / f.homeValue) * 100, 100)
+      : null;
+  const nextMs = pct !== null ? MILESTONES.find(m => pct < m) : undefined;
 
-  const hasRealData = tier !== 'free' && mortgageBalance !== null;
-
-  // Without Plaid, fall back to a surplus-derived estimate so the cycle card is
-  // populated. Always labelled as an estimate.
-  const fallbackHelocLimit  = Math.max(25_000, Math.min(Math.max(0, surplus) * 12, 150_000)) || 50_000;
-  const displayHelocBalance = helocBalance ?? 0;
-  const displayHelocLimit   = helocLimit   ?? fallbackHelocLimit;
-  const effectiveDump       = displayHelocLimit > 0
-    ? Math.min(displayHelocLimit, Math.max(0, surplus * 12))
-    : Math.max(0, surplus * 12);
-
-  const score = hasRealData
-    ? computeHelocScore({
-        monthlyIncome:   income,
-        monthlyExpenses: livingExpenses,
-        helocBalance:    helocBalance  ?? 0,
-        helocLimit:      helocLimit    ?? 0,
-        creditScore:     profile?.credit_score ?? 700,
-        homeValue,
-        mortgageBalance: mortgageBalance ?? 0,
-      })
-    : genericHelocScore();
-
-  const projection = hasRealData && mortgageBalance
-    ? computeProjection({
-        mortgageBalance,
-        mortgageRate:   profile?.mortgage_rate   ?? 0.065,
-        monthlyPayment: profile?.monthly_payment ?? 2_000,
-        monthlySurplus: Math.max(0, surplus),
-        helocRate,
-      })
-    : genericProjection();
-
-  // ── DEV-ONLY: restart / reset onboarding flow ─────────────────────────────
-  // __DEV__ is false in production — Metro dead-strips this function entirely.
   function handleDevTools() {
     if (!__DEV__) return;
     Alert.alert('DEV Tools', 'Onboarding flow', [
@@ -134,343 +101,344 @@ export default function DashboardScreen() {
       },
     ]);
   }
-  // ── END DEV TOOLS ──────────────────────────────────────────────────────────
-
-  const cycleReady   = displayHelocBalance <= 0 && effectiveDump > 0;
-  const monthsToDump = displayHelocBalance > 0 && surplus > 0
-    ? Math.max(1, Math.ceil(displayHelocBalance / surplus))
-    : 0;
-
-  // Keeps the on-device action prompts in step with the cycle. The app never
-  // acts on the user's behalf — these decide when it asks them to.
-  const { remindersOn } = useCycleReminders(profile?.id, {
-    helocDrawn:     displayHelocBalance,
-    monthlySurplus: Math.max(0, surplus),
-    dumpAmount:     effectiveDump,
-    enabled:        isPaidTier(tier),
-  });
 
   return (
-    <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
+    <View style={CommonStyles.screenContainer}>
       <NotificationPrimer triggerKey={profile?.id ?? null} />
 
-      <View style={styles.header}>
-        <Text style={styles.greeting}>
-          {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'Dashboard'}
-        </Text>
-        <View style={styles.headerRight}>
-          {__DEV__ && (
-            <TouchableOpacity
-              style={styles.devBadge}
-              onPress={handleDevTools}
-              accessibilityLabel="DEV tools"
-            >
-              <Text style={styles.devBadgeText}>DEV</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.settingsBtn}
-            onPress={() => router.push('/modals/settings')}
-            accessibilityLabel="Settings"
-          >
-            <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={f.refreshing} onRefresh={f.refresh} tintColor={Colors.mint600} />
         }
       >
-        {/* ── 1. THE PAYOFF CLOCK — the only accent on this screen ────────── */}
-        <View style={styles.clockCard}>
-          {!hasRealData && (
-            <View style={styles.exampleBadge}>
-              <Text style={styles.exampleBadgeText}>Example</Text>
-            </View>
-          )}
-
-          <Text style={styles.eyebrow}>MORTGAGE-FREE IN</Text>
-          <Text style={styles.clockValue}>{formatMonths(projection.acceleratedMonths)}</Text>
-          <Text style={styles.clockDate}>
-            around {fmtPayoffDate(projection.acceleratedPayoffDate)}
-          </Text>
-
-          {/* The conclusion, stated outright — not a legend to decode */}
-          {projection.monthsSaved > 0 && (
-            <Text style={styles.clockConclusion}>
-              {formatMonths(projection.monthsSaved)} sooner than your current schedule,
-              saving about ${fmtK(projection.interestSaved)} in interest
-            </Text>
-          )}
-
-          {/* Progress toward owning the home outright, with near-term goals */}
-          {homeValue > 0 && (
-            <View style={styles.progressBlock}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${ownedPct}%` }]} />
-                {MILESTONES.map(m => (
-                  <View key={m} style={[styles.milestone, { left: `${m}%` }]} />
-                ))}
+        {/* ── HERO — the payoff clock ───────────────────────────────────── */}
+        <Hero
+          intensity={0.85}
+          topBar={
+            <View style={styles.topBar}>
+              <Text style={styles.greeting}>
+                {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'HELOC Hero'}
+              </Text>
+              <View style={styles.topBarRight}>
+                {__DEV__ && (
+                  <TouchableOpacity style={styles.devBadge} onPress={handleDevTools} accessibilityLabel="DEV tools">
+                    <Text style={styles.devBadgeText}>DEV</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={() => router.push('/modals/settings')}
+                  accessibilityLabel="Settings"
+                >
+                  <Ionicons name="settings-outline" size={20} color={OnDark.secondary} />
+                </TouchableOpacity>
               </View>
+            </View>
+          }
+        >
+          <Text style={styles.heroEyebrow}>
+            {f.hasRealData ? 'MORTGAGE-FREE' : 'EXAMPLE · MORTGAGE-FREE'}
+          </Text>
+          <HeroValue>{fmtMonthYear(payoffDate)}</HeroValue>
+          <HeroCaption>
+            {monthsAhead > 0
+              ? `${formatMonths(monthsAhead)} ahead of ${baselineIsReported ? 'your original schedule' : 'your current schedule'}`
+              : 'On your current schedule — no acceleration projected yet'}
+          </HeroCaption>
+
+          {/* Progress carries a milestone marker, not just fill. Goal-gradient
+              motivation is weak in year two of twelve. */}
+          {pct !== null && (
+            <View style={styles.progressBlock}>
+              <Meter
+                value={pct / 100}
+                marks={MILESTONES.map(m => ({ at: m / 100 }))}
+                onDark
+                height={8}
+              />
               <View style={styles.progressLabels}>
                 <Text style={styles.progressText}>
-                  {underwater
-                    ? 'Owe more than the home is currently worth'
-                    : `You own ${ownedPct.toFixed(0)}% of your home`}
+                  {f.baseline.percentComplete !== null
+                    ? `${pct.toFixed(0)}% of the original loan retired`
+                    : `You own ${pct.toFixed(0)}% of your home`}
                 </Text>
-                <Text style={styles.progressGoal}>{nextMilestone(ownedPct)}</Text>
+                {nextMs !== undefined && (
+                  <Text style={styles.progressGoal}>next milestone: {nextMs}%</Text>
+                )}
               </View>
             </View>
           )}
 
-          <Text style={styles.clockDisclaimer}>Projected estimate, not a guarantee.</Text>
-        </View>
-
-        {streak > 0 && (
-          <Text style={styles.streakLine}>
-            {streak}-month cycling streak — keep it going
+          <Text style={styles.heroDisclaimer}>
+            Projected estimate, not a guarantee.
+            {f.helocRateAssumed ? ' Assumes an 8.5% HELOC APR.' : ''}
           </Text>
-        )}
+        </Hero>
 
-        {/* ── 2. THIS CYCLE — utilization and next dump are one story ─────── */}
-        <TouchableOpacity
-          style={CommonStyles.card}
-          onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
-          activeOpacity={0.85}
-          accessibilityLabel="Cycle details"
-        >
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>This cycle</Text>
-            <Text style={styles.cardStatus}>
-              {cycleReady ? 'Ready to dump' : monthsToDump > 0 ? `~${monthsToDump} mo to go` : 'Not started'}
-            </Text>
-          </View>
-
-          <View style={styles.utilTrack}>
-            <View
-              style={[styles.utilFill, { width: `${pct(displayHelocBalance, displayHelocLimit)}%` }]}
+        <View style={styles.content}>
+          {/* Manual indicator + a connect affordance that never blocks. Manual
+              users are a large early share and the screen has to be complete
+              for them, not a nag with a number behind it. */}
+          <View style={styles.asOfRow}>
+            <Chip
+              icon={f.isManual ? 'create-outline' : 'sync-outline'}
+              label={
+                f.isManual
+                  ? 'Your figures'
+                  : `Synced ${relativeTime(f.lastSyncedAt)}`
+              }
+              tone={f.isManual ? 'neutral' : 'accent'}
+            />
+            {f.balanceAsOfDate && (
+              <Text style={styles.asOfText}>as of {fmtDayMonth(f.balanceAsOfDate)}</Text>
+            )}
+            <View style={{ flex: 1 }} />
+            <Chip
+              label={f.hasLinkedAccounts ? 'Accounts' : 'Connect'}
+              icon="link-outline"
+              onPress={() => router.push(
+                f.hasLinkedAccounts ? '/tabs/accounts' : isPro ? '/modals/link-account' : '/modals/upgrade',
+              )}
             />
           </View>
 
-          <Text style={styles.cardConclusion}>
-            {cycleReady
-              ? `HELOC is replenished — you can dump about $${fmt(effectiveDump)} onto your principal.`
-              : `$${fmt(displayHelocBalance)} drawn of $${fmt(displayHelocLimit)} · ` +
-                `$${fmt(Math.max(0, displayHelocLimit - displayHelocBalance))} available`}
-          </Text>
-
-          {helocBalance === null && (
-            <Text style={styles.estimateNote}>Estimated · link accounts for live balances</Text>
-          )}
-          {helocRateAssumed && (
-            <Text style={styles.estimateNote}>
-              Interest assumes 8.5% APR — no bank shares HELOC rates, so we need yours
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* HELOC terms are user-entered and drift, so prompt when they age out.
-            Balances refresh themselves; these never can. */}
-        {helocAccount && helocTermsStale && (
-          <TouchableOpacity
-            style={styles.stepRow}
-            onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
-            accessibilityLabel="Confirm your HELOC terms"
-          >
-            <Text style={styles.stepText}>
-              {profile?.heloc_terms_updated_at
-                ? 'Confirm your HELOC rate — variable rates drift'
-                : 'Add your HELOC rate and draw-end date for an accurate payoff'}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
-          </TouchableOpacity>
-        )}
-
-        {/* ── 3. YOUR POSITION — balances chunked into one card ───────────── */}
-        {hasLinkedAccounts ? (
-          <TouchableOpacity
-            style={CommonStyles.card}
-            onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-            activeOpacity={0.85}
-            accessibilityLabel="Account balances"
-          >
-            <Text style={styles.cardTitle}>Your position</Text>
-            <View style={styles.positionRow}>
-              <PositionStat label="Mortgage" value={mortgageBalance !== null ? `$${fmtK(mortgageBalance)}` : '—'} />
-              <PositionStat label="HELOC"    value={helocBalance    !== null ? `$${fmtK(helocBalance)}`    : '—'} />
-              <PositionStat label="Savings"  value={savingsBalance  !== null ? `$${fmtK(savingsBalance)}`  : '—'} />
-            </View>
-            <View style={styles.positionFooter}>
-              <Text style={styles.cardConclusion}>
-                {homeValue > 0 ? `$${fmtK(homeEquity)} home equity` : 'Add home value to see equity'}
-              </Text>
-              <Text style={[styles.positionSurplus, surplus < 0 && styles.positionSurplusNeg]}>
-                {surplus >= 0 ? '+' : '−'}${fmt(Math.abs(surplus))}/mo
+          {/* ── CARD 1 — Safe to Move ──────────────────────────────────── */}
+          <Card>
+            <View style={styles.safeHead}>
+              <StatusPill
+                status={f.safeToMove.status === 'CLEAR' ? 'clear' : f.safeToMove.status === 'CAUTION' ? 'caution' : 'hold'}
+                label={f.safeToMove.status}
+              />
+              <Text style={styles.safeAmount}>
+                {f.safeToMove.recommendedAmount !== null
+                  ? `move up to $${fmt(f.safeToMove.recommendedAmount)}`
+                  : 'no move recommended'}
               </Text>
             </View>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.linkCta}
-            onPress={() => router.push(isPro ? '/modals/link-account' : '/modals/upgrade')}
-            accessibilityLabel="Link your bank accounts"
-          >
-            <View style={styles.linkIcon}>
-              <Ionicons name="link-outline" size={20} color={Colors.textSecondary} />
+
+            {/* Reasoning is never collapsed. The screen should build the user's
+                judgment about their own cash flow, not issue a verdict. */}
+            {f.safeToMove.reasons.map((r, i) => (
+              <Text key={i} style={styles.reason}>{r}</Text>
+            ))}
+
+            {/* Non-negotiable: the liquidity consumed, shown as plainly as the
+                interest saved. Otherwise this card is selling, not advising. */}
+            {f.safeToMove.bufferMonthsAfter !== null && (
+              <View style={styles.bufferRow}>
+                <Ionicons name="water-outline" size={15} color={Colors.textSecondary} />
+                <Text style={styles.bufferText}>
+                  Buffer after the move: {f.safeToMove.bufferMonthsAfter.toFixed(1)} months of expenses
+                  {f.safeToMove.bufferMonthsBefore !== null &&
+                    ` (from ${f.safeToMove.bufferMonthsBefore.toFixed(1)})`}
+                </Text>
+              </View>
+            )}
+
+            {/* Equal weight, deliberately. The recommended path is not styled as
+                the only affordance when the collateral is a primary residence. */}
+            {!moveDismissed && (
+              <ActionPair
+                primary={{
+                  label: 'Log this move',
+                  onPress: () => { hapticLight(); router.push('/modals/move-money' as never); },
+                  disabled: f.safeToMove.status === 'HOLD',
+                }}
+                secondary={{ label: 'Not now', onPress: () => { hapticLight(); setMoveDismissed(true); } }}
+              />
+            )}
+            {moveDismissed && (
+              <TouchableOpacity onPress={() => setMoveDismissed(false)} accessibilityLabel="Show move actions">
+                <Text style={styles.undoText}>Show actions</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+
+          {/* ── CARD 2 — Interest ──────────────────────────────────────── */}
+          <Card>
+            <CardHead title="Interest" />
+
+            {/* Realized leads. Resist inverting this — the projection is the
+                bigger number and the less trustworthy one. */}
+            <View>
+              <Text style={styles.bigValue}>
+                {realized.net !== null ? `$${fmt(realized.net)}` : '—'}
+              </Text>
+              <Text style={styles.bigLabel}>
+                {realized.net !== null
+                  ? `interest removed by ${fmtMoney(realized.totalMoved)} of logged moves, net of HELOC interest`
+                  : 'No moves logged yet — this fills in from what you actually do'}
+              </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Link your accounts</Text>
-              <Text style={styles.linkSub}>Track real balances instead of estimates</Text>
+
+            <View style={styles.statRow}>
+              <Stat
+                label="Interest paid this year"
+                value={f.mortgage.ytdInterestPaid.value !== null
+                  ? `$${fmt(f.mortgage.ytdInterestPaid.value)}`
+                  : '—'}
+                sub={f.mortgage.ytdInterestPaid.source === 'liability'
+                  ? 'from your servicer'
+                  : 'link your mortgage'}
+              />
+              <Stat
+                label="Projected lifetime"
+                value={`$${fmtK(f.projection.interestSaved)}`}
+                sub="projected, not guaranteed"
+              />
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
-          </TouchableOpacity>
-        )}
 
-        {/* ── 4. READINESS SCORE — context, deliberately not a second hero ── */}
-        <View style={CommonStyles.card}>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>Strategy readiness</Text>
-            <Text style={styles.scoreInline}>
-              {score.total}<Text style={styles.scoreOutOf}>/100</Text>
-            </Text>
-          </View>
-          <Text style={styles.cardConclusion}>{score.label}</Text>
+            {f.mortgage.ytdInterestPaid.source === 'liability' && (
+              <SourceNote>
+                Year-to-date interest comes straight from your servicer, so it should match
+                your statement to the dollar.
+              </SourceNote>
+            )}
+          </Card>
 
-          <View style={styles.scoreBars}>
-            <ScoreBar label="Monthly surplus"   value={score.surplusScore}     max={55} />
-            <ScoreBar label="HELOC utilization" value={score.utilizationScore} max={25} />
-            <ScoreBar label="Credit score"      value={score.creditPoints}     max={20} />
-          </View>
+          {/* ── CARD 3 — Line status ───────────────────────────────────── */}
+          <Card onPress={() => router.push('/tabs/accounts' as never)} accessibilityLabel="Line details">
+            <CardHead
+              title="Your line"
+              right={<Chip label={limitSourceLabel(f.helocLimitSource)} />}
+            />
 
-          {!hasRealData && (
-            <Text style={styles.estimateNote}>Estimated · link accounts for a live score</Text>
+            {f.helocLimit && f.helocLimit > 0 ? (
+              <>
+                <View style={styles.statRow}>
+                  <Stat label="Drawn"     value={`$${fmt(f.helocDrawn ?? 0)}`} />
+                  <Stat label="Available" value={`$${fmt(f.helocAvailable ?? 0)}`} />
+                  <Stat label="Limit"     value={`$${fmt(f.helocLimit)}`} align="right" />
+                </View>
+
+                {/* The mark sits where the threshold actually is. */}
+                <Meter
+                  value={f.utilization ?? 0}
+                  marks={[{ at: f.replenishThreshold, label: `replenish at ${Math.round(f.replenishThreshold * 100)}%` }]}
+                  tone={(f.utilization ?? 0) > f.replenishThreshold ? 'muted' : 'accent'}
+                />
+
+                <Text style={styles.reason}>
+                  {(f.utilization ?? 0) > f.replenishThreshold
+                    ? `At ${Math.round((f.utilization ?? 0) * 100)}% you are above your replenish threshold — surplus goes to the line, not to principal.`
+                    : `At ${Math.round((f.utilization ?? 0) * 100)}%, with room to draw before you reach your threshold.`}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.reason}>
+                No credit limit on file yet. Link your HELOC, or enter the limit from your
+                statement, and this card starts working.
+              </Text>
+            )}
+          </Card>
+
+          {/* ── CARD 4 — Watch items (only when non-empty) ─────────────── */}
+          {f.watchItems.length > 0 && (
+            <Card>
+              <CardHead title="Worth a look" icon="eye-outline" />
+              {f.watchItems.map((item, i) => (
+                <WatchRow
+                  key={item.kind}
+                  item={item}
+                  last={i === f.watchItems.length - 1}
+                  onPress={item.action ? () => router.push(item.action!.route as never) : undefined}
+                />
+              ))}
+            </Card>
+          )}
+
+          {/* The one thing that is not a card: the upgrade path, kept as a
+              findable link rather than a fifth tile competing with the four. */}
+          {!isPaidTier(tier) && (
+            <LinkRow
+              icon="sparkles-outline"
+              label="Connect your accounts with Pro"
+              sub="Live balances, servicer figures, and alerts when it is time to act"
+              onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
+            />
           )}
         </View>
-
-        {tier === 'free' && (
-          <TouchableOpacity
-            style={styles.upgradeRow}
-            onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
-            accessibilityLabel="See Pro plans"
-          >
-            <Text style={styles.upgradeText}>
-              Connect accounts for live balances and automatic cycle tracking
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.mint600} />
-          </TouchableOpacity>
-        )}
-
-        {isPaidTier(tier) && (
-          <View style={CommonStyles.card}>
-            <Text style={styles.cardTitle}>Action alerts</Text>
-            <Text style={styles.cardConclusion}>
-              {remindersOn
-                ? 'We\u2019ll remind you when it\u2019s time to sweep or dump. You make the transfer.'
-                : 'Alerts are off, so you\u2019ll need to check back yourself.'}
-            </Text>
-            <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/modals/settings')}>
-              <Text style={styles.manageText}>Manage alerts</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {!helocAccount && (
-          <TouchableOpacity
-            style={styles.stepRow}
-            onPress={() => router.push('/modals/get-heloc')}
-            accessibilityLabel="Open HELOC guide"
-          >
-            <Text style={styles.stepText}>First step: open an interest-only HELOC</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
-          </TouchableOpacity>
-        )}
       </ScrollView>
-
-      {/* ── 5. PRIMARY ACTION — pinned inside the thumb zone ──────────────── */}
-      <View style={styles.footer}>
-        {/* Opens the decision, which weighs the move — it does not perform one. */}
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
-          accessibilityLabel="Consider moving money to your mortgage"
-        >
-          <Text style={styles.primaryBtnText}>
-            {cycleReady ? 'Consider a move' : 'Plan your next move'}
-          </Text>
-          <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function PositionStat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.positionStat}>
-      <Text style={styles.positionValue}>{value}</Text>
-      <Text style={styles.positionLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function ScoreBar({ label, value, max }: { label: string; value: number; max: number }) {
-  return (
-    <View style={styles.scoreBarRow}>
-      <Text style={styles.scoreBarLabel}>{label}</Text>
-      <View style={styles.scoreBarTrack}>
-        <View style={[styles.scoreBarFill, { width: `${Math.min((value / max) * 100, 100)}%` }]} />
+function WatchRow({ item, last, onPress }: {
+  item: WatchItem; last: boolean; onPress?: () => void;
+}) {
+  const body = (
+    <View style={[styles.watchRow, !last && styles.watchRowBorder]}>
+      <View style={styles.watchIcon}>
+        <Ionicons name={item.icon as never} size={16} color={Colors.textSecondary} />
       </View>
-      <Text style={styles.scoreBarValue}>{value}/{max}</Text>
+      <View style={{ flex: 1, gap: 3 }}>
+        <Text style={styles.watchTitle}>{item.title}</Text>
+        <Text style={styles.watchDetail}>{item.detail}</Text>
+        {item.action && <Text style={styles.watchAction}>{item.action.label} →</Text>}
+      </View>
     </View>
   );
+  if (!onPress) return body;
+  return (
+    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={item.title}>
+      {body}
+    </TouchableOpacity>
+  );
 }
-
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function firstBalance(account: LinkedAccount | null): number | null {
-  if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.current;
-}
-function firstBalances(account: LinkedAccount | null) {
-  if (!account || account.accounts.length === 0) return null;
-  const b = account.accounts[0].balances;
-  return { current: b.current, available: b.available, limit: b.limit ?? null };
-}
-function pct(part: number, whole: number): number {
-  return whole > 0 ? Math.min(Math.max((part / whole) * 100, 0), 100) : 0;
-}
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
-function fmtPayoffDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
+function fmtMoney(n: number) { return `$${fmt(n)}`; }
 function fmtK(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (Math.abs(n) >= 1_000)     return `${Math.round(n / 1_000)}k`;
-  return Math.round(n).toLocaleString('en-US');
+  return fmt(n);
 }
-/** Near-term goal, so someone years from payoff still has something close by. */
-function nextMilestone(ownedPct: number): string {
-  const next = MILESTONES.find(m => ownedPct < m);
-  return next === undefined ? 'Final stretch' : `Next: ${next}%`;
+function fmtMonthYear(d: Date) {
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
+function fmtDayMonth(d: Date) {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function relativeTime(iso: string | null): string {
+  if (!iso) return 'never';
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 3600)  return 'just now';
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+function limitSourceLabel(s: 'plaid_limit' | 'derived' | 'user' | 'unknown'): string {
+  return s === 'plaid_limit' ? 'from your bank'
+    : s === 'derived' ? 'from your balances'
+    : s === 'user' ? 'you entered this'
+    : 'not set';
+}
+function clamp(min: number, n: number, max: number) { return Math.min(max, Math.max(min, n)); }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5], paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[5],
   },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  greeting: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  greeting: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: OnDark.secondary,
+  },
+  iconBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+  },
   devBadge: {
     backgroundColor: '#7C3AED',   // purple — unmistakably not production UI
     borderRadius: Radius.sm,
@@ -478,225 +446,70 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   devBadgeText: { fontSize: 10, fontWeight: Typography.extrabold, color: '#fff', letterSpacing: 1 },
-  settingsBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
 
-  // ── 1. Payoff clock ────────────────────────────────────────────────────────
-  clockCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    paddingVertical: Spacing[6],
-    paddingHorizontal: Spacing[5],
-    alignItems: 'center',
-    gap: Spacing[1],
-    ...Shadows.card,
-  },
-  exampleBadge: {
-    position: 'absolute',
-    top: Spacing[3],
-    right: Spacing[3],
-    backgroundColor: Colors.gray100,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 2,
-  },
-  exampleBadgeText: { fontSize: Typography.xs, color: Colors.textMuted },
-  eyebrow: {
-    fontSize: 10,
+  heroEyebrow: {
+    fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
-    letterSpacing: 1.4,
-    marginBottom: Spacing[1],
+    color: OnDark.muted,
+    letterSpacing: Tracking.eyebrow,
   },
-  // The one accent element. Restrained in size — the hierarchy comes from
-  // everything around it being muted, not from this being large.
-  clockValue: {
+  progressBlock: { marginTop: Spacing[4], gap: Spacing[2] },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing[3] },
+  progressText: { fontSize: Typography.xs, color: OnDark.secondary, flex: 1 },
+  progressGoal: { fontSize: Typography.xs, color: OnDark.muted },
+  heroDisclaimer: { fontSize: Typography.xs, color: OnDark.faint, marginTop: Spacing[3] },
+
+  content: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[1],
+    gap: Spacing[4],
+  },
+
+  asOfRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  asOfText: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  safeHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap' },
+  safeAmount: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textSecondary,
+  },
+  reason: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  bufferRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[2],
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+  },
+  bufferText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  undoText: { fontSize: Typography.sm, color: Colors.mint600, fontWeight: Typography.medium },
+
+  bigValue: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
-    letterSpacing: -0.6,
-  },
-  clockDate: { fontSize: Typography.sm, color: Colors.textSecondary },
-  clockConclusion: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: Spacing[2],
-    maxWidth: 300,
-  },
-  clockDisclaimer: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
-
-  progressBlock: { width: '100%', marginTop: Spacing[4], gap: Spacing[2] },
-  progressTrack: {
-    height: 8,
-    backgroundColor: Colors.gray100,
-    borderRadius: 4,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  progressFill: { height: 8, borderRadius: 4, backgroundColor: Colors.mint600 },
-  // Milestone ticks read as gaps in the bar rather than as extra chrome.
-  milestone: {
-    position: 'absolute',
-    top: 0,
-    width: 2,
-    height: 8,
-    backgroundColor: Colors.surface,
-  },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressText: { fontSize: Typography.xs, color: Colors.textSecondary },
-  progressGoal: { fontSize: Typography.xs, color: Colors.textMuted },
-
-  streakLine: {
-    fontSize: Typography.xs,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: -Spacing[2],
-  },
-
-  // ── Shared card furniture ──────────────────────────────────────────────────
-  cardHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing[3],
-  },
-  cardTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
     color: Colors.textPrimary,
+    letterSpacing: Tracking.heading,
   },
-  cardStatus: { fontSize: Typography.xs, color: Colors.textMuted },
-  cardConclusion: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  estimateNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
+  bigLabel: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: 2 },
 
-  // ── 2. This cycle ──────────────────────────────────────────────────────────
-  utilTrack: {
-    height: 8,
-    backgroundColor: Colors.gray100,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing[3],
-  },
-  utilFill: { height: 8, borderRadius: 4, backgroundColor: Colors.gray400 },
+  statRow: { flexDirection: 'row', gap: Spacing[4] },
 
-  // ── 3. Your position ───────────────────────────────────────────────────────
-  positionRow: { flexDirection: 'row', gap: Spacing[3] },
-  positionStat: { flex: 1, gap: 2 },
-  positionValue: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-  },
-  positionLabel: { fontSize: Typography.xs, color: Colors.textMuted },
-  positionFooter: {
+  watchRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing[4],
-    paddingTop: Spacing[3],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  positionSurplus: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-  },
-  // Negative numbers use muted grey, never red.
-  positionSurplusNeg: { color: Colors.gray400 },
-
-  linkCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-    ...Shadows.card,
-  },
-  linkIcon: {
-    width: 44, height: 44, borderRadius: Radius.lg,
-    backgroundColor: Colors.gray100,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  linkTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-  },
-  linkSub: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
-
-  // ── 4. Readiness score ─────────────────────────────────────────────────────
-  scoreInline: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  scoreOutOf: { fontSize: Typography.xs, fontWeight: Typography.regular, color: Colors.textMuted },
-  scoreBars: { marginTop: Spacing[4], gap: Spacing[3] },
-  scoreBarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
-  scoreBarLabel: { width: 118, fontSize: Typography.xs, color: Colors.textSecondary },
-  scoreBarTrack: { flex: 1, height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
-  scoreBarFill: { height: 6, borderRadius: 3, backgroundColor: Colors.gray400 },
-  scoreBarValue: {
-    width: 40, textAlign: 'right',
-    fontSize: Typography.xs, color: Colors.textMuted,
-  },
-
-  upgradeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-  },
-  upgradeText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
-
-  automationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
-    paddingVertical: Spacing[2],
-  },
-  automationDot: { width: 8, height: 8, borderRadius: 4 },
-  automationLabel: {
-    fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary,
-  },
-  automationSub: { fontSize: Typography.xs, color: Colors.textMuted },
-  automationStatus: { fontSize: Typography.xs, color: Colors.textMuted },
-  manageBtn: { paddingTop: Spacing[3], minHeight: 44, justifyContent: 'center' },
-  manageText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
-
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing[3],
     paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[4],
-    minHeight: 44,
+    alignItems: 'flex-start',
   },
-  stepText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
-
-  // ── 5. Pinned primary action ───────────────────────────────────────────────
-  footer: {
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[3],
-    paddingBottom: Spacing[3],
-    backgroundColor: Colors.surface,
+  watchRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
+  watchIcon: {
+    width: 30, height: 30, borderRadius: Radius.sm,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1,
   },
-  primaryBtn: {
-    backgroundColor: Colors.mint600,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing[4],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing[2],
-    minHeight: 44,
-  },
-  primaryBtnText: {
-    color: Colors.white,
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-  },
+  watchTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  watchDetail: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  watchAction: { fontSize: Typography.xs, color: Colors.mint600, fontWeight: Typography.semibold, marginTop: 2 },
 });

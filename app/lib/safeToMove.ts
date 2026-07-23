@@ -43,6 +43,12 @@ export interface SafeToMoveInputs {
   helocDrawn: number | null;
   /** Trailing-window surplus. Falls back to income − expenses − payment. */
   avgMonthlySurplus: number;
+  /**
+   * Where that surplus came from. The app has no transactions table, so today
+   * this is always 'entered' — and the reasoning string has to say so rather
+   * than claim a trailing average it cannot compute.
+   */
+  surplusBasis: 'entered' | 'trailing';
   monthlyExpenses: number;
   /** Cash the user could actually reach in an emergency. */
   liquidCash: number;
@@ -168,6 +174,7 @@ export function evaluateMove(inputs: SafeToMoveInputs): SafeToMove {
     reasons: buildReasons({
       status, blockers, amount, currentUtilization, postMoveUtilization,
       avgMonthlySurplus, estReplenishMonths, bufferAfter, analysis,
+      surplusBasis: inputs.surplusBasis,
     }),
     blockers,
     analysis,
@@ -184,6 +191,7 @@ interface ReasonInputs {
   estReplenishMonths: number | null;
   bufferAfter: number | null;
   analysis: MoveAnalysis | null;
+  surplusBasis: 'entered' | 'trailing';
 }
 
 /**
@@ -202,10 +210,10 @@ function buildReasons(i: ReasonInputs): string[] {
 
   const util = i.currentUtilization;
   if (util !== null) {
-    out.push(
-      `Your line is at ${pct(util)} utilization. ` +
-      `Recent months averaged ${money(i.avgMonthlySurplus)} of surplus.`,
-    );
+    const surplus = i.surplusBasis === 'trailing'
+      ? `The last few months averaged ${money(i.avgMonthlySurplus)} of surplus.`
+      : `Your entered figures leave ${money(i.avgMonthlySurplus)} a month.`;
+    out.push(`Your line is at ${pct(util)} utilization. ${surplus}`);
   }
 
   if (i.amount > 0 && i.postMoveUtilization !== null) {

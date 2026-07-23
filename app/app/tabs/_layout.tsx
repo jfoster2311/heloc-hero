@@ -1,9 +1,29 @@
-// app/tabs/_layout.tsx
+// app/tabs/_layout.tsx — a floating bar, not a docked one.
+//
+// Two reasons this is worth the extra care over the default. The reference
+// fintech screens all float the bar over the content, which is what lets a
+// hero bleed to the bottom of the viewport instead of stopping at a chrome
+// edge. And a floating bar over a scrolling page keeps the content visible
+// underneath it, which matters here because the pinned decision on the
+// dashboard lives in the same thumb zone.
+//
+// Because the bar is absolutely positioned, every tab's scroll content must
+// clear it — see TAB_BAR_CLEARANCE, which those screens import rather than
+// each inventing their own bottom padding.
 import { Tabs } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing } from '../../lib/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+
+/** Height of the floating bar. Screens add their own safe-area inset on top. */
+export const TAB_BAR_HEIGHT = 64;
+/** What a scrolling tab needs at the bottom so content clears the bar. */
+export const TAB_BAR_CLEARANCE = TAB_BAR_HEIGHT + Spacing[6];
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -11,24 +31,33 @@ export default function TabsLayout() {
         tabBarActiveTintColor:   Colors.mint600,
         tabBarInactiveTintColor: Colors.gray400,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor:  Colors.border,
-          height: 82,
-          paddingBottom: 20,
+          position: 'absolute',
+          left: Spacing[4],
+          right: Spacing[4],
+          bottom: Math.max(insets.bottom, Spacing[3]),
+          height: TAB_BAR_HEIGHT,
           paddingTop: Spacing[2],
+          paddingBottom: Spacing[2],
+          paddingHorizontal: Spacing[2],
+          borderRadius: Radius.full,
+          borderTopWidth: 0,
+          backgroundColor: Colors.surface,
+          ...Shadows.lifted,
         },
+        tabBarItemStyle: { borderRadius: Radius.full },
         tabBarLabelStyle: {
-          fontSize:   Typography.xs,
-          fontWeight: Typography.medium,
+          fontSize: 10,
+          fontWeight: Typography.semibold,
+          marginTop: -2,
         },
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          title: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="home" color={color} focused={focused} />
           ),
         }}
       />
@@ -36,8 +65,8 @@ export default function TabsLayout() {
         name="accounts"
         options={{
           title: 'Accounts',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="wallet" color={color} focused={focused} />
           ),
         }}
       />
@@ -45,17 +74,17 @@ export default function TabsLayout() {
         name="calculator"
         options={{
           title: 'Calculator',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calculator-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="calculator" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="cashflow"
         options={{
-          title: 'Budget',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
+          title: 'Cash flow',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="pie-chart" color={color} focused={focused} />
           ),
         }}
       />
@@ -63,11 +92,38 @@ export default function TabsLayout() {
         name="learn"
         options={{
           title: 'Learn',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="book" color={color} focused={focused} />
           ),
         }}
       />
     </Tabs>
   );
 }
+
+/**
+ * Filled when active, outline when not.
+ *
+ * The weight change carries the state on its own, so the mint tint is
+ * reinforcement rather than the only signal — which is the same rule the rest
+ * of the app follows for status.
+ */
+function TabIcon({ name, color, focused }: {
+  name: 'home' | 'wallet' | 'calculator' | 'pie-chart' | 'book';
+  color: string;
+  focused: boolean;
+}) {
+  return (
+    <View style={styles.icon}>
+      <Ionicons
+        name={(focused ? name : `${name}-outline`) as never}
+        size={21}
+        color={color}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  icon: { alignItems: 'center', justifyContent: 'center', height: 24 },
+});
