@@ -68,7 +68,14 @@ export default function SignupScreen() {
 
     // Session exists — confirmation not required. Proceed immediately.
     updateOnboarding({ fullName: fullName.trim() });
-    await submitOnboarding(data.user.id);
+    const { error: submitError } = await submitOnboarding(data.user.id);
+    if (submitError) {
+      // Without onboarding_complete the layout guard loops back to onboarding,
+      // so say what happened rather than bouncing the user silently.
+      setError(`Account created, but saving your details failed: ${submitError}`);
+      setLoading(false);
+      return;
+    }
     await refreshProfile();
     // _layout.tsx redirect fires once profile.onboarding_complete is true.
   }

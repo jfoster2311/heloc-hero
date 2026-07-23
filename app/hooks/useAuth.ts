@@ -1,4 +1,14 @@
-// hooks/useAuth.ts
+// hooks/useAuth.ts — shared auth/profile state.
+//
+// This used to keep `profile` in per-component useState, which meant every
+// caller held its OWN copy. _layout.tsx, reveal.tsx and signup.tsx each ran a
+// separate instance, so when reveal called refresh() after submit(), only
+// reveal's copy learned that onboarding_complete had become true. The layout
+// guard still saw false and redirected straight back to /onboarding/home-info
+// — the "finishing onboarding sends me back to onboarding" bug.
+//
+// State now lives at module scope with subscribers, so one refresh() updates
+// every consumer. The hook's API is unchanged.
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, Tier } from '../lib/types';
@@ -13,74 +23,105 @@ interface AuthState {
   refresh: () => Promise<void>;
 }
 
-export function useAuth(): AuthState {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+// ─── Shared state ─────────────────────────────────────────────────────────────
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    setProfile(data ?? null);
-    setLoading(false);
-  }, []);
+let sharedProfile: UserProfile | null = null;
+let sharedLoading = true;
+let initialized = false;
+
+const listeners = new Set<() => void>();
+
+function emit(): void {
+  listeners.forEach(fn => fn());
+}
+
+function setShared(profile: UserProfile | null, loading: boolean): void {
+  sharedProfile = profile;
+  sharedLoading = loading;
+  emit();
+}
+
+async function loadProfile(userId: string): Promise<void> {
+  const { data } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  setShared((data as UserProfile | null) ?? null, false);
+}
+
+/** Starts the session listener once, no matter how many components mount. */
+function init(): void {
+  if (initialized) return;
+  initialized = true;
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) loadProfile(session.user.id);
+    else setShared(null, false);
+  });
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (session?.user) {
+      // Supabase fires this before auth.signUp's profile INSERT can complete,
+      // creating a race where the fetch finds no row. Upsert with
+      // ignoreDuplicates ensures the row exists before we read it; if
+      // auth.signUp already created it, this is a no-op.
+      await supabase.from('users').upsert(
+        {
+          id:                  session.user.id,
+          email:               session.user.email ?? '',
+          full_name:           session.user.user_metadata?.full_name ?? null,
+          tier:                'free',
+          onboarding_complete: false,
+        },
+        { onConflict: 'id', ignoreDuplicates: true },
+      );
+      await loadProfile(session.user.id);
+    } else {
+      setShared(null, false);
+    }
+  });
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+export function useAuth(): AuthState {
+  const [, forceRender] = useState(0);
 
   useEffect(() => {
-    // Hydrate from the current session immediately
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          // Supabase fires this event before auth.signUp's profile INSERT can complete,
-          // creating a race where fetchProfile finds no row. Upsert with ignoreDuplicates
-          // ensures the row exists before we read it; if auth.signUp already created it,
-          // this is a no-op.
-          await supabase.from('users').upsert(
-            {
-              id:                  session.user.id,
-              email:               session.user.email ?? '',
-              full_name:           session.user.user_metadata?.full_name ?? null,
-              tier:                'free',
-              onboarding_complete: false,
-            },
-            { onConflict: 'id', ignoreDuplicates: true },
-          );
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      },
-    );
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+    init();
+    const listener = () => forceRender(n => n + 1);
+    listeners.add(listener);
+    // A component mounting after init must not sit on a stale first render.
+    listener();
+    return () => { listeners.delete(listener); };
+  }, []);
 
   const updateProfile = useCallback(async (patch: Partial<UserProfile>) => {
-    if (!profile?.id) return;
+    const id = sharedProfile?.id;
+    if (!id) return;
     const { data } = await supabase
       .from('users')
       .update(patch)
-      .eq('id', profile.id)
+      .eq('id', id)
       .select()
       .single();
-    if (data) setProfile(data as UserProfile);
-  }, [profile?.id]);
+    if (data) setShared(data as UserProfile, false);
+  }, []);
 
-  // Re-fetches the current user's profile. Use after onboardingStore.submit() to
-  // sync onboarding_complete: true into memory so _layout.tsx routes correctly.
   const refresh = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) await fetchProfile(session.user.id);
-  }, [fetchProfile]);
+    if (session?.user) await loadProfile(session.user.id);
+  }, []);
 
-  const tier: Tier = (profile?.tier as Tier) ?? 'free';
+  const tier: Tier = (sharedProfile?.tier as Tier) ?? 'free';
 
-  return { profile, user: profile, tier, loading, updateProfile, refresh };
+  return {
+    profile: sharedProfile,
+    user: sharedProfile,
+    tier,
+    loading: sharedLoading,
+    updateProfile,
+    refresh,
+  };
 }

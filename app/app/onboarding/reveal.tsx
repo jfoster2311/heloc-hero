@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Easing, AccessibilityInfo,
+  Animated, Easing, AccessibilityInfo, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -13,7 +13,7 @@ import PayoffBoard from '../../components/PayoffBoard';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
-import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, Shadows, Aurora } from '../../lib/theme';
 import { hapticMedium } from '../../lib/haptics';
 
 // ── Board ritual timeline (ms) ─────────────────────────────────────────────
@@ -254,24 +254,35 @@ export default function RevealScreen() {
 
   async function finishAndNavigate(goUpgrade: boolean) {
     if (user) {
-      await submit(user.id);
+      // If this fails, onboarding_complete stays false and the layout guard
+      // sends the user straight back into onboarding. Surface it instead of
+      // navigating into that loop.
+      const { error } = await submit(user.id);
+      if (error) {
+        Alert.alert(
+          'Could not save your details',
+          `${error}\n\nYour numbers weren't saved. Please try again.`,
+        );
+        return;
+      }
       await refreshProfile();
     }
-    if (goUpgrade) {
-      const dest = user ? '/tabs/dashboard' : '/auth/signup';
-      router.replace(dest as never);
-      setTimeout(() => router.push('/modals/upgrade' as never), 300);
-    } else {
-      router.replace((user ? '/tabs/dashboard' : '/auth/signup') as never);
-    }
+    const dest = user ? '/tabs/dashboard' : '/auth/signup';
+    router.replace(dest as never);
+    if (goUpgrade) setTimeout(() => router.push('/modals/upgrade' as never), 300);
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Projection hero — animated */}
+        {/* Projection hero — animated.
+            Carries the ritual's aurora into the result instead of switching to a
+            flat card, so the reveal and its payoff read as one moment. The
+            gradient bleeds into the page below rather than ending on a hard
+            card edge. Both figures the user came for — years removed and
+            interest saved — are at display scale. */}
         <Animated.View style={{ opacity: heroOpacity, transform: [{ scale: heroScale }] }}>
-          <LinearGradient colors={Gradients.hero} style={styles.hero}>
+          <AuroraBackground style={styles.hero} intensity={0.9}>
             <Text style={styles.heroLabel}>YOUR PROJECTED RESULTS</Text>
 
             {/* Anticipation bar — fills left-to-right before numbers appear */}
@@ -286,13 +297,23 @@ export default function RevealScreen() {
               />
             </View>
 
-            {/* PRIMARY: time saved */}
+            {/* PRIMARY: years removed */}
             <View style={styles.gapBlock}>
-              <Text style={styles.gapValue}>
+              <Text style={styles.gapValue} allowFontScaling={false}>
                 {formatMonths(Math.max(0, Math.round(shownMonths)))}
               </Text>
-              <Text style={styles.gapSublabel}>SOONER, PROJECTED</Text>
+              <Text style={styles.gapSublabel}>OFF YOUR MORTGAGE</Text>
             </View>
+
+            {/* PRIMARY: interest saved — the other half of the answer */}
+            {targetInterest > 100 && (
+              <View style={styles.savedBlock}>
+                <Text style={styles.savedValue} allowFontScaling={false}>
+                  ${Math.round(shownInterest).toLocaleString('en-US')}
+                </Text>
+                <Text style={styles.savedSublabel}>LESS INTEREST PAID</Text>
+              </View>
+            )}
 
             {/* SECONDARY: before / after payoff dates */}
             <View style={styles.datesRow}>
@@ -302,7 +323,7 @@ export default function RevealScreen() {
                   {fmtPayoffDate(projection.originalPayoffDate)}
                 </Text>
               </View>
-              <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.35)" />
+              <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.3)" />
               <View style={styles.dateCol}>
                 <Text style={[styles.dateColLabel, styles.dateColLabelAccel]}>WITH HELOC HERO</Text>
                 <Text style={[styles.dateColValue, styles.dateColValueAccel]}>
@@ -311,26 +332,19 @@ export default function RevealScreen() {
               </View>
             </View>
 
-            {/* TERTIARY: interest saved */}
-            {shownInterest > 100 && (
-              <View style={styles.interestRow}>
-                <Ionicons name="cash-outline" size={13} color="rgba(255,255,255,0.55)" />
-                <Text style={styles.interestText}>
-                  Est.{' '}
-                  <Text style={styles.interestBold}>
-                    ${Math.round(shownInterest / 1000)}k
-                  </Text>
-                  {' '}in interest saved
-                </Text>
-              </View>
-            )}
-
             <Text style={styles.heroDisclaimer}>
               {hasRealNumbers
                 ? 'Based on your numbers. Projected, not guaranteed.'
                 : 'Enter your details to see personalized projections.'}
             </Text>
-          </LinearGradient>
+
+            {/* Bleeds the aurora into the page instead of a hard edge */}
+            <LinearGradient
+              colors={['rgba(240,247,243,0)', Colors.surface]}
+              style={styles.heroFade}
+              pointerEvents="none"
+            />
+          </AuroraBackground>
         </Animated.View>
 
         {/* No-HELOC card */}
@@ -463,17 +477,27 @@ const styles = StyleSheet.create({
 
   // ── Hero card ──────────────────────────────────────────────────────────────
   hero: {
-    paddingTop:        Spacing[10],
-    paddingBottom:     Spacing[8],
+    paddingTop:        Spacing[12],
+    // Extra room at the base so the fade has somewhere to land.
+    paddingBottom:     Spacing[12],
     paddingHorizontal: Spacing[6],
     alignItems:        'center',
     gap:               Spacing[4],
+    overflow:          'hidden',
+  },
+  // The aurora dissolving into the page, as in the reference shots — no card edge.
+  heroFade: {
+    position: 'absolute',
+    left:     0,
+    right:    0,
+    bottom:   0,
+    height:   Spacing[10],
   },
   heroLabel: {
     fontSize:      11,
     fontWeight:    Typography.extrabold,
-    color:         'rgba(255,255,255,0.65)',
-    letterSpacing: 1.5,
+    color:         'rgba(255,255,255,0.6)',
+    letterSpacing: 1.6,
   },
 
   progressTrack: {
@@ -489,19 +513,45 @@ const styles = StyleSheet.create({
     borderRadius:    1,
   },
 
-  gapBlock:    { alignItems: 'center', gap: 4 },
+  // Display numerals: oversized and tightly tracked, the way the reference
+  // fintech screens treat a balance. The number is the design.
+  gapBlock:    { alignItems: 'center', gap: 2 },
   gapValue: {
-    fontSize:   44,
-    fontWeight: Typography.extrabold,
-    color:      Colors.white,
-    lineHeight: 52,
-    textAlign:  'center',
+    fontSize:      56,
+    fontWeight:    Typography.extrabold,
+    color:         Colors.white,
+    lineHeight:    62,
+    letterSpacing: -1.6,
+    textAlign:     'center',
   },
   gapSublabel: {
     fontSize:      11,
     fontWeight:    Typography.bold,
-    color:         'rgba(255,255,255,0.6)',
-    letterSpacing: 1.2,
+    color:         'rgba(255,255,255,0.55)',
+    letterSpacing: 1.4,
+  },
+
+  savedBlock: {
+    alignItems:     'center',
+    gap:            2,
+    paddingTop:     Spacing[4],
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+    alignSelf:      'stretch',
+  },
+  savedValue: {
+    fontSize:      40,
+    fontWeight:    Typography.extrabold,
+    color:         Aurora.glowSoft,
+    lineHeight:    46,
+    letterSpacing: -1.2,
+    textAlign:     'center',
+  },
+  savedSublabel: {
+    fontSize:      11,
+    fontWeight:    Typography.bold,
+    color:         'rgba(255,255,255,0.55)',
+    letterSpacing: 1.4,
   },
 
   datesRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[4] },
@@ -519,10 +569,6 @@ const styles = StyleSheet.create({
     color:      'rgba(255,255,255,0.65)',
   },
   dateColValueAccel: { color: Colors.white },
-
-  interestRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] + 2 },
-  interestText: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.6)' },
-  interestBold: { fontWeight: Typography.semibold, color: 'rgba(255,255,255,0.85)' },
 
   heroDisclaimer: {
     fontSize:  Typography.xs,
@@ -636,7 +682,7 @@ const styles = StyleSheet.create({
   // ── Particle burst ─────────────────────────────────────────────────────────
   particleOrigin: {
     position: 'absolute',
-    top:      170,   // approximate center of the hero number on most devices
+    top:      190,   // approximate center of the hero number on most devices
     left:     '50%', // left edge at horizontal center; particles radiate symmetrically
   },
 
