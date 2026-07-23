@@ -32,9 +32,47 @@ Deno.serve(async (req: Request) => {
         try {
           const balanceRes = await plaid.getAccountBalances(acct.access_token);
           const accounts = balanceRes.accounts ?? [];
+
+          const update: Record<string, unknown> = {
+            accounts,
+            accounts_updated_at: new Date().toISOString(),
+          };
+
+          // Mortgages can also report servicer terms. Liabilities is a monthly
+          // per-item subscription rather than a per-call charge, so pulling it
+          // alongside the balance costs nothing extra — but only mortgages are
+          // worth asking about: Plaid does not cover HELOCs at all, and savings
+          // accounts have no liability object.
+          if (acct.account_type === "mortgage") {
+            try {
+              const liabRes = await plaid.getLiabilities(acct.access_token);
+              const mortgage = liabRes?.liabilities?.mortgage ?? null;
+              if (mortgage?.length) {
+                // Keep the outgoing snapshot. Escrow and rate CHANGES are found
+                // by comparing the two — Plaid publishes no forward schedule of
+                // either, so without this the app could only ever show a level,
+                // never a change.
+                const { data: existing } = await supabase
+                  .from("linked_accounts")
+                  .select("liabilities")
+                  .eq("user_id", acct.user_id)
+                  .eq("account_type", acct.account_type)
+                  .maybeSingle();
+
+                if (existing?.liabilities) update.liabilities_prev = existing.liabilities;
+                update.liabilities = { mortgage };
+              }
+            } catch (err) {
+              // Servicers that do not participate return an error here. That is
+              // a normal outcome, not a failure — the app falls back to
+              // user-entered mortgage details.
+              console.info(`Liabilities unavailable for ${acct.account_type}:`, err);
+            }
+          }
+
           await supabase
             .from("linked_accounts")
-            .update({ accounts, accounts_updated_at: new Date().toISOString() })
+            .update(update)
             .eq("user_id", acct.user_id)
             .eq("account_type", acct.account_type);
           refreshed++;

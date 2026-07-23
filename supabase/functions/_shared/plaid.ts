@@ -89,6 +89,21 @@ export class PlaidClient {
     return this.post("/accounts/balance/get", body);
   }
 
+  /**
+   * Servicer-reported loan terms: rate, escrow, YTD interest, next payment,
+   * origination, prepayment penalty.
+   *
+   * Covers credit(credit card, paypal) and loan(student, mortgage) ONLY — a
+   * HELOC is in neither bucket, so this never returns HELOC terms for any
+   * institution. Not every mortgage servicer participates either, which is why
+   * the caller must treat a failure here as "no data", never as an error.
+   */
+  async getLiabilities(accessToken: string, accountIds?: string[]) {
+    const body: Record<string, unknown> = { access_token: accessToken };
+    if (accountIds?.length) body.options = { account_ids: accountIds };
+    return this.post("/liabilities/get", body);
+  }
+
   async syncTransactions(accessToken: string) {
     return this.post("/transactions/sync", { access_token: accessToken });
   }
