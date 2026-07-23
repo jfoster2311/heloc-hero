@@ -31,6 +31,8 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
 import { analyzeMove, suggestedMove, CAUTION_UTILIZATION } from '../../lib/moveDecision';
+import { bufferMonths } from '../../lib/safeToMove';
+import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
 import { hapticLight, hapticSuccess } from '../../lib/haptics';
@@ -40,7 +42,7 @@ import type { LinkedAccount } from '../../lib/types';
 export default function MoveMoneyModal() {
   const router = useRouter();
   const { profile } = useAuth();
-  const { mortgageAccount, helocAccount } = useAccounts(profile?.id ?? null);
+  const { mortgageAccount, helocAccount, savingsAccount } = useAccounts(profile?.id ?? null);
 
   const helocBalance = firstBalance(helocAccount);
   const helocLimit   = deriveCreditLimit(
@@ -81,6 +83,13 @@ export default function MoveMoneyModal() {
   }), [limit, drawn, amount, surplus, helocRate, mortgageBal, profile?.mortgage_rate, payment]);
 
   const canLog = amount > 0 && !analysis.exceedsLimit;
+
+  // Liquidity, before and after. Available credit counts because on a HELOC it
+  // IS the emergency fund — which is the whole reason drawing it down has a
+  // cost worth stating next to the interest saved.
+  const liquidCash    = firstBalance(savingsAccount) ?? 0;
+  const bufferBefore  = bufferMonths(liquidCash, Math.max(0, limit - drawn), expenses);
+  const bufferAfter   = bufferMonths(liquidCash, analysis.availableAfter, expenses);
 
   async function handleLogMove() {
     if (!profile?.id || !canLog) return;
@@ -242,6 +251,16 @@ export default function MoveMoneyModal() {
                   <Text style={styles.netBold}>${fmt(analysis.netInterestSaved)}</Text>.
                 </Text>
               )}
+
+              {/* The liquidity consumed, stated as precisely as the interest
+                  saved. Without this the ledger above is only half a trade. */}
+              {bufferAfter !== null && (
+                <Text style={styles.netLine}>
+                  Cash plus remaining credit would cover{' '}
+                  <Text style={styles.netBold}>{bufferAfter.toFixed(1)} months</Text> of expenses
+                  {bufferBefore !== null && `, down from ${bufferBefore.toFixed(1)}`}.
+                </Text>
+              )}
             </View>
           )}
 
@@ -258,6 +277,12 @@ export default function MoveMoneyModal() {
           {!analysis.replenishable && amount > 0 && (
             <Caution
               text="Your surplus can't repay this draw, so the cycle never completes and the balance keeps costing interest."
+            />
+          )}
+          {bufferAfter !== null && bufferAfter < BUFFER.minMonths && amount > 0 && (
+            <Caution
+              text={`This leaves under ${BUFFER.minMonths} months of expenses in cash and available credit. ` +
+                'An unexpected bill afterwards would have to go on something more expensive than this line.'}
             />
           )}
           {analysis.mortgageStalls && (
@@ -342,7 +367,7 @@ function fmtPct(v: number) { return `${Math.round(v * 100)}%`; }
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -367,6 +392,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
     ...Shadows.card,
   },
   cardTitle: {

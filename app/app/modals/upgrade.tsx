@@ -22,10 +22,11 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useState, useEffect, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { useIsPro } from '../../hooks/useIsPro';
 import {
   getOfferings, purchasePackage, restorePurchases, purchasesAvailable,
@@ -35,7 +36,7 @@ import {
   PACKAGE_MATCH, PRO_FEATURES, FREE_FEATURES,
 } from '../../lib/pricing';
 import { hapticLight } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, Shadows, OnDark } from '../../lib/theme';
 import type { BillingPeriod } from '../../lib/types';
 
 export default function UpgradeModal() {
@@ -110,20 +111,28 @@ export default function UpgradeModal() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>HELOC Hero Pro</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
-          <Ionicons name="close" size={22} color={Colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.safe} >
+      <StatusBar style="light" />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* The paywall opens on the same aurora as the reveal that sold it. */}
+        <Hero
+          intensity={0.95}
+          topBar={
+            <View style={styles.heroTop}>
+              <Text style={styles.heroTitle}>HELOC Hero Pro</Text>
+              <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
+                <Ionicons name="close" size={22} color={OnDark.secondary} />
+              </TouchableOpacity>
+            </View>
+          }
+        >
+          <HeroCaption>
+            Connect your accounts and HELOC Hero watches your balances, then tells you the
+            moment it&apos;s worth moving money.
+          </HeroCaption>
+        </Hero>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lede}>
-          Connect your accounts and HELOC Hero watches your balances, then tells you the moment
-          it&apos;s worth moving money.
-        </Text>
-
+      <View style={styles.content}>
         {isPro && (
           <View style={styles.currentBanner}>
             <Ionicons name="checkmark-circle-outline" size={18} color={Colors.mint700} />
@@ -256,8 +265,9 @@ export default function UpgradeModal() {
           Projections are estimates based on the figures you provide. HELOC Hero is not a lender,
           not a broker, and does not provide financial advice.
         </Text>
+      </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -283,24 +293,17 @@ function PeriodBtn({ label, badge, active, onPress }: {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
-  header: {
+  safe: { flex: 1, backgroundColor: Colors.background },
+  scroll: { paddingBottom: Spacing[10] },
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
+    marginBottom: Spacing[3],
   },
-  headerTitle: { flex: 1, fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  heroTitle: { flex: 1, fontSize: Typography.xl, fontWeight: Typography.bold, color: OnDark.primary },
   closeBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
-
-  lede: {
-    fontSize: Typography.base,
-    color: Colors.textSecondary,
-    lineHeight: 23,
-    paddingHorizontal: Spacing[1],
-  },
+  content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
 
   currentBanner: {
     flexDirection: 'row',
