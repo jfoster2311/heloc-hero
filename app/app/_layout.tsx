@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
 import { initPurchases, identifyPurchaser } from '../lib/purchases';
+import { DEV_AUTH_BYPASS } from '../lib/devFlags';
 import LockGate from '../components/LockGate';
 
 export default function RootLayout() {
@@ -34,11 +35,13 @@ export default function RootLayout() {
     // segments to ['modals', …], the guard saw !inTabs, and replaced it away.
     const inModals     = segments[0] === 'modals';
 
-    // ── DEV-ONLY BYPASS ───────────────────────────────────────────────────────
-    // Skip Supabase auth + onboarding guards in development so every tab is
-    // reviewable without an email sign-in. __DEV__ is stripped to false by
-    // Metro in production builds — this block is dead code in the App Store.
-    if (__DEV__) {
+    // ── DEV-ONLY BYPASS (opt-in) ──────────────────────────────────────────────
+    // Skips auth + onboarding so every tab is reviewable without an email
+    // sign-in. OFF by default: when this was unconditionally on in __DEV__, dev
+    // review never exercised a real session, which is how a never-deployed
+    // delete-account endpoint and a live/repo schema mismatch both went unseen.
+    // Enable deliberately via extra.devAuthBypass in app.json. See lib/devFlags.
+    if (DEV_AUTH_BYPASS) {
       // Allow onboarding screens so the DEV "restart onboarding" button works,
       // and modals so link-account/upgrade/settings/get-heloc can open.
       // Everything else (auth screens, index, etc.) still lands on /tabs/dashboard.
