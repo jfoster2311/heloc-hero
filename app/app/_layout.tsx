@@ -5,12 +5,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
 import { initPurchases, identifyPurchaser } from '../lib/purchases';
 import { DEV_AUTH_BYPASS } from '../lib/devFlags';
+import { loadDevProMode } from '../lib/devPro';
 import LockGate from '../components/LockGate';
 
 export default function RootLayout() {
   const { profile, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Restore the DEV Pro override before gated screens first render. No-op in production.
+  useEffect(() => {
+    loadDevProMode();
+  }, []);
 
   // Init RevenueCat on session load and when auth state changes
   useEffect(() => {

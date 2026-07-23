@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { isProActive, purchasesAvailable } from '../lib/purchases';
+import { getDevProMode, subscribeDevPro } from '../lib/devPro';
 import { useAuth } from './useAuth';
 
 export interface UseIsProResult {
@@ -13,13 +14,21 @@ export interface UseIsProResult {
 export function useIsPro(): UseIsProResult {
   const { tier } = useAuth();
 
-  // Dev bypass: Pro always active in __DEV__ builds so all gated screens are testable
-  // without a RevenueCat purchase. Production builds are unaffected — __DEV__ is false.
-  const [isPro,   setIsPro]   = useState<boolean>(__DEV__);
-  const [loading, setLoading] = useState<boolean>(!__DEV__);
+  // Starts locked and resolves from the real entitlement. This used to start at
+  // __DEV__ (always Pro in development), which made the locked half of every
+  // gate untestable. Use the DEV Pro override in Settings to force either state.
+  const [isPro,   setIsPro]   = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const check = useCallback(async () => {
-    if (__DEV__) return; // Dev bypass — isPro stays true, loading stays false
+    // DEV-only override; 'auto' (and all production builds) fall through to the
+    // real entitlement check below.
+    const override = getDevProMode();
+    if (override !== 'auto') {
+      setIsPro(override === 'pro');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       if (!purchasesAvailable()) {
@@ -37,6 +46,9 @@ export function useIsPro(): UseIsProResult {
   useEffect(() => {
     check();
   }, [check]);
+
+  // Re-evaluate when the DEV override is toggled, so gated screens flip live.
+  useEffect(() => subscribeDevPro(check), [check]);
 
   // Recheck when app returns to foreground
   useEffect(() => {

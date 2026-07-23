@@ -14,8 +14,22 @@ import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
 } from '../../lib/appLock';
 import { loadDemo, clearDemo } from '../../lib/seedDemo';
+import { getDevProMode, setDevProMode, subscribeDevPro, type DevProMode } from '../../lib/devPro';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
+
+// Tapping the DEV Pro Override row cycles through these, so both sides of every
+// paywall gate can be checked in seconds without a purchase or a rebuild.
+const NEXT_DEV_PRO: Record<DevProMode, DevProMode> = {
+  auto: 'pro',
+  pro:  'free',
+  free: 'auto',
+};
+const DEV_PRO_LABELS: Record<DevProMode, string> = {
+  auto: 'Auto (real entitlement)',
+  pro:  'Forced Pro',
+  free: 'Forced Free',
+};
 
 export default function SettingsModal() {
   const router = useRouter();
@@ -28,6 +42,10 @@ export default function SettingsModal() {
   const [autoLock, setAutoLock] = useState(false);
   const [lockSupported, setLockSupported] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [devPro, setDevPro] = useState<DevProMode>(getDevProMode());
+
+  // DEV Pro override — keep the row in sync with the module's state.
+  useEffect(() => subscribeDevPro(() => setDevPro(getDevProMode())), []);
 
   useEffect(() => {
     async function loadLockState() {
@@ -258,6 +276,25 @@ export default function SettingsModal() {
             <Text style={styles.dangerText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Debug builds only — __DEV__ is false in release, so Metro strips this. */}
+        {__DEV__ && (
+          <>
+            <SectionHeader
+              title="Developer"
+              subtitle="Debug builds only — never present in the App Store build"
+            />
+            <View style={styles.card}>
+              <SettingRow
+                icon="flask-outline"
+                label="Pro Override"
+                value={DEV_PRO_LABELS[devPro]}
+                onPress={() => setDevProMode(NEXT_DEV_PRO[devPro])}
+                isLast
+              />
+            </View>
+          </>
+        )}
 
         <TouchableOpacity
           onLongPress={() => {
