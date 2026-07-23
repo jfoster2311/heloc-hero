@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
+import { supabase, invokeFunction } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
 import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
@@ -27,6 +27,7 @@ export default function SettingsModal() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [autoLock, setAutoLock] = useState(false);
   const [lockSupported, setLockSupported] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function loadLockState() {
@@ -81,24 +82,23 @@ export default function SettingsModal() {
           text: 'Delete Account',
           style: 'destructive',
           onPress: async () => {
+            setDeleting(true);
             try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) return;
-              const res = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
-                {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                  },
-                },
-              );
-              if (!res.ok) throw new Error('Failed to delete account');
+              // invokeFunction resolves the project URL from app.json -> extra and
+              // attaches the session token; a raw process.env URL is undefined in
+              // release builds.
+              await invokeFunction('delete-account');
               await supabase.auth.signOut();
               router.replace('/auth/login');
-            } catch {
-              Alert.alert('Error', 'Could not delete account. Please contact support.');
+            } catch (err) {
+              Alert.alert(
+                'Could not delete account',
+                err instanceof Error
+                  ? `${err.message}\n\nYour account was not deleted. Please try again or contact support.`
+                  : 'Your account was not deleted. Please try again or contact support.',
+              );
+            } finally {
+              setDeleting(false);
             }
           },
         },
@@ -243,9 +243,9 @@ export default function SettingsModal() {
           )}
           <SettingRow
             icon="trash-outline"
-            label="Delete My Account"
+            label={deleting ? 'Deleting…' : 'Delete My Account'}
             value=""
-            onPress={handleDeleteAccount}
+            onPress={deleting ? undefined : handleDeleteAccount}
             isLast
           />
         </View>

@@ -67,6 +67,11 @@ export class PlaidClient {
     return this.post("/item/get", { access_token: accessToken });
   }
 
+  /** Revokes an access token and stops billing for the item. Irreversible. */
+  async removeItem(accessToken: string) {
+    return this.post("/item/remove", { access_token: accessToken });
+  }
+
   async getInstitution(institutionId: string) {
     return this.post("/institutions/get_by_id", {
       institution_id: institutionId,
