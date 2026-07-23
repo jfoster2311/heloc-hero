@@ -37,5 +37,12 @@
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.10",
     "typescript": "^5.3.0"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": ["react-native-plaid-link-sdk"]
+      }
+    }
   }
 }
