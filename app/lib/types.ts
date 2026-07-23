@@ -19,6 +19,15 @@ export interface UserProfile {
   mortgage_rate: number | null;
   monthly_payment: number | null;
   credit_score: number | null;
+  // HELOC terms are user-entered: Plaid's /liabilities/get does not cover
+  // HELOCs, so APR, margin, draw-end and payment type never arrive from a link.
+  // See lib/helocTerms.ts.
+  heloc_rate: number | null;
+  heloc_margin: number | null;
+  heloc_credit_limit: number | null;
+  heloc_draw_end_date: string | null;
+  heloc_payment_type: 'interest_only' | 'amortizing' | null;
+  heloc_terms_updated_at: string | null;
   tier: Tier;
   onboarding_complete: boolean;
   fcm_token: string | null;

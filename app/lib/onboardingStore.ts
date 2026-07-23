@@ -51,6 +51,12 @@ export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
         mortgage_rate:       data.mortgageRate      ?? null,
         monthly_payment:     data.monthlyPayment    ?? null,
         credit_score:        data.creditScore       ?? null,
+        // Onboarding asks for these on heloc-info; before this they were
+        // collected, used once for the reveal, then dropped — so every later
+        // screen fell back to an assumed rate the user had already told us.
+        heloc_rate:             data.helocRate  ?? null,
+        heloc_credit_limit:     data.helocLimit ?? null,
+        heloc_terms_updated_at: data.helocRate ? new Date().toISOString() : null,
         onboarding_complete: true,
       })
       .eq('id', userId);

@@ -37,9 +37,9 @@ import NotificationPrimer from '../../components/NotificationPrimer';
 import { computeHelocScore, genericHelocScore } from '../../lib/helocScore';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import { resolveHelocRate, deriveCreditLimit, termsAreStale } from '../../lib/helocTerms';
 import type { LinkedAccount } from '../../lib/types';
 
-const ASSUMED_HELOC_RATE = 0.085;
 const MILESTONES = [25, 50, 75];
 
 export default function DashboardScreen() {
@@ -52,7 +52,16 @@ export default function DashboardScreen() {
 
   const mortgageBalance   = firstBalance(mortgageAccount);
   const helocBalance      = firstBalance(helocAccount);
-  const helocLimit        = firstLimit(helocAccount);
+  // Plaid populates `limit` inconsistently for lines of credit; drawn +
+  // available is the dependable derivation. See lib/helocTerms.
+  const helocLimit        = deriveCreditLimit(
+    firstBalances(helocAccount),
+    profile?.heloc_credit_limit ?? null,
+  ).limit;
+  // The user's own APR when we have it — Plaid never supplies one for a HELOC.
+  const { rate: helocRate, isAssumed: helocRateAssumed } =
+    resolveHelocRate(profile?.heloc_rate);
+  const helocTermsStale = termsAreStale(profile?.heloc_terms_updated_at);
   const savingsBalance    = firstBalance(savingsAccount);
   const hasLinkedAccounts = accounts.length > 0;
 
@@ -102,7 +111,7 @@ export default function DashboardScreen() {
         mortgageRate:   profile?.mortgage_rate   ?? 0.065,
         monthlyPayment: profile?.monthly_payment ?? 2_000,
         monthlySurplus: Math.max(0, surplus),
-        helocRate:      ASSUMED_HELOC_RATE,
+        helocRate,
       })
     : genericProjection();
 
@@ -246,7 +255,29 @@ export default function DashboardScreen() {
           {helocBalance === null && (
             <Text style={styles.estimateNote}>Estimated · link accounts for live balances</Text>
           )}
+          {helocRateAssumed && (
+            <Text style={styles.estimateNote}>
+              Interest assumes 8.5% APR — no bank shares HELOC rates, so we need yours
+            </Text>
+          )}
         </TouchableOpacity>
+
+        {/* HELOC terms are user-entered and drift, so prompt when they age out.
+            Balances refresh themselves; these never can. */}
+        {helocAccount && helocTermsStale && (
+          <TouchableOpacity
+            style={styles.stepRow}
+            onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+            accessibilityLabel="Confirm your HELOC terms"
+          >
+            <Text style={styles.stepText}>
+              {profile?.heloc_terms_updated_at
+                ? 'Confirm your HELOC rate — variable rates drift'
+                : 'Add your HELOC rate and draw-end date for an accurate payoff'}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+          </TouchableOpacity>
+        )}
 
         {/* ── 3. YOUR POSITION — balances chunked into one card ───────────── */}
         {hasLinkedAccounts ? (
@@ -407,9 +438,10 @@ function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
   return account.accounts[0].balances.current;
 }
-function firstLimit(account: LinkedAccount | null): number | null {
+function firstBalances(account: LinkedAccount | null) {
   if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.limit ?? null;
+  const b = account.accounts[0].balances;
+  return { current: b.current, available: b.available, limit: b.limit ?? null };
 }
 function pct(part: number, whole: number): number {
   return whole > 0 ? Math.min(Math.max((part / whole) * 100, 0), 100) : 0;

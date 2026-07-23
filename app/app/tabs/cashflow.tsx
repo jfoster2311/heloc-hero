@@ -22,9 +22,8 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { hapticLight } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import { resolveHelocRate } from '../../lib/helocTerms';
 import type { LinkedAccount } from '../../lib/types';
-
-const ASSUMED_HELOC_RATE = 0.085;
 
 export default function CashFlowScreen() {
   const router = useRouter();
@@ -40,7 +39,8 @@ export default function CashFlowScreen() {
   const income   = profile?.monthly_income   ?? 0;
   const expenses = profile?.monthly_expenses ?? 0;
   const payment  = profile?.monthly_payment  ?? 0;
-  const helocInterest = (helocBalance ?? 0) * ASSUMED_HELOC_RATE / 12;
+  const { rate: helocRate, isAssumed: helocRateAssumed } = resolveHelocRate(profile?.heloc_rate);
+  const helocInterest = (helocBalance ?? 0) * helocRate / 12;
 
   const hasFigures = income > 0;
   const committed  = expenses + payment + (helocInterest > 1 ? helocInterest : 0);
@@ -76,7 +76,12 @@ export default function CashFlowScreen() {
             <Line label="Mortgage payment" amount={-payment} />
             <Line label="Living expenses" amount={-expenses} />
             {helocInterest > 1 && (
-              <Line label="HELOC interest (estimated)" amount={-helocInterest} />
+              <Line
+                label={helocRateAssumed
+                  ? 'HELOC interest (assumed 8.5% APR)'
+                  : `HELOC interest (${(helocRate * 100).toFixed(2)}% APR)`}
+                amount={-helocInterest}
+              />
             )}
 
             <View style={styles.surplusRow}>

@@ -31,12 +31,11 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
 import { analyzeMove, suggestedMove, CAUTION_UTILIZATION } from '../../lib/moveDecision';
+import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
 import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { LinkedAccount } from '../../lib/types';
-
-const ASSUMED_HELOC_RATE = 0.085;
 
 export default function MoveMoneyModal() {
   const router = useRouter();
@@ -44,7 +43,12 @@ export default function MoveMoneyModal() {
   const { mortgageAccount, helocAccount } = useAccounts(profile?.id ?? null);
 
   const helocBalance = firstBalance(helocAccount);
-  const helocLimit   = firstLimit(helocAccount);
+  const helocLimit   = deriveCreditLimit(
+    firstBalances(helocAccount),
+    profile?.heloc_credit_limit ?? null,
+  ).limit;
+  const { rate: helocRate, isAssumed: helocRateAssumed } =
+    resolveHelocRate(profile?.heloc_rate);
   const mortgageBal  = firstBalance(mortgageAccount) ?? profile?.mortgage_balance ?? 0;
 
   const income   = profile?.monthly_income   ?? 0;
@@ -70,11 +74,11 @@ export default function MoveMoneyModal() {
     helocDrawn: drawn,
     moveAmount: amount,
     monthlySurplus: surplus,
-    helocRate: ASSUMED_HELOC_RATE,
+    helocRate,
     mortgageBalance: mortgageBal,
     mortgageRate: profile?.mortgage_rate ?? 0.065,
     monthlyPayment: payment || 2_000,
-  }), [limit, drawn, amount, surplus, mortgageBal, profile?.mortgage_rate, payment]);
+  }), [limit, drawn, amount, surplus, helocRate, mortgageBal, profile?.mortgage_rate, payment]);
 
   const canLog = amount > 0 && !analysis.exceedsLimit;
 
@@ -182,6 +186,20 @@ export default function MoveMoneyModal() {
               <Text style={styles.estimateNote}>
                 Based on the figures you entered, not live balances. Link your accounts for real numbers.
               </Text>
+            )}
+            {/* The HELOC rate drives every cost figure below. If we're guessing
+                it, say so where the guess is being used. */}
+            {helocRateAssumed && (
+              <TouchableOpacity
+                onPress={() => router.push('/modals/heloc-terms' as never)}
+                style={styles.rateWarnBtn}
+                accessibilityLabel="Add your HELOC rate"
+              >
+                <Text style={styles.rateWarnText}>
+                  Interest below assumes an 8.5% APR. No bank shares HELOC rates —
+                  add yours for accurate costs.
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -313,9 +331,10 @@ function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
   return account.accounts[0].balances.current;
 }
-function firstLimit(account: LinkedAccount | null): number | null {
+function firstBalances(account: LinkedAccount | null) {
   if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.limit ?? null;
+  const b = account.accounts[0].balances;
+  return { current: b.current, available: b.available, limit: b.limit ?? null };
 }
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function fmtPct(v: number) { return `${Math.round(v * 100)}%`; }
@@ -386,6 +405,8 @@ const styles = StyleSheet.create({
   },
   reasonText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
   estimateNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[1] },
+  rateWarnBtn: { marginTop: Spacing[2], minHeight: 44, justifyContent: 'center' },
+  rateWarnText: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 17 },
 
   // Upside and downside share a row, a type size and a weight. Neither is
   // styled to be more appealing than the other.
