@@ -219,7 +219,7 @@ export default function DashboardScreen() {
         {/* ── 2. THIS CYCLE — utilization and next dump are one story ─────── */}
         <TouchableOpacity
           style={CommonStyles.card}
-          onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+          onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
           activeOpacity={0.85}
           accessibilityLabel="Cycle details"
         >
@@ -347,13 +347,14 @@ export default function DashboardScreen() {
 
       {/* ── 5. PRIMARY ACTION — pinned inside the thumb zone ──────────────── */}
       <View style={styles.footer}>
+        {/* Opens the decision, which weighs the move — it does not perform one. */}
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
-          accessibilityLabel={cycleReady ? 'Execute your dump' : 'View your cycle'}
+          onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
+          accessibilityLabel="Consider moving money to your mortgage"
         >
           <Text style={styles.primaryBtnText}>
-            {cycleReady ? 'Execute your dump' : streak > 0 ? 'View your cycle' : 'Start your first cycle'}
+            {cycleReady ? 'Consider a move' : 'Plan your next move'}
           </Text>
           <Ionicons name="arrow-forward" size={18} color={Colors.white} />
         </TouchableOpacity>

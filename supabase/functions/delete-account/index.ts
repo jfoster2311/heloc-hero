@@ -15,6 +15,7 @@ const USER_TABLES = [
   "plaid_accounts",
   "linked_accounts",
   "automation_settings",
+  "automation_log",
   "notifications",
   "user_profiles",
   "plaid_items",
