@@ -1,37 +1,66 @@
-// lib/theme.ts
+// lib/theme.ts — the whole app's visual vocabulary.
+//
+// The reference is the reveal screen: a deep-green aurora field carrying a
+// display-scale number, dissolving into a pale mint page of soft white cards.
+// Every screen is built from those two materials, so the tokens below are
+// grouped that way — `Colors` for the light page, `Aurora`/`OnDark` for the
+// dark field, and one shared type/space/radius scale across both.
+//
+// Palette is monochrome green by policy (see CLAUDE.md). There is no red,
+// amber, blue or purple in production UI. Status is carried by a text label
+// plus saturation, never by hue alone, and negative numbers are muted grey —
+// a person's mortgage balance is not an error state.
 import { StyleSheet } from 'react-native';
 
 export const Colors = {
-  // Brand — mint/teal palette
-  mint50:  '#f0faf7',
-  mint100: '#d1f0e8',
-  mint200: '#a3e0d1',
-  mint400: '#4db89f',
-  mint600: '#1a9e7a',
-  mint700: '#147a5e',
+  // ── Brand ramp — one hue, many values ────────────────────────────────────
+  mint50:  '#F0FDF4',  // tint wash behind chips and info rows
+  mint100: '#E8F9F1',  // pale accent, aurora's lightest note
+  mint200: '#D8EDE3',  // hairline borders on tinted surfaces
+  mint400: '#4ADE80',  // soft accent, secondary marks
+  mint600: '#12B76A',  // THE accent — one per screen, ideally
+  mint700: '#0F3D22',  // deep green for text on mint tints
+  mint800: '#0C2A18',
+  mint900: '#081A0F',  // the aurora's floor
 
-  // Status
-  success: '#22c55e',
-  warning: '#f59e0b',
-  error:   '#ef4444',
-  info:    '#3b82f6',
+  // ── Status ───────────────────────────────────────────────────────────────
+  // Kept as named tokens so intent stays readable, but all resolve inside the
+  // monochrome system. Severity reads as saturation; the label carries meaning.
+  success: '#12B76A',
+  warning: '#6B7280',
+  error:   '#6B7280',
+  info:    '#4ADE80',
 
-  // Neutrals
-  white:   '#ffffff',
-  gray50:  '#f9fafb',
-  gray100: '#f3f4f6',
-  gray200: '#e5e7eb',
-  gray300: '#d1d5db',
-  gray400: '#9ca3af',
-  gray500: '#6b7280',
+  // ── Neutrals ─────────────────────────────────────────────────────────────
+  white:   '#FFFFFF',
+  gray50:  '#F7FAF8',
+  gray100: '#EEF4F0',
+  gray200: '#E3ECE6',
+  gray300: '#D1DBD5',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
 
-  // App surfaces
-  background:    '#f5f7fa',
-  surface:       '#ffffff',
-  border:        '#e5e7eb',
-  textPrimary:   '#111827',
+  // ── App surfaces ─────────────────────────────────────────────────────────
+  background:    '#F0F7F3',
+  surface:       '#FFFFFF',
+  surfaceSunken: '#F7FAF8',
+  border:        '#D8EDE3',
+  borderSubtle:  '#E9F2EC',
+  textPrimary:   '#0A0F0D',
   textSecondary: '#374151',
-  textMuted:     '#9ca3af',
+  textMuted:     '#9CA3AF',
+};
+
+/** Text and hairlines for anything sitting on the aurora. */
+export const OnDark = {
+  primary:   '#FFFFFF',
+  secondary: 'rgba(255,255,255,0.72)',
+  muted:     'rgba(255,255,255,0.55)',
+  faint:     'rgba(255,255,255,0.40)',
+  hairline:  'rgba(255,255,255,0.12)',
+  fill:      'rgba(255,255,255,0.08)',
+  fillStrong:'rgba(255,255,255,0.16)',
+  accent:    '#4ADE80',
 };
 
 export const Typography = {
@@ -45,6 +74,11 @@ export const Typography = {
   '3xl': 30,
   '4xl': 36,
 
+  // Display sizes — for the one number a screen is about. The reference
+  // fintech screens set a balance at this scale and nothing else near it.
+  display:   56,
+  displaySm: 40,
+
   // Font weights (string literals for StyleSheet)
   regular:   '400' as const,
   normal:    '400' as const,
@@ -52,6 +86,14 @@ export const Typography = {
   semibold:  '600' as const,
   bold:      '700' as const,
   extrabold: '800' as const,
+};
+
+/** Display numerals are tracked tight; micro-labels are tracked wide. */
+export const Tracking = {
+  display:  -1.6,
+  heading:  -0.6,
+  eyebrow:   1.4,
+  label:     1.0,
 };
 
 export const Spacing = {
@@ -66,46 +108,57 @@ export const Spacing = {
   9:  36,
   10: 40,
   12: 48,
+  14: 56,
+  16: 64,
 } as const;
 
 export const Radius = {
-  sm:   6,
-  md:   10,
-  lg:   16,
-  xl:   20,
+  sm:   8,
+  md:   12,
+  lg:   18,
+  xl:   24,
+  '2xl': 32,
   full: 9999,
 };
 
 export const Shadows = {
   card: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowColor: '#0A2A1B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     elevation: 2,
   },
+  /** For the one card that should float — pinned actions, sheets. */
+  lifted: {
+    shadowColor: '#0A2A1B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    elevation: 6,
+  },
   modal: {
-    shadowColor: '#000',
+    shadowColor: '#0A2A1B',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: 16,
     elevation: 4,
   },
   glow: {
-    shadowColor: '#1a9e7a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.30,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#12B76A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
   },
 };
 
 export const Gradients = {
-  primary: ['#1a9e7a', '#0d7a5e'] as const,
-  hero:    ['#1a9e7a', '#147a5e'] as const,
+  primary: ['#12B76A', '#0F3D22'] as const,
+  hero:    ['#0C2A18', '#081A0F'] as const,
 };
 
-// Deep-green aurora used by the full-bleed dark screens (welcome, reveal).
+// Deep-green aurora used by the full-bleed dark screens and every hero block.
 // Layered rather than a single ramp: a dark vertical base, a mint glow raked
 // across it, and a pale wash at the very top. Grain sits over the whole stack.
 export const Aurora = {
@@ -126,10 +179,36 @@ export const CommonStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  /** The default surface. One border, one soft shadow, generous padding. */
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
+    borderRadius: Radius.xl,
+    padding: Spacing[5],
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
     ...Shadows.card,
+  },
+  /** Uppercase micro-label above a value or a section. */
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: Typography.extrabold,
+    color: Colors.textMuted,
+    letterSpacing: Tracking.eyebrow,
+  },
+  cardTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  /** The sentence under a figure that states what it means. */
+  conclusion: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  hint: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 17,
   },
 });

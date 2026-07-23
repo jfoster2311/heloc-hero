@@ -1,4 +1,6 @@
 // lib/types.ts
+import type { InterestCalcMethod, HomeValueSource } from './config';
+import type { MortgageLiability } from './mortgage';
 
 // Two tiers: free, and pro (billed monthly or annually). 'medium' and 'full'
 // are legacy three-tier values kept so existing rows keep working; both are
@@ -31,6 +33,35 @@ export interface UserProfile {
   heloc_draw_end_date: string | null;
   heloc_payment_type: 'interest_only' | 'amortizing' | null;
   heloc_terms_updated_at: string | null;
+  heloc_rate_index: string | null;
+  /**
+   * Decides whether cycling works at all, so it caveats every projection.
+   * Average-daily-balance rewards parking money in the line; statement-balance
+   * ignores anything that leaves before the statement date.
+   */
+  heloc_interest_calc_method: InterestCalcMethod | null;
+  heloc_draw_fee: number | null;
+  heloc_annual_fee: number | null;
+  heloc_early_closure_fee: number | null;
+
+  // Property value is user-entered in v1, with its provenance recorded so the
+  // derived equity can be judged. Shaped to accept an AVM later without change.
+  home_value_as_of: string | null;
+  home_value_source: HomeValueSource | null;
+  property_address: string | null;
+
+  // Mortgage facts Plaid Liabilities supplies for participating servicers, kept
+  // here as the fallback for everyone else.
+  mortgage_origination_date: string | null;
+  mortgage_origination_principal: number | null;
+  mortgage_term_months: number | null;
+  mortgage_has_prepayment_penalty: boolean | null;
+
+  // Assumptions the user controls.
+  replenish_threshold: number | null;
+  forward_rate_delta_bps: number | null;
+  auto_apply_surplus: boolean | null;
+
   tier: Tier;
   onboarding_complete: boolean;
   fcm_token: string | null;
@@ -83,6 +114,10 @@ export interface LinkedAccount {
   plaid_item_id: string;
   accounts: PlaidAccount[];
   accounts_updated_at: string | null;
+  /** Latest /liabilities/get payload for this item. Null for non-participating servicers. */
+  liabilities: { mortgage?: MortgageLiability[] } | null;
+  /** The snapshot before it — escrow and rate changes are found by comparison. */
+  liabilities_prev: { mortgage?: MortgageLiability[] } | null;
   created_at: string;
 }
 
