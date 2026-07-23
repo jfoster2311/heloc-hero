@@ -1,7 +1,22 @@
-// app/tabs/calculator.tsx
+// app/tabs/calculator.tsx — the free simulator.
+//
+// This screen has one job: prove the concept before asking for anything.
+//
+// Design constraints it is built to satisfy:
+//  · The result is visible before the user touches an input. Realistic defaults
+//    are pre-filled, so the screen is never blank and never shows a form with
+//    no payoff. There is no "Calculate" button — computeProjection measures at
+//    ~0.01ms, so recomputing on every keystroke costs nothing and keeps the
+//    screen inside the Doherty threshold with room to spare.
+//  · The outcome sits ABOVE the inputs. If someone screenshots the top third,
+//    the value proposition should be legible without scrolling.
+//  · Three inputs on first load (Hick's Law). Monthly payment and HELOC rate
+//    live behind Advanced; the payment defaults to a real 30-year amortization
+//    of the balance and rate above it, so it is right without being asked for.
+//  · Exactly one accent element: the payoff number. Everything else is muted.
 import {
   View, Text, StyleSheet, ScrollView,
-  TextInput, TouchableOpacity, KeyboardAvoidingView, Platform,
+  TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,22 +24,33 @@ import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
-import { computeProjection, formatMonths } from '../../lib/projections';
+import { computeProjection, formatMonths, calcMonthlyPayment } from '../../lib/projections';
+import { parsePositive } from '../../lib/parseNumeric';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
 import type { CalculatorInputs } from '../../lib/types';
 
-// ─── Defaults ────────────────────────────────────────────────────────────────
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const STANDARD_TERM_MONTHS = 360;
+
+// Realistic defaults so the screen opens with a believable answer already on it.
 const GENERIC_DEFAULTS: CalculatorInputs = {
-  mortgageBalance: 320000,
-  mortgageRate:    6.5,    // displayed as % — divided by 100 before compute
-  monthlyPayment:  2100,
-  monthlySurplus:  600,    // realistic: $8k income − $5.5k expenses − $2.1k mortgage
+  mortgageBalance: 400000,
+  mortgageRate:    6.5,   // displayed as % — divided by 100 before compute
+  monthlyPayment:  0,     // 0 = derive from balance + rate (see derivedPayment)
+  monthlySurplus:  600,
   helocRate:       8.5,
 };
 
 function firstBalance(accounts: any[], type: string): number | null {
   const linked = accounts.find((a: any) => a.account_type === type);
   return linked?.accounts?.[0]?.balances?.current ?? null;
+}
+
+function money(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -48,48 +74,67 @@ export default function CalculatorScreen() {
     return {
       mortgageBalance: mb ?? GENERIC_DEFAULTS.mortgageBalance,
       mortgageRate:    (profile?.mortgage_rate ?? 0.065) * 100,
-      monthlyPayment:  payment || GENERIC_DEFAULTS.monthlyPayment,
+      monthlyPayment:  payment || 0,
       monthlySurplus:  Math.max(0, income - expenses - payment) || GENERIC_DEFAULTS.monthlySurplus,
       helocRate:       GENERIC_DEFAULTS.helocRate,
     };
   }, [canPrefill, accounts, profile]);
 
   const [inputs, setInputs] = useState<CalculatorInputs>(initialInputs);
-  const [calculated, setCalculated] = useState(false);
+  const [paymentTouched, setPaymentTouched] = useState(
+    () => (initialInputs.monthlyPayment ?? 0) > 0,
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Until the user edits it, the payment is a real amortization of the balance
+  // and rate they can see — not a fixed guess that silently contradicts them.
+  const derivedPayment = useMemo(
+    () => calcMonthlyPayment(
+      inputs.mortgageBalance,
+      inputs.mortgageRate / 100,
+      STANDARD_TERM_MONTHS,
+    ),
+    [inputs.mortgageBalance, inputs.mortgageRate],
+  );
+  const monthlyPayment = paymentTouched ? inputs.monthlyPayment : derivedPayment;
+
+  // What the inputs can actually support, stated honestly rather than as a result.
+  const monthlyRate = inputs.mortgageRate / 100 / 12;
+  const status: 'needs-balance' | 'payment-too-low' | 'ok' =
+    inputs.mortgageBalance <= 0
+      ? 'needs-balance'
+      : monthlyPayment <= 0 || (monthlyRate > 0 && monthlyPayment <= inputs.mortgageBalance * monthlyRate)
+        ? 'payment-too-low'
+        : 'ok';
 
   const projection = useMemo(() => {
-    if (!calculated) return null;
+    if (status !== 'ok') return null;
     return computeProjection({
       ...inputs,
+      monthlyPayment,
       mortgageRate: inputs.mortgageRate / 100,
       helocRate:    inputs.helocRate    / 100,
     });
-  }, [inputs, calculated]);
+  }, [inputs, monthlyPayment, status]);
 
-  function updateField(field: keyof CalculatorInputs, raw: string) {
-    const num = parseFloat(raw.replace(/,/g, '')) || 0;
-    setInputs(prev => ({ ...prev, [field]: num }));
-    setCalculated(false);
-  }
-
-  function handleCalculate() {
-    setCalculated(true);
+  function updateField(field: keyof CalculatorInputs, next: number) {
+    setInputs(prev => ({ ...prev, [field]: next }));
   }
 
   function handleReset() {
     setInputs(initialInputs);
-    setCalculated(false);
+    setPaymentTouched((initialInputs.monthlyPayment ?? 0) > 0);
   }
+
+  function toggleAdvanced() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowAdvanced(v => !v);
+  }
+
+  const hasGain = !!projection && projection.monthsSaved > 0;
 
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Payoff Calculator</Text>
-          <Text style={styles.headerSub}>See how fast you can pay off your mortgage</Text>
-        </View>
-      </View>
-
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -99,166 +144,199 @@ export default function CalculatorScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Free tier notice */}
-          {tier === 'free' && (
+          {/* ── The billboard. Everything above the fold is the answer. ────── */}
+          <View style={styles.billboard}>
+            <Text style={styles.billboardLabel}>YOUR PROJECTED PAYOFF</Text>
+
+            {status === 'ok' && projection ? (
+              hasGain ? (
+                <>
+                  <Text style={styles.billboardHero}>
+                    {formatMonths(projection.acceleratedMonths)}
+                  </Text>
+                  <Text style={styles.billboardSub}>
+                    instead of {formatMonths(projection.originalMonths)} on your current schedule
+                  </Text>
+                  <View style={styles.billboardMetaRow}>
+                    <Text style={styles.billboardMeta}>
+                      {formatMonths(projection.monthsSaved)} sooner
+                    </Text>
+                    <Text style={styles.billboardMetaDot}>·</Text>
+                    <Text style={styles.billboardMeta}>
+                      ~{money(projection.interestSaved)} interest saved
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.billboardHero}>
+                    {formatMonths(projection.originalMonths)}
+                  </Text>
+                  <Text style={styles.billboardSub}>
+                    Cycling doesn&apos;t change your payoff at these numbers. Add monthly
+                    surplus below — that&apos;s the fuel the strategy runs on.
+                  </Text>
+                </>
+              )
+            ) : (
+              <>
+                <Text style={styles.billboardHero}>—</Text>
+                <Text style={styles.billboardSub}>
+                  {status === 'needs-balance'
+                    ? 'Enter your remaining mortgage balance to see a projection.'
+                    : 'That payment doesn’t cover the monthly interest, so the balance would never fall. Check the payment under Advanced.'}
+                </Text>
+              </>
+            )}
+
+            {/* The derived payment assumes a fresh 30-year schedule, which
+                overstates the remaining term — and so the saving — for anyone
+                part-way through a mortgage. Say so where the number is read,
+                not only in the Advanced hint. */}
+            <Text style={styles.billboardDisclaimer}>
+              {status === 'ok' && !paymentTouched
+                ? 'Assumes a 30-year schedule. Enter your actual monthly payment under Advanced for a figure based on your real term.'
+                : 'Projected estimate from the numbers below. Not a guarantee.'}
+            </Text>
+          </View>
+
+          {/* ── Three inputs. Everything else is behind Advanced. ──────────── */}
+          <View style={CommonStyles.card}>
+            <NumericField
+              label="Remaining balance"
+              prefix="$"
+              value={inputs.mortgageBalance}
+              onCommit={v => updateField('mortgageBalance', v)}
+            />
+            <NumericField
+              label="Interest rate"
+              suffix="%"
+              value={inputs.mortgageRate}
+              onCommit={v => updateField('mortgageRate', v)}
+              decimals={2}
+              keyboardType="decimal-pad"
+            />
+            <NumericField
+              label="Monthly surplus to sweep"
+              prefix="$"
+              value={inputs.monthlySurplus}
+              onCommit={v => updateField('monthlySurplus', v)}
+              hint="What's left over each month after all expenses, including your mortgage payment"
+              isLast
+            />
+          </View>
+
+          {/* ── Advanced disclosure ────────────────────────────────────────── */}
+          <View style={CommonStyles.card}>
             <TouchableOpacity
-              style={styles.infoBanner}
-              onPress={() => router.push('/modals/upgrade')}
+              style={styles.advancedHeader}
+              onPress={toggleAdvanced}
+              accessibilityRole="button"
+              accessibilityLabel={showAdvanced ? 'Hide advanced inputs' : 'Show advanced inputs'}
             >
-              <Ionicons name="information-circle-outline" size={18} color={Colors.mint600} />
-              <Text style={styles.infoBannerText}>
-                Using example numbers. Upgrade to pre-fill with your real data.
-              </Text>
-              <Text style={styles.infoBannerLink}>Upgrade →</Text>
+              <Text style={styles.advancedTitle}>Advanced</Text>
+              <View style={styles.advancedRight}>
+                {!showAdvanced && (
+                  <Text style={styles.advancedSummary}>
+                    {money(monthlyPayment)}/mo · {inputs.helocRate}% HELOC
+                  </Text>
+                )}
+                <Ionicons
+                  name={showAdvanced ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={Colors.textMuted}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {showAdvanced && (
+              <View style={styles.advancedBody}>
+                <NumericField
+                  label="Monthly payment (P&I)"
+                  prefix="$"
+                  value={monthlyPayment}
+                  onCommit={v => { setPaymentTouched(true); updateField('monthlyPayment', v); }}
+                  hint={paymentTouched
+                    ? 'Your figure. Reset to defaults to go back to the calculated payment.'
+                    : 'Calculated from your balance and rate over 30 years. Edit to override.'}
+                />
+                <NumericField
+                  label="HELOC interest rate"
+                  suffix="%"
+                  value={inputs.helocRate}
+                  onCommit={v => updateField('helocRate', v)}
+                  decimals={2}
+                  keyboardType="decimal-pad"
+                  hint="Your HELOC's current APR"
+                  isLast
+                />
+              </View>
+            )}
+          </View>
+
+          {/* ── Supporting detail, subordinate to the billboard ─────────────── */}
+          {projection && hasGain && (
+            <View style={CommonStyles.card}>
+              <Text style={styles.sectionTitle}>How it gets there</Text>
+
+              <BreakdownRow
+                label="Swept to the HELOC each month"
+                value={money(inputs.monthlySurplus)}
+              />
+              <BreakdownRow
+                label="Principal dump per cycle"
+                value={money(inputs.monthlySurplus * 12)}
+              />
+              <BreakdownRow
+                label="Payoff date, current schedule"
+                value={projection.originalPayoffDate.toLocaleDateString('en-US', {
+                  month: 'short', year: 'numeric',
+                })}
+              />
+              <BreakdownRow
+                label="Payoff date, cycling"
+                value={projection.acceleratedPayoffDate.toLocaleDateString('en-US', {
+                  month: 'short', year: 'numeric',
+                })}
+                isLast
+              />
+            </View>
+          )}
+
+          {/* ── Contextual upgrade, shown against their own result ──────────── */}
+          {tier === 'free' && hasGain && projection && (
+            <TouchableOpacity
+              style={styles.ctaBanner}
+              onPress={() => router.push('/modals/upgrade')}
+              accessibilityRole="button"
+              accessibilityLabel="See Pro plans"
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>
+                  Track this {formatMonths(projection.monthsSaved)} automatically
+                </Text>
+                <Text style={styles.ctaSub}>
+                  Connect your accounts and HELOC Hero follows your real balances instead
+                  of these estimates.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.mint600} />
             </TouchableOpacity>
           )}
 
-          {/* Inputs */}
-          <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>Mortgage Details</Text>
-
-            <CalcInput
-              label="Remaining Balance"
-              prefix="$"
-              value={inputs.mortgageBalance}
-              onChangeText={v => updateField('mortgageBalance', v)}
-              keyboardType="numeric"
-            />
-            <CalcInput
-              label="Interest Rate"
-              suffix="%"
-              value={inputs.mortgageRate}
-              onChangeText={v => updateField('mortgageRate', v)}
-              keyboardType="decimal-pad"
-              decimals={2}
-            />
-            <CalcInput
-              label="Monthly Payment (P&I)"
-              prefix="$"
-              value={inputs.monthlyPayment}
-              onChangeText={v => updateField('monthlyPayment', v)}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={CommonStyles.card}>
-            <Text style={styles.sectionTitle}>HELOC Strategy</Text>
-
-            <CalcInput
-              label="Monthly Surplus to Sweep"
-              prefix="$"
-              value={inputs.monthlySurplus}
-              onChangeText={v => updateField('monthlySurplus', v)}
-              keyboardType="numeric"
-              hint="Income minus all expenses including your mortgage payment"
-            />
-            <CalcInput
-              label="HELOC Interest Rate"
-              suffix="%"
-              value={inputs.helocRate}
-              onChangeText={v => updateField('helocRate', v)}
-              keyboardType="decimal-pad"
-              decimals={2}
-              hint="Your HELOC's current APR"
-            />
-          </View>
-
-          {/* Calculate button */}
-          <TouchableOpacity style={styles.calcBtn} onPress={handleCalculate}>
-            <Ionicons name="flash" size={20} color={Colors.white} />
-            <Text style={styles.calcBtnText}>Calculate My Payoff</Text>
+          <TouchableOpacity
+            style={styles.resetBtn}
+            onPress={handleReset}
+            accessibilityRole="button"
+            accessibilityLabel="Reset to default values"
+          >
+            <Text style={styles.resetText}>Reset to defaults</Text>
           </TouchableOpacity>
 
-          {/* Results */}
-          {projection && (
-            <>
-              {/* Savings summary */}
-              <View style={[styles.resultsHero, Shadows.glow]}>
-                <Text style={styles.resultsHeroLabel}>You could save</Text>
-                <Text style={styles.resultsHeroAmount}>
-                  ${projection.interestSaved.toLocaleString()}
-                </Text>
-                <Text style={styles.resultsHeroSub}>in total interest</Text>
-              </View>
-
-              {/* Timeline comparison */}
-              <View style={CommonStyles.card}>
-                <Text style={styles.sectionTitle}>Payoff Timeline</Text>
-                <View style={styles.timelineRow}>
-                  <TimelineBox
-                    label="Standard"
-                    months={projection.originalMonths}
-                    date={projection.originalPayoffDate}
-                    accent={false}
-                  />
-                  <View style={styles.timelineVs}>
-                    <Ionicons name="arrow-forward" size={24} color={Colors.mint600} />
-                  </View>
-                  <TimelineBox
-                    label="With HELOC"
-                    months={projection.acceleratedMonths}
-                    date={projection.acceleratedPayoffDate}
-                    accent
-                  />
-                </View>
-
-                <View style={styles.savedRow}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.mint600} />
-                  <Text style={styles.savedText}>
-                    Pay off{' '}
-                    <Text style={styles.savedBold}>{formatMonths(projection.monthsSaved)} sooner</Text>
-                    {' '}with the HELOC strategy
-                  </Text>
-                </View>
-              </View>
-
-              {/* Monthly breakdown */}
-              <View style={CommonStyles.card}>
-                <Text style={styles.sectionTitle}>Monthly Breakdown</Text>
-
-                <BreakdownRow
-                  label="Monthly surplus swept"
-                  value={`$${inputs.monthlySurplus.toLocaleString()}`}
-                  icon="repeat-outline"
-                  color={Colors.mint600}
-                />
-                <BreakdownRow
-                  label="Annual lump-sum to mortgage"
-                  value={`$${(inputs.monthlySurplus * 12).toLocaleString()}`}
-                  icon="flash-outline"
-                  color={Colors.mint600}
-                />
-                <BreakdownRow
-                  label="Interest saved per year (est.)"
-                  value={`$${Math.round(projection.interestSaved / (projection.monthsSaved / 12 || 1)).toLocaleString()}`}
-                  icon="trending-down-outline"
-                  color={Colors.mint400}
-                />
-              </View>
-
-              {/* CTA */}
-              {tier === 'free' && (
-                <TouchableOpacity
-                  style={styles.ctaBanner}
-                  onPress={() => router.push('/modals/upgrade')}
-                >
-                  <View>
-                    <Text style={styles.ctaTitle}>Ready to make this real?</Text>
-                    <Text style={styles.ctaSub}>
-                      Link your accounts and let Safe Sweep™ do it automatically.
-                    </Text>
-                  </View>
-                  <View style={styles.ctaBtn}>
-                    <Text style={styles.ctaBtnText}>Upgrade</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
-                <Text style={styles.resetText}>Reset to defaults</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <Text style={styles.footnote}>
+            Estimates only, based on the values above. Not financial advice, and not a lender.
+            Results vary with rates, spending, and how consistently the strategy is followed.
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -267,34 +345,53 @@ export default function CalculatorScreen() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CalcInput({
-  label, prefix, suffix, value, onChangeText, keyboardType, hint, decimals = 0,
+/**
+ * A numeric field that keeps the user's raw keystrokes while they type.
+ *
+ * Formatting the committed number straight back into the box eats characters
+ * mid-entry: typing "6.5" would parse "6." to 6 and re-render "6", deleting the
+ * decimal point before the 5 arrives. The draft string is what the user sees
+ * while focused; the parsed number is what the math uses.
+ */
+function NumericField({
+  label, prefix, suffix, value, onCommit, hint, decimals = 0, keyboardType, isLast,
 }: {
   label: string;
   prefix?: string;
   suffix?: string;
   value: number;
-  onChangeText: (v: string) => void;
-  keyboardType?: 'numeric' | 'decimal-pad';
+  onCommit: (v: number) => void;
   hint?: string;
   decimals?: number;
+  keyboardType?: 'numeric' | 'decimal-pad';
+  isLast?: boolean;
 }) {
-  const displayValue = value === 0 ? '' : (decimals > 0 ? value.toString() : Math.round(value).toString());
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const formatted = decimals > 0
+    ? String(Number(value.toFixed(decimals)))
+    : Math.round(value).toLocaleString();
 
   return (
-    <View style={inputStyles.group}>
+    <View style={[inputStyles.group, isLast && inputStyles.groupLast]}>
       <Text style={inputStyles.label}>{label}</Text>
       {hint && <Text style={inputStyles.hint}>{hint}</Text>}
       <View style={inputStyles.row}>
         {prefix && <Text style={inputStyles.affix}>{prefix}</Text>}
         <TextInput
           style={inputStyles.input}
-          value={displayValue}
-          onChangeText={onChangeText}
+          value={draft ?? formatted}
+          onChangeText={(text) => {
+            setDraft(text);
+            const n = parsePositive(text);
+            if (n !== null) onCommit(n);
+          }}
+          onBlur={() => setDraft(null)}
           keyboardType={keyboardType ?? 'numeric'}
           placeholder="0"
           placeholderTextColor={Colors.textMuted}
           selectTextOnFocus
+          accessibilityLabel={label}
         />
         {suffix && <Text style={inputStyles.affix}>{suffix}</Text>}
       </View>
@@ -304,6 +401,7 @@ function CalcInput({
 
 const inputStyles = StyleSheet.create({
   group: { marginBottom: Spacing[4] },
+  groupLast: { marginBottom: 0 },
   label: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
@@ -319,8 +417,6 @@ const inputStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: Radius.md,
     backgroundColor: Colors.gray50,
     paddingHorizontal: Spacing[3],
@@ -336,54 +432,15 @@ const inputStyles = StyleSheet.create({
     color: Colors.textPrimary,
     paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[2],
+    minHeight: 44,
   },
 });
 
-function TimelineBox({ label, months, date, accent }: {
-  label: string; months: number; date: Date; accent: boolean;
-}) {
-  const dateStr = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  return (
-    <View style={[
-      timelineStyles.box,
-      accent ? timelineStyles.boxAccent : timelineStyles.boxNeutral,
-    ]}>
-      <Text style={[timelineStyles.boxLabel, accent && timelineStyles.boxLabelAccent]}>
-        {label}
-      </Text>
-      <Text style={[timelineStyles.boxMonths, accent && timelineStyles.boxMonthsAccent]}>
-        {formatMonths(months)}
-      </Text>
-      <Text style={timelineStyles.boxDate}>{dateStr}</Text>
-    </View>
-  );
-}
-
-const timelineStyles = StyleSheet.create({
-  box: {
-    flex: 1,
-    borderRadius: Radius.md,
-    padding: Spacing[3],
-    alignItems: 'center',
-    gap: Spacing[1],
-  },
-  boxNeutral: { backgroundColor: Colors.gray100 },
-  boxAccent:  { backgroundColor: Colors.mint50, borderWidth: 1, borderColor: Colors.mint200 },
-  boxLabel:       { fontSize: Typography.xs, color: Colors.textMuted },
-  boxLabelAccent: { color: Colors.mint700 },
-  boxMonths:       { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  boxMonthsAccent: { color: Colors.mint600 },
-  boxDate: { fontSize: Typography.xs, color: Colors.textMuted },
-});
-
-function BreakdownRow({ label, value, icon, color }: {
-  label: string; value: string; icon: string; color: string;
+function BreakdownRow({ label, value, isLast }: {
+  label: string; value: string; isLast?: boolean;
 }) {
   return (
-    <View style={styles.breakdownRow}>
-      <View style={[styles.breakdownIcon, { backgroundColor: `${color}18` }]}>
-        <Ionicons name={icon as any} size={16} color={color} />
-      </View>
+    <View style={[styles.breakdownRow, isLast && styles.breakdownRowLast]}>
       <Text style={styles.breakdownLabel}>{label}</Text>
       <Text style={styles.breakdownValue}>{value}</Text>
     </View>
@@ -393,106 +450,87 @@ function BreakdownRow({ label, value, icon, color }: {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-  },
-  headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
-  infoBanner: {
+  // ── Billboard ─────────────────────────────────────────────────────────────
+  billboard: {
+    alignItems: 'center',
+    paddingTop: Spacing[6],
+    paddingBottom: Spacing[5],
+    paddingHorizontal: Spacing[4],
+    gap: Spacing[1],
+  },
+  billboardLabel: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.bold,
+    color: Colors.textMuted,
+    letterSpacing: 1.2,
+    marginBottom: Spacing[1],
+  },
+  // The one accent element on the screen.
+  billboardHero: {
+    fontSize: Typography['4xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.mint600,
+    letterSpacing: -0.8,
+    textAlign: 'center',
+  },
+  billboardSub: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 320,
+  },
+  billboardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.lg,
-    padding: Spacing[3],
-    borderWidth: 1,
-    borderColor: Colors.mint200,
+    marginTop: Spacing[2],
   },
-  infoBannerText: { flex: 1, fontSize: Typography.xs, color: Colors.mint700 },
-  infoBannerLink: { fontSize: Typography.xs, color: Colors.mint600, fontWeight: Typography.semibold },
+  billboardMeta: { fontSize: Typography.sm, color: Colors.textPrimary, fontWeight: Typography.semibold },
+  billboardMetaDot: { fontSize: Typography.sm, color: Colors.textMuted },
+  billboardDisclaimer: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: Spacing[2],
+  },
 
   sectionTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
     color: Colors.textPrimary,
-    marginBottom: Spacing[4],
+    marginBottom: Spacing[3],
   },
 
-  calcBtn: {
-    backgroundColor: Colors.mint600,
-    borderRadius: Radius.md,
-    padding: Spacing[4],
+  // ── Advanced ──────────────────────────────────────────────────────────────
+  advancedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing[2],
-    ...Shadows.glow,
+    justifyContent: 'space-between',
+    minHeight: 44,
   },
-  calcBtnText: {
-    color: Colors.white,
+  advancedTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
   },
+  advancedRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  advancedSummary: { fontSize: Typography.xs, color: Colors.textMuted },
+  advancedBody: { marginTop: Spacing[4] },
 
-  resultsHero: {
-    backgroundColor: Colors.mint600,
-    borderRadius: Radius.lg,
-    padding: Spacing[6],
-    alignItems: 'center',
-    gap: Spacing[1],
-  },
-  resultsHeroLabel: { fontSize: Typography.base, color: 'rgba(255,255,255,0.8)' },
-  resultsHeroAmount: {
-    fontSize: Typography['4xl'],
-    fontWeight: Typography.extrabold,
-    color: Colors.white,
-  },
-  resultsHeroSub: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.7)' },
-
-  timelineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[2],
-    marginBottom: Spacing[4],
-  },
-  timelineVs: { paddingHorizontal: Spacing[1] },
-
-  savedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[2],
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.md,
-    padding: Spacing[3],
-  },
-  savedText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 18 },
-  savedBold: { fontWeight: Typography.bold, color: Colors.mint600 },
-
+  // ── Breakdown ─────────────────────────────────────────────────────────────
   breakdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing[3],
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray100,
   },
-  breakdownIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  breakdownRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
   breakdownLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
   breakdownValue: {
     fontSize: Typography.sm,
@@ -500,25 +538,26 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
 
+  // ── CTA ───────────────────────────────────────────────────────────────────
   ctaBanner: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: Colors.mint50,
     borderRadius: Radius.lg,
-    padding: Spacing[5],
+    padding: Spacing[4],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing[4],
-    ...Shadows.glow,
+    gap: Spacing[3],
   },
-  ctaTitle: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.white },
-  ctaSub: { fontSize: Typography.xs, color: 'rgba(255,255,255,0.8)', marginTop: 2, lineHeight: 16 },
-  ctaBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2],
-  },
-  ctaBtnText: { color: Colors.mint600, fontWeight: Typography.bold, fontSize: Typography.sm },
+  ctaTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint700 },
+  ctaSub: { fontSize: Typography.xs, color: Colors.mint600, marginTop: 2, lineHeight: 16 },
 
-  resetBtn: { alignItems: 'center', paddingVertical: Spacing[2] },
+  resetBtn: { alignItems: 'center', paddingVertical: Spacing[3], minHeight: 44, justifyContent: 'center' },
   resetText: { color: Colors.textMuted, fontSize: Typography.sm },
+
+  footnote: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: Spacing[2],
+  },
 });
