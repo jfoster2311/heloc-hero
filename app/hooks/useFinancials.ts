@@ -12,6 +12,7 @@
 import { useMemo } from 'react';
 import { useAuth } from './useAuth';
 import { useAccounts } from './useAccounts';
+import { useCashflow } from './useCashflow';
 import { computeProjection, genericProjection } from '../lib/projections';
 import {
   resolveHelocRate, deriveCreditLimit, termsAreStale, drawPeriodStatus,
@@ -23,7 +24,8 @@ import {
 } from '../lib/mortgage';
 import { evaluateMove, type SafeToMove, type Blocker } from '../lib/safeToMove';
 import { buildWatchItems, type WatchItem } from '../lib/watchItems';
-import { UTILIZATION } from '../lib/config';
+import { compareToEntered, type DerivedCashflow, type CashflowGap } from '../lib/cashflow';
+import { UTILIZATION, CASHFLOW_MATERIAL_GAP_PCT } from '../lib/config';
 import type { LinkedAccount, PayoffProjection, UserProfile } from '../lib/types';
 
 export interface Financials {
@@ -68,6 +70,11 @@ export interface Financials {
   surplus: number;
   surplusBasis: 'entered' | 'trailing';
   liquidCash: number;
+  /** Trailing transaction average, when there is enough history to derive one. */
+  derivedCashflow: DerivedCashflow | null;
+  /** How far the figures in use sit from what the transactions say. */
+  cashflowGap: CashflowGap | null;
+  awaitingTransactions: boolean;
 
   // ── Property ────────────────────────────────────────────────────────────
   homeValue: number | null;
@@ -92,9 +99,19 @@ export function useFinancials(): Financials {
     mortgageAccount, helocAccount, savingsAccount,
   } = useAccounts(profile?.id ?? null);
 
+  // Transactions only exist once something is linked, and linking is Pro-gated,
+  // so the presence of an account is the gate — no separate entitlement check.
+  const { derived, awaitingBackfill } = useCashflow(profile?.id ?? null, accounts.length > 0);
+
   return useMemo(
-    () => derive(profile, accounts, mortgageAccount, helocAccount, savingsAccount, loading, refreshing, refresh),
-    [profile, accounts, mortgageAccount, helocAccount, savingsAccount, loading, refreshing, refresh],
+    () => derive(
+      profile, accounts, mortgageAccount, helocAccount, savingsAccount,
+      loading, refreshing, refresh, derived, awaitingBackfill,
+    ),
+    [
+      profile, accounts, mortgageAccount, helocAccount, savingsAccount,
+      loading, refreshing, refresh, derived, awaitingBackfill,
+    ],
   );
 }
 
@@ -107,6 +124,8 @@ function derive(
   loading: boolean,
   refreshing: boolean,
   refresh: () => Promise<void>,
+  derivedCashflow: DerivedCashflow | null,
+  awaitingTransactions: boolean,
 ): Financials {
   const hasLinkedAccounts = accounts.length > 0;
   const lastSyncedAt = newestSync(accounts);
@@ -143,14 +162,23 @@ function derive(
     : null;
 
   // ── Cash flow ────────────────────────────────────────────────────────────
-  // There is no transactions table and nothing persists Plaid transactions, so
-  // a trailing average is not computable. These are the user's own figures and
-  // every surface that shows them says so.
+  // These figures are either the user's own estimate or a trailing transaction
+  // average they reviewed and adopted (see hooks/useCashflow). Which one it is
+  // changes how every surface words itself, so it travels with the numbers.
   const income   = profile?.monthly_income   ?? 0;
   const expenses = profile?.monthly_expenses ?? 0;
   const payment  = mortgage.nextPayment.value ?? profile?.monthly_payment ?? 0;
   const surplus  = income - expenses - payment;
   const liquidCash = firstBalance(savingsAccount) ?? 0;
+  const surplusBasis: 'entered' | 'trailing' =
+    profile?.cashflow_source === 'derived' ? 'trailing' : 'entered';
+
+  // Deliberately a comparison, never a substitution. The derived figures are
+  // shown next to the user's own so they can adopt them; nothing here silently
+  // replaces what someone told us about their own life.
+  const cashflowGap = derivedCashflow
+    ? compareToEntered(derivedCashflow, income, expenses, CASHFLOW_MATERIAL_GAP_PCT)
+    : null;
 
   // ── Property ─────────────────────────────────────────────────────────────
   const homeValue = profile?.home_value && profile.home_value > 0 ? profile.home_value : null;
@@ -189,7 +217,7 @@ function derive(
     helocLimit,
     helocDrawn,
     avgMonthlySurplus: surplus,
-    surplusBasis: 'entered',
+    surplusBasis,
     monthlyExpenses: expenses,
     liquidCash,
     helocRate: helocRate + forwardRateDeltaBps / 10_000,
@@ -211,6 +239,14 @@ function derive(
     helocTermsUpdatedAt: profile?.heloc_terms_updated_at ?? null,
     helocTermsStale,
     hasPrepaymentPenalty: mortgage.hasPrepaymentPenalty.value,
+    cashflowGap: cashflowGap && derivedCashflow
+      ? {
+          expenseGap: cashflowGap.expenseGap,
+          material:   cashflowGap.material,
+          risky:      cashflowGap.risky,
+          coverageMonths: derivedCashflow.coverageMonths,
+        }
+      : null,
   });
 
   return {
@@ -230,8 +266,11 @@ function derive(
     utilization,
 
     income, expenses, payment, surplus,
-    surplusBasis: 'entered',
+    surplusBasis,
     liquidCash,
+    derivedCashflow,
+    cashflowGap,
+    awaitingTransactions,
 
     homeValue,
     homeValueAsOf: parseDate(profile?.home_value_as_of ?? null),

@@ -71,6 +71,15 @@ Deno.serve(async (req: Request) => {
       .eq("account_type", accountType);
     if (linkedErr) return errorResponse(`Failed to remove account: ${linkedErr.message}`, 500);
 
+    // Transactions belong to the connection the user just severed. Keeping them
+    // would mean "disconnect" left the most sensitive data in place.
+    const { error: txnErr } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("account_type", accountType);
+    if (txnErr) return errorResponse(`Failed to remove transactions: ${txnErr.message}`, 500);
+
     return jsonResponse({ success: true, revoked, revokeError });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : "Internal error", 500);

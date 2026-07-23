@@ -57,6 +57,13 @@ export interface UserProfile {
   mortgage_term_months: number | null;
   mortgage_has_prepayment_penalty: boolean | null;
 
+  /**
+   * Whether monthly_income/monthly_expenses are the user's own estimate or a
+   * trailing transaction average they reviewed and accepted.
+   */
+  cashflow_source: 'entered' | 'derived' | null;
+  cashflow_derived_at: string | null;
+
   // Assumptions the user controls.
   replenish_threshold: number | null;
   forward_rate_delta_bps: number | null;

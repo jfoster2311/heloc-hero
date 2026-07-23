@@ -104,8 +104,15 @@ export class PlaidClient {
     return this.post("/liabilities/get", body);
   }
 
-  async syncTransactions(accessToken: string) {
-    return this.post("/transactions/sync", { access_token: accessToken });
+  /**
+   * Cursor-based transaction sync. Omitting the cursor requests the full
+   * history Plaid holds — up to 24 months at most institutions, though coverage
+   * varies and the backfill arrives asynchronously after link.
+   */
+  async syncTransactions(accessToken: string, cursor?: string, count = 500) {
+    const body: Record<string, unknown> = { access_token: accessToken, count };
+    if (cursor) body.cursor = cursor;
+    return this.post("/transactions/sync", body);
   }
 
   async createSandboxPublicToken(

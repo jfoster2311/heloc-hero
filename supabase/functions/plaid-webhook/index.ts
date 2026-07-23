@@ -2,6 +2,7 @@
 // Deploy with: supabase functions deploy plaid-webhook --no-verify-jwt
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { PlaidClient } from "../_shared/plaid.ts";
+import { syncItemTransactions } from "../_shared/transactions.ts";
 import { getAdminClient } from "../_shared/supabase.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -54,6 +55,37 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ received: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Transaction webhooks were being acknowledged and thrown away. This is the
+    // event that tells us the asynchronous historical backfill has landed —
+    // without handling it, a newly linked user's 24 months of history only
+    // arrives whenever they next happen to open the app.
+    if (webhook_type === "TRANSACTIONS") {
+      const syncCodes = [
+        "SYNC_UPDATES_AVAILABLE",
+        "INITIAL_UPDATE",
+        "HISTORICAL_UPDATE",
+        "DEFAULT_UPDATE",
+        "TRANSACTIONS_REMOVED",
+      ];
+      if (syncCodes.includes(webhook_code)) {
+        const { data: item } = await supabase
+          .from("plaid_accounts")
+          .select("transactions_cursor")
+          .eq("item_id", item_id)
+          .single();
+
+        const result = await syncItemTransactions(supabase, new PlaidClient(), {
+          user_id,
+          account_type,
+          access_token,
+          transactions_cursor: item?.transactions_cursor ?? null,
+        });
+        return new Response(JSON.stringify({ received: true, transactions: result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Fetch live balances from Plaid

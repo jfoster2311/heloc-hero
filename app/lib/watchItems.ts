@@ -25,7 +25,8 @@ export type WatchKind =
   | 'draw_period_approaching'
   | 'draw_period_ended'
   | 'terms_stale'
-  | 'prepayment_penalty';
+  | 'prepayment_penalty'
+  | 'cashflow_gap';
 
 export interface WatchItem {
   kind: WatchKind;
@@ -49,6 +50,13 @@ export interface WatchInputs {
   helocTermsUpdatedAt: string | null;
   helocTermsStale: boolean;
   hasPrepaymentPenalty: boolean | null;
+  /** Divergence between entered and transaction-derived spending, if known. */
+  cashflowGap: {
+    expenseGap: number;
+    material: boolean;
+    risky: boolean;
+    coverageMonths: number;
+  } | null;
   now?: Date;
 }
 
@@ -67,6 +75,25 @@ export function buildWatchItems(i: WatchInputs): WatchItem[] {
       icon: 'alert-circle-outline',
       weight: 100,
       action: { label: 'Review mortgage', route: '/tabs/accounts' },
+    });
+  }
+
+  // A surplus built on understated expenses oversizes every recommendation the
+  // app makes, so this outranks everything except a structural blocker. Only
+  // raised when the derived figure is HIGHER — spending less than you thought
+  // is not a risk, it is a pleasant surprise, and interrupting for it trains
+  // people to dismiss this list.
+  if (i.cashflowGap?.material && i.cashflowGap.risky) {
+    items.push({
+      kind: 'cashflow_gap',
+      title: `You spend about ${money(i.cashflowGap.expenseGap)}/mo more than you told us`,
+      detail:
+        `Across ${i.cashflowGap.coverageMonths} months of your own transactions, expenses ` +
+        'run higher than the figure your projections use. That makes your surplus — and ' +
+        'every move this app recommends — larger than it should be.',
+      icon: 'trending-up-outline',
+      weight: 98,
+      action: { label: 'Review the figures', route: '/modals/assumptions' },
     });
   }
 

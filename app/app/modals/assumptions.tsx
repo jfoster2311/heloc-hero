@@ -1,11 +1,14 @@
 // app/modals/assumptions.tsx — the inputs behind every projection, made editable.
 //
-// The argument for putting these in front of the user rather than behind a
+// The argument for putting these in front of the user rather than behind an
 // "advanced" disclosure: a payoff date is only as good as the surplus it
-// assumes, and the app cannot compute that surplus. There is no transactions
-// table and nothing persists Plaid transactions, so income and expenses are
-// figures the user gave us — which makes hiding them a way of implying a
-// precision we do not have.
+// assumes, and until someone links an account the app cannot check that surplus
+// at all. Hiding the inputs would imply a precision that is not there.
+//
+// When transactions ARE available, this screen shows what they say next to what
+// the user said — and stops. It never substitutes. The derived figure is better
+// evidence, but it is still an inference from categorised bank data, and the
+// person who lives the life is better placed to judge it than the arithmetic is.
 //
 // The replenish threshold is here too, because it is the single number that
 // decides how much of the line the app is willing to recommend drawing. Someone
@@ -16,7 +19,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
-import { Card, Meter } from '../../components/ui/primitives';
+import { Card, Chip, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
@@ -42,6 +45,11 @@ export default function AssumptionsModal() {
   const expensesNum = parsePositive(expenses);
   const surplus = (incomeNum ?? 0) - (expensesNum ?? 0) - f.payment;
 
+  const d   = f.derivedCashflow;
+  const gap = f.cashflowGap;
+  const enteredIncomeNum   = incomeNum ?? 0;
+  const enteredExpensesNum = expensesNum ?? 0;
+
   async function handleSave() {
     setSaving(true);
     await updateProfile({
@@ -49,24 +57,167 @@ export default function AssumptionsModal() {
       monthly_expenses:    expensesNum,
       replenish_threshold: threshold,
       auto_apply_surplus:  assumeSweep,
+      // Typing over the figures makes them the user's own again, whatever they
+      // were before. The label on every other screen follows this flag.
+      cashflow_source:     'entered',
     });
     setSaving(false);
     hapticSuccess();
     router.back();
   }
 
+  /**
+   * Adopt the derived figures.
+   *
+   * Fills the fields rather than saving straight off, so the user sees exactly
+   * what they are agreeing to and can still edit before committing. Recording
+   * the source is what lets the rest of the app say "your last 12 months"
+   * instead of "your entered figures" — and stop claiming a precision it does
+   * not have when the numbers really were typed.
+   */
+  async function handleAdopt() {
+    if (!d?.usable || d.monthlyExpenses === null) return;
+    hapticLight();
+
+    // Income only comes across when we could actually identify it. Where a
+    // salary lands in an account the user never linked, derived income is near
+    // zero — adopting that would tell someone their income collapsed and hand
+    // them a wildly wrong surplus. Expenses are still worth having on their own.
+    const takeIncome = d.incomeConfident && d.monthlyIncome !== null;
+
+    setExpenses(String(Math.round(d.monthlyExpenses)));
+    if (takeIncome) setIncome(String(Math.round(d.monthlyIncome!)));
+
+    await updateProfile({
+      ...(takeIncome ? { monthly_income: Math.round(d.monthlyIncome!) } : {}),
+      monthly_expenses:    Math.round(d.monthlyExpenses),
+      cashflow_source:     'derived',
+      cashflow_derived_at: new Date().toISOString(),
+    });
+    hapticSuccess();
+  }
+
   return (
     <ModalScreen
       title="Assumptions"
       intro={
-        'Every projection in the app is built on these. The app has no view of your ' +
-        'transactions, so income and expenses are yours to state — and worth revisiting ' +
-        'when your situation changes.'
+        d?.usable
+          ? 'Every projection in the app is built on these. Your linked accounts give a ' +
+            'second opinion below — compare, then decide which figures to run on.'
+          : 'Every projection in the app is built on these. Link an account and the app can ' +
+            'check them against what you actually spend.'
       }
       save={{ label: 'Save assumptions', onPress: handleSave, saving }}
       footnote="Changing these changes every payoff date and interest figure in the app."
     >
+      {/* ── What the transactions say ─────────────────────────────────────
+          Shown before the fields, because the whole point is that the user
+          reads this and then decides — not that the app quietly replaces the
+          figures they entered with its own arithmetic. */}
+      {f.awaitingTransactions && (
+        <Card>
+          <Text style={styles.sectionTitle}>Gathering your history</Text>
+          <Text style={styles.hint}>
+            Your bank is still sending the last two years of transactions. It usually takes a
+            few minutes, and nothing here is blocked while it arrives.
+          </Text>
+        </Card>
+      )}
+
+      {d?.usable && (
+        <Card>
+          <View style={styles.derivedHead}>
+            <Text style={styles.sectionTitle}>What your transactions show</Text>
+            <Chip label={`${d.coverageMonths} months`} tone="accent" />
+          </View>
+
+          <View style={styles.compareRow}>
+            <View style={styles.compareCol}>
+              <Text style={styles.compareHead}>You entered</Text>
+              <Text style={styles.compareValue}>{money(enteredIncomeNum)}</Text>
+              <Text style={styles.compareLabel}>income</Text>
+              <Text style={[styles.compareValue, { marginTop: Spacing[3] }]}>
+                {money(enteredExpensesNum)}
+              </Text>
+              <Text style={styles.compareLabel}>expenses</Text>
+            </View>
+
+            <View style={styles.compareDivider} />
+
+            <View style={styles.compareCol}>
+              <Text style={styles.compareHead}>Your accounts</Text>
+              <Text style={styles.compareValue}>
+                {d.incomeConfident ? money(d.monthlyIncome ?? 0) : '—'}
+              </Text>
+              <Text style={styles.compareLabel}>
+                {d.incomeConfident ? 'income' : 'income not identifiable'}
+              </Text>
+              <Text style={[styles.compareValue, { marginTop: Spacing[3] }]}>
+                {money(d.monthlyExpenses ?? 0)}
+              </Text>
+              <Text style={styles.compareLabel}>
+                expenses · median {money(d.medianExpenses ?? 0)}
+              </Text>
+            </View>
+          </View>
+
+          {gap?.material && (
+            <Text style={styles.gapLine}>
+              {gap.risky
+                ? `That is ${money(Math.abs(gap.expenseGap))} a month more than the figure your ` +
+                  'projections currently use, which makes every recommended move larger than it should be.'
+                : `That is ${money(Math.abs(gap.expenseGap))} a month less than the figure your ` +
+                  'projections currently use.'}
+            </Text>
+          )}
+
+          {/* The audit trail. A derived number the user cannot check is worse
+              than the one they typed, because it arrives with more authority. */}
+          <Text style={styles.auditLine}>
+            {d.excludedCount > 0
+              ? `${d.excludedCount} transfers totalling ${money(d.excludedTotal)} were left out — ` +
+                'money moving between your own accounts, and your mortgage payment, which is ' +
+                'counted separately.'
+              : 'No internal transfers were detected in this window.'}
+            {d.unclassifiedInflow > 100 &&
+              ` ${money(d.unclassifiedInflow)} of deposits could not be identified as income, so ` +
+              'they are not counted — refunds and one-off gifts would otherwise inflate your surplus.'}
+          </Text>
+
+          {!d.incomeConfident && (
+            <Text style={styles.gapLine}>
+              We could not identify regular income in this account — most often because pay
+              lands somewhere you have not linked. Only the spending figure is offered below.
+            </Text>
+          )}
+
+          <TouchableOpacity
+            style={styles.adoptBtn}
+            onPress={handleAdopt}
+            accessibilityRole="button"
+            accessibilityLabel={d.incomeConfident
+              ? 'Use the income and spending figures from my accounts'
+              : 'Use the spending figure from my accounts'}
+          >
+            <Text style={styles.adoptText}>
+              {d.incomeConfident ? 'Use these figures' : 'Use the spending figure'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.hint}>
+            Averaged over {d.coverageMonths} whole months, with the current part-month left out.
+            Annual and irregular costs are included on purpose — they are exactly what gets
+            forgotten in an estimate.
+          </Text>
+        </Card>
+      )}
+
       <Card>
+        {f.surplusBasis === 'trailing' && (
+          <Text style={styles.basisNote}>
+            These came from your transactions. Editing them makes them yours again.
+          </Text>
+        )}
         <FormField
           label="Monthly income"
           prefix="$"
@@ -183,6 +334,43 @@ function money(n: number) { return `$${Math.round(n).toLocaleString('en-US')}`; 
 
 const styles = StyleSheet.create({
   sectionTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+
+  derivedHead: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', gap: Spacing[3],
+  },
+  compareRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: Spacing[2] },
+  compareCol: { flex: 1, gap: 1 },
+  compareDivider: {
+    width: 1, alignSelf: 'stretch',
+    backgroundColor: Colors.borderSubtle,
+    marginHorizontal: Spacing[4],
+  },
+  compareHead: {
+    fontSize: Typography.xs, fontWeight: Typography.bold,
+    color: Colors.textMuted, letterSpacing: 0.6, marginBottom: Spacing[2],
+  },
+  compareValue: {
+    fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary,
+  },
+  compareLabel: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  gapLine: {
+    fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20,
+    marginTop: Spacing[4], paddingTop: Spacing[3],
+    borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+  },
+  auditLine: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17 },
+  adoptBtn: {
+    minHeight: 48, borderRadius: Radius.md,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.mint50,
+    borderWidth: 1, borderColor: Colors.mint200,
+  },
+  adoptText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  basisNote: {
+    fontSize: Typography.xs, color: Colors.textMuted,
+    lineHeight: 17, marginBottom: Spacing[2],
+  },
   hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
 
   derived: {

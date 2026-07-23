@@ -6,10 +6,15 @@
 // invented categories labelled "This month" and an invented trend chart with no
 // caveat at all. In a finance app that is a claim the product cannot back up.
 //
-// Nothing persists Plaid transactions — there is no transactions table and the
-// webhook does not store any — so per-category spending and an income/expense
-// trend cannot be computed. They are therefore not shown. What IS real:
-//   · the figures the user entered at onboarding (labelled as their figures)
+// Transactions ARE stored now (see lib/cashflow.ts), but only to derive one
+// number: what the user actually earns and spends each month, so the surplus
+// every projection rests on can be checked rather than trusted. That is the
+// whole remit. Per-category spending is still not shown and is not coming —
+// this is a strategy engine, not a budgeting app, and the moment it grows a
+// category breakdown it is competing in a category it deliberately isn't in.
+// What IS real here:
+//   · the figures in force, labelled as entered or transaction-derived
+//   · the trailing monthly series behind the derived figure
 //   · live HELOC/mortgage balances when accounts are linked
 //   · dumps they have logged, from automation_log
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
@@ -21,6 +26,7 @@ import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
+import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { hapticLight } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
@@ -32,6 +38,7 @@ export default function CashFlowScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { refreshing, refresh, helocAccount } = useAccounts(profile?.id ?? null);
+  const f = useFinancials();
   const {
     buckets, totalDumped, count, lastDumpAt, loading: historyLoading,
     error: historyError, refresh: refreshHistory,
@@ -117,7 +124,9 @@ export default function CashFlowScreen() {
             </View>
 
             <Text style={styles.sourceNote}>
-              Based on the figures you entered
+              {f.surplusBasis === 'trailing'
+                ? `Averaged from ${f.derivedCashflow?.coverageMonths ?? 0} months of your own transactions`
+                : 'Based on the figures you entered'}
               {helocInterest > 1 ? ', plus interest estimated from your linked HELOC balance' : ''}.
               Update them under Assumptions.
             </Text>
@@ -142,6 +151,26 @@ export default function CashFlowScreen() {
             >
               <Text style={styles.emptyBtnText}>Add your figures</Text>
             </TouchableOpacity>
+          </Card>
+        )}
+
+        {/* ── The trailing series behind the derived figure ───────────────
+            Not a spending breakdown: one bar per month of surplus, which is the
+            single quantity the strategy runs on. It earns its place by showing
+            how steady — or not — the number in the hero actually is. */}
+        {f.derivedCashflow?.usable && f.derivedCashflow.months.length > 0 && (
+          <Card>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>Surplus by month</Text>
+              <Text style={styles.cardStatus}>
+                {f.derivedCashflow.coverageMonths} months from your accounts
+              </Text>
+            </View>
+            <SurplusChart months={f.derivedCashflow.months} />
+            <Text style={styles.chartNote}>
+              Income minus spending, before your mortgage payment. Transfers between your own
+              accounts are excluded.
+            </Text>
           </Card>
         )}
 
@@ -221,9 +250,10 @@ export default function CashFlowScreen() {
         <View style={styles.noteCard}>
           <Ionicons name="information-circle-outline" size={18} color={Colors.textMuted} />
           <Text style={styles.noteText}>
-            Spending by category isn&apos;t shown because HELOC Hero doesn&apos;t read your
-            transactions — only account balances. For category budgeting, a dedicated budgeting
-            app will serve you better.
+            Spending by category isn&apos;t shown. HELOC Hero reads your transactions only to
+            work out what you earn and spend each month — the one figure the whole strategy
+            rests on — and stops there. For category budgeting, a dedicated budgeting app will
+            serve you better.
           </Text>
         </View>
         </View>
@@ -233,6 +263,37 @@ export default function CashFlowScreen() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * One bar per month of surplus.
+ *
+ * Months where spending exceeded income get a muted bar hanging below the
+ * baseline rather than a red one — a negative month is information, not an
+ * error, and this palette carries severity as saturation.
+ */
+function SurplusChart({ months }: { months: { key: string; label: string; surplus: number }[] }) {
+  const peak = Math.max(...months.map(m => Math.abs(m.surplus)), 1);
+  return (
+    <View style={styles.surplusChart}>
+      {months.map(m => {
+        const height = Math.max(3, (Math.abs(m.surplus) / peak) * 56);
+        const negative = m.surplus < 0;
+        return (
+          <View key={m.key} style={styles.surplusCol}>
+            <View style={styles.surplusUpper}>
+              {!negative && <View style={[styles.surplusBar, { height }]} />}
+            </View>
+            <View style={styles.surplusBaseline} />
+            <View style={styles.surplusLower}>
+              {negative && <View style={[styles.surplusBar, styles.surplusBarNeg, { height }]} />}
+            </View>
+            <Text style={styles.barLabel}>{m.label}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 function Line({ label, amount }: { label: string; amount: number }) {
   const negative = amount < 0;
@@ -344,6 +405,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: Colors.mint700,
   },
+
+  surplusChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  surplusCol: { flex: 1, alignItems: 'center' },
+  surplusUpper: { height: 60, justifyContent: 'flex-end' },
+  surplusLower: { height: 24, justifyContent: 'flex-start' },
+  surplusBaseline: { height: 1, alignSelf: 'stretch', backgroundColor: Colors.borderSubtle },
+  surplusBar: { width: 14, borderRadius: 3, backgroundColor: Colors.mint600 },
+  surplusBarNeg: { backgroundColor: Colors.gray300 },
 
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing[2], height: 112 },
   barGroup: { flex: 1, alignItems: 'center', gap: Spacing[2] },

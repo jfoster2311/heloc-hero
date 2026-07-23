@@ -26,8 +26,29 @@ export const BUFFER = {
   comfortMonths: 4,
 } as const;
 
-/** Trailing window for the surplus figure the recommendation is built on. */
-export const SURPLUS_WINDOW_MONTHS = 3;
+/**
+ * Trailing window for the surplus figure the recommendation is built on.
+ *
+ * Twelve, not three. Twelve months gives one of every calendar month, which is
+ * the only way to tell "December is always expensive" apart from "spending is
+ * trending up" — and the seasonal, lumpy costs are precisely the ones people
+ * omit when asked to estimate their spending. Plaid holds up to 24 months at
+ * most institutions; that is the ceiling, not the default, because two-year-old
+ * spending describes a life the user may no longer be living.
+ */
+export const SURPLUS_WINDOW_MONTHS = 12;
+
+/** Ceiling on how much history a user can choose to average over. */
+export const MAX_SURPLUS_WINDOW_MONTHS = 24;
+
+/**
+ * How far derived expenses must diverge from the entered figure before the app
+ * interrupts to ask about it. Below this, the prompt is noise.
+ */
+export const CASHFLOW_MATERIAL_GAP_PCT = 0.15;
+
+/** Don't re-sync transactions more often than this from the client. */
+export const TXN_SYNC_INTERVAL_HOURS = 6;
 
 /** Ownership milestones on the payoff progress bar. */
 export const MILESTONES = [10, 25, 50, 75, 90] as const;

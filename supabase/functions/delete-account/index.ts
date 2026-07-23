@@ -11,7 +11,10 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 // notifications cascade from public.users, but we delete them explicitly so that
 // access tokens are gone even if the auth-user delete later fails.
 // user_profiles and plaid_items are legacy tables with no FK cascade.
+// `transactions` is listed first and deliberately: it is the most sensitive
+// thing the app stores, and "Delete my data" has to be true about it.
 const USER_TABLES = [
+  "transactions",
   "plaid_accounts",
   "linked_accounts",
   "automation_settings",
