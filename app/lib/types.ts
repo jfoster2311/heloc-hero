@@ -100,6 +100,8 @@ export interface PlaidBalance {
 export interface PlaidAccount {
   account_id: string;
   name: string;
+  /** Last 2–4 digits. Present on most institutions; never assume it. */
+  mask?: string | null;
   official_name: string | null;
   type: string;
   subtype: string;

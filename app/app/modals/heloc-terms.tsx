@@ -1,35 +1,51 @@
-// app/modals/heloc-terms.tsx — capture the HELOC terms Plaid cannot supply.
+// app/modals/heloc-terms.tsx — capture the HELOC terms no provider can supply.
 //
 // Plaid's /liabilities/get covers credit(credit card, paypal) and loan(student,
-// mortgage) only. A HELOC is in neither bucket, so APR, margin, draw-period end
-// and payment type do not arrive from any institution, ever. Balances do.
+// mortgage) only. A HELOC is in neither bucket, so APR, margin, draw-period end,
+// payment type, fees and interest calculation do not arrive from any
+// institution, ever. Balances do.
 //
-// So this screen exists as a permanent part of the flow, not a fallback for
+// So this screen is a permanent part of the flow, not a fallback for
 // unsupported banks. It explains why it is asking, because "enter your rate"
-// after linking a bank otherwise reads as the link having failed.
+// right after linking a bank otherwise reads as the link having failed.
+//
+// The field that matters most is the one that looks like trivia:
+// interest calculation method. Average-daily-balance is what makes cycling
+// work; on a statement-balance line the central mechanic does nothing, and a
+// projection that ignores the difference is an optimistic number dressed as a
+// plan. Given the collateral is a primary residence, that distinction is the
+// product.
 import { useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
+import FormField from '../../components/ui/FormField';
+import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
-import { supabase } from '../../lib/supabase';
 import { parseNumeric, parsePositive } from '../../lib/parseNumeric';
 import {
   deriveCreditLimit, termsFromProfile, daysSinceVerified, TERMS_STALE_DAYS,
   type HelocPaymentType,
 } from '../../lib/helocTerms';
+import {
+  INTEREST_CALC_LABEL, INTEREST_CALC_EXPLAINER, type InterestCalcMethod,
+} from '../../lib/config';
 import { hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 import type { LinkedAccount } from '../../lib/types';
+
+const PAYMENT_OPTIONS = [
+  { value: 'interest_only' as HelocPaymentType, label: 'Interest-only' },
+  { value: 'amortizing'    as HelocPaymentType, label: 'Amortizing' },
+];
+
+const CALC_OPTIONS = (Object.keys(INTEREST_CALC_LABEL) as InterestCalcMethod[])
+  .map(v => ({ value: v, label: INTEREST_CALC_LABEL[v] }));
 
 export default function HelocTermsModal() {
   const router = useRouter();
-  const { profile, refresh } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const { helocAccount } = useAccounts(profile?.id ?? null);
 
   const existing = termsFromProfile(profile as unknown as Record<string, unknown>);
@@ -37,256 +53,237 @@ export default function HelocTermsModal() {
   const derived  = deriveCreditLimit(balances, existing.creditLimit);
 
   const [rate,        setRate]        = useState(existing.rate   != null ? String(round2(existing.rate * 100)) : '');
+  const [index,       setIndex]       = useState(profile?.heloc_rate_index ?? '');
   const [margin,      setMargin]      = useState(existing.margin != null ? String(round2(existing.margin * 100)) : '');
   const [limit,       setLimit]       = useState(existing.creditLimit != null ? String(existing.creditLimit) : '');
   const [drawMonth,   setDrawMonth]   = useState(monthOf(existing.drawEndDate));
   const [drawYear,    setDrawYear]    = useState(yearOf(existing.drawEndDate));
   const [paymentType, setPaymentType] = useState<HelocPaymentType | null>(existing.paymentType);
+  const [calcMethod,  setCalcMethod]  = useState<InterestCalcMethod | null>(
+    profile?.heloc_interest_calc_method ?? null,
+  );
+  const [drawFee,     setDrawFee]     = useState(numStr(profile?.heloc_draw_fee));
+  const [annualFee,   setAnnualFee]   = useState(numStr(profile?.heloc_annual_fee));
+  const [closeFee,    setCloseFee]    = useState(numStr(profile?.heloc_early_closure_fee));
   const [saving,      setSaving]      = useState(false);
 
-  const rateNum  = parsePositive(rate);
-  const drawDate = buildDate(drawMonth, drawYear);
+  const rateNum     = parsePositive(rate);
+  const drawDate    = buildDate(drawMonth, drawYear);
   const drawInvalid = (drawMonth !== '' || drawYear !== '') && drawDate === null;
-  const canSave = rateNum !== null && rateNum > 0 && !drawInvalid;
+  const canSave     = rateNum !== null && rateNum > 0 && !drawInvalid;
 
   const sinceVerified = daysSinceVerified(existing.updatedAt);
 
   async function handleSave() {
-    if (!profile?.id || !canSave) return;
+    if (!canSave) return;
     setSaving(true);
-
     const marginNum = parseNumeric(margin);
-    const limitNum  = parsePositive(limit);
-
-    const { error } = await supabase
-      .from('users')
-      .update({
-        heloc_rate:             rateNum! / 100,
-        heloc_margin:           marginNum !== null ? marginNum / 100 : null,
-        heloc_credit_limit:     limitNum,
-        heloc_draw_end_date:    drawDate,
-        heloc_payment_type:     paymentType,
-        heloc_terms_updated_at: new Date().toISOString(),
-      })
-      .eq('id', profile.id);
-
+    await updateProfile({
+      heloc_rate:                 rateNum! / 100,
+      heloc_rate_index:           index.trim() || null,
+      heloc_margin:               marginNum !== null ? marginNum / 100 : null,
+      heloc_credit_limit:         parsePositive(limit),
+      heloc_draw_end_date:        drawDate,
+      heloc_payment_type:         paymentType,
+      heloc_interest_calc_method: calcMethod,
+      heloc_draw_fee:             parsePositive(drawFee),
+      heloc_annual_fee:           parsePositive(annualFee),
+      heloc_early_closure_fee:    parsePositive(closeFee),
+      heloc_terms_updated_at:     new Date().toISOString(),
+    });
     setSaving(false);
-
-    if (error) {
-      Alert.alert('Could not save', `${error.message}\n\nYour terms were not updated.`);
-      return;
-    }
-    await refresh();
     hapticSuccess();
     router.back();
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your HELOC terms</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
-          <Ionicons name="close" size={22} color={Colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Why we're asking, so this doesn't read as a broken bank link */}
-          <View style={styles.whyCard}>
-            <Ionicons name="information-circle-outline" size={18} color={Colors.textMuted} />
-            <Text style={styles.whyText}>
-              Banks share HELOC <Text style={styles.whyBold}>balances</Text> with us automatically, but
-              not the terms — no provider offers HELOC rates or draw dates through a bank connection.
-              These few fields are what turn balances into a payoff projection.
-            </Text>
-          </View>
-
-          {sinceVerified !== null && sinceVerified >= TERMS_STALE_DAYS && (
-            <View style={styles.staleCard}>
-              <Text style={styles.staleText}>
-                Last confirmed {sinceVerified} days ago. HELOC rates are variable — worth checking
-                your latest statement.
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.card}>
-            <Field
-              label="Current APR"
-              suffix="%"
-              value={rate}
-              onChangeText={setRate}
-              hint="From your most recent statement"
-              keyboardType="decimal-pad"
-            />
-            <Field
-              label="Margin over index"
-              suffix="%"
-              value={margin}
-              onChangeText={setMargin}
-              hint="Optional. Your rate is usually prime plus this margin."
-              keyboardType="decimal-pad"
-            />
-          </View>
-
-          {/* Credit limit — only asked for when it can't be derived from balances */}
-          <View style={styles.card}>
-            {derived.source === 'plaid_limit' || derived.source === 'derived' ? (
-              <View>
-                <Text style={styles.label}>Credit limit</Text>
-                <Text style={styles.derivedValue}>${fmt(derived.limit ?? 0)}</Text>
-                <Text style={styles.hint}>
-                  {derived.source === 'derived'
-                    ? 'Calculated from your linked balance plus available credit, so it stays current.'
-                    : 'Reported by your bank.'}
-                </Text>
-              </View>
-            ) : (
-              <Field
-                label="Credit limit"
-                prefix="$"
-                value={limit}
-                onChangeText={setLimit}
-                hint="Link your HELOC and this fills in from your balances instead."
-              />
-            )}
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.label}>Payments during the draw period</Text>
-            <Text style={styles.hint}>
-              Cycling only works while payments are interest-only. Once a HELOC amortizes, the
-              strategy stops working.
-            </Text>
-            <View style={styles.segment}>
-              <SegmentBtn
-                label="Interest-only"
-                active={paymentType === 'interest_only'}
-                onPress={() => setPaymentType('interest_only')}
-              />
-              <SegmentBtn
-                label="Amortizing"
-                active={paymentType === 'amortizing'}
-                onPress={() => setPaymentType('amortizing')}
-              />
-            </View>
-            {paymentType === 'amortizing' && (
-              <Text style={styles.warnText}>
-                An amortizing HELOC can&apos;t be cycled. Projections will still calculate, but the
-                strategy isn&apos;t a fit for this account.
-              </Text>
-            )}
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.label}>Draw period ends</Text>
-            <Text style={styles.hint}>
-              After this date you can no longer draw, so the plan has to finish before it.
-            </Text>
-            <View style={styles.dateRow}>
-              <TextInput
-                style={[styles.input, styles.dateInput]}
-                value={drawMonth}
-                onChangeText={setDrawMonth}
-                placeholder="MM"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="number-pad"
-                maxLength={2}
-                accessibilityLabel="Draw period end month"
-              />
-              <Text style={styles.dateSep}>/</Text>
-              <TextInput
-                style={[styles.input, styles.dateInputYear]}
-                value={drawYear}
-                onChangeText={setDrawYear}
-                placeholder="YYYY"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="number-pad"
-                maxLength={4}
-                accessibilityLabel="Draw period end year"
-              />
-            </View>
-            {drawInvalid && (
-              <Text style={styles.warnText}>
-                Enter a month from 1 to 12 and a four-digit year.
-              </Text>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={!canSave || saving}
-            accessibilityLabel="Save HELOC terms"
-          >
-            {saving
-              ? <ActivityIndicator color={Colors.white} />
-              : <Text style={styles.saveBtnText}>Save terms</Text>}
-          </TouchableOpacity>
-
-          <Text style={styles.footnote}>
-            We&apos;ll ask you to confirm these every {TERMS_STALE_DAYS} days, because HELOC rates
-            move. Projections built on them are estimates, not guarantees.
-          </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Field({
-  label, prefix, suffix, value, onChangeText, hint, keyboardType,
-}: {
-  label: string;
-  prefix?: string;
-  suffix?: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  hint?: string;
-  keyboardType?: 'numeric' | 'decimal-pad';
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      {hint && <Text style={styles.hint}>{hint}</Text>}
-      <View style={styles.inputRow}>
-        {prefix && <Text style={styles.affix}>{prefix}</Text>}
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType ?? 'numeric'}
-          placeholder="0"
-          placeholderTextColor={Colors.textMuted}
-          selectTextOnFocus
-          accessibilityLabel={label}
-        />
-        {suffix && <Text style={styles.affix}>{suffix}</Text>}
-      </View>
-    </View>
-  );
-}
-
-function SegmentBtn({ label, active, onPress }: {
-  label: string; active: boolean; onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={label}
+    <ModalScreen
+      title="Your HELOC terms"
+      intro={
+        'Banks share HELOC balances with us automatically, but not the terms — no provider ' +
+        'offers HELOC rates or draw dates through a bank connection. These fields are what ' +
+        'turn balances into a payoff projection.'
+      }
+      save={{ label: 'Save terms', onPress: handleSave, disabled: !canSave, saving }}
+      footnote={
+        `We will ask you to confirm these every ${TERMS_STALE_DAYS} days, because HELOC ` +
+        'rates move. Projections built on them are estimates, not guarantees.'
+      }
     >
-      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
-    </TouchableOpacity>
+      {sinceVerified !== null && sinceVerified >= TERMS_STALE_DAYS && (
+        <View style={styles.staleCard}>
+          <Text style={styles.staleText}>
+            Last confirmed {sinceVerified} days ago. Is your rate still what it says below?
+            Your latest statement will have it.
+          </Text>
+        </View>
+      )}
+
+      {/* ── Rate ────────────────────────────────────────────────────────── */}
+      <Card>
+        <FormField
+          label="Current APR"
+          suffix="%"
+          value={rate}
+          onChangeText={setRate}
+          keyboardType="decimal-pad"
+          hint="From your most recent statement."
+          accessibilityLabel="Current APR"
+        />
+        <FormField
+          label="Rate index"
+          value={index}
+          onChangeText={setIndex}
+          placeholder="Prime"
+          hint="Optional. Most HELOCs are the Wall Street Journal prime rate plus a margin."
+          accessibilityLabel="Rate index"
+        />
+        <FormField
+          label="Margin over index"
+          suffix="%"
+          value={margin}
+          onChangeText={setMargin}
+          keyboardType="decimal-pad"
+          hint="Optional. Recorded so a rate change is easy to sanity-check later."
+          accessibilityLabel="Margin over index"
+        />
+      </Card>
+
+      {/* ── Credit limit ────────────────────────────────────────────────── */}
+      <Card>
+        {derived.source === 'plaid_limit' || derived.source === 'derived' ? (
+          <View>
+            <Text style={styles.label}>Credit limit</Text>
+            <Text style={styles.derivedValue}>${fmt(derived.limit ?? 0)}</Text>
+            <Text style={styles.hint}>
+              {derived.source === 'derived'
+                ? 'Calculated from your linked balance plus available credit, so it stays current.'
+                : 'Reported by your bank.'}
+            </Text>
+          </View>
+        ) : (
+          <FormField
+            label="Credit limit"
+            prefix="$"
+            value={limit}
+            onChangeText={setLimit}
+            keyboardType="numeric"
+            hint="Link your HELOC and this fills in from your balances instead."
+            accessibilityLabel="Credit limit"
+          />
+        )}
+      </Card>
+
+      {/* ── How interest is charged — the load-bearing question ─────────── */}
+      <Card>
+        <Text style={styles.label}>How interest is calculated</Text>
+        <Text style={styles.hint}>
+          This one term decides whether cycling saves you anything. Your agreement or a call
+          to the bank will settle it.
+        </Text>
+        <View style={{ marginTop: Spacing[3] }}>
+          <Segmented options={CALC_OPTIONS} value={calcMethod} onChange={setCalcMethod} />
+        </View>
+        {calcMethod && (
+          <Text style={styles.explainer}>{INTEREST_CALC_EXPLAINER[calcMethod]}</Text>
+        )}
+        {calcMethod === 'statement_balance' && (
+          <Text style={styles.warnText}>
+            Projections will still calculate, but they will overstate what cycling does on a
+            statement-balance line. Treat the payoff date as a ceiling, not a plan.
+          </Text>
+        )}
+      </Card>
+
+      {/* ── Payment type ────────────────────────────────────────────────── */}
+      <Card>
+        <Text style={styles.label}>Payments during the draw period</Text>
+        <Text style={styles.hint}>
+          Cycling only works while payments are interest-only. Once a HELOC amortizes, the
+          strategy stops working.
+        </Text>
+        <View style={{ marginTop: Spacing[3] }}>
+          <Segmented options={PAYMENT_OPTIONS} value={paymentType} onChange={setPaymentType} />
+        </View>
+        {paymentType === 'amortizing' && (
+          <Text style={styles.warnText}>
+            An amortizing HELOC cannot be cycled. Projections will still calculate, but the
+            strategy is not a fit for this account.
+          </Text>
+        )}
+      </Card>
+
+      {/* ── Draw period ─────────────────────────────────────────────────── */}
+      <Card>
+        <Text style={styles.label}>Draw period ends</Text>
+        <Text style={styles.hint}>
+          After this date you can no longer draw, so the plan has to finish before it.
+        </Text>
+        <View style={styles.dateRow}>
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Month"
+              value={drawMonth}
+              onChangeText={setDrawMonth}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder="MM"
+              style={{ textAlign: 'center' }}
+              accessibilityLabel="Draw period end month"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Year"
+              value={drawYear}
+              onChangeText={setDrawYear}
+              keyboardType="number-pad"
+              maxLength={4}
+              placeholder="YYYY"
+              style={{ textAlign: 'center' }}
+              error={drawInvalid ? 'Enter a month 1–12 and a four-digit year' : undefined}
+              accessibilityLabel="Draw period end year"
+            />
+          </View>
+        </View>
+      </Card>
+
+      {/* ── Fees ────────────────────────────────────────────────────────── */}
+      <Card>
+        <Text style={styles.label}>Fees</Text>
+        <Text style={styles.hint}>
+          Optional, and worth having: a draw fee charged every cycle is a recurring cost the
+          projection would otherwise ignore.
+        </Text>
+        <View style={{ marginTop: Spacing[3] }}>
+          <FormField
+            label="Per-draw fee"
+            prefix="$"
+            value={drawFee}
+            onChangeText={setDrawFee}
+            keyboardType="numeric"
+            accessibilityLabel="Per-draw fee"
+          />
+          <FormField
+            label="Annual fee"
+            prefix="$"
+            value={annualFee}
+            onChangeText={setAnnualFee}
+            keyboardType="numeric"
+            accessibilityLabel="Annual fee"
+          />
+          <FormField
+            label="Early closure fee"
+            prefix="$"
+            value={closeFee}
+            onChangeText={setCloseFee}
+            keyboardType="numeric"
+            hint="Charged by some lenders if the line is closed within the first few years."
+            accessibilityLabel="Early closure fee"
+          />
+        </View>
+      </Card>
+    </ModalScreen>
   );
 }
 
@@ -298,6 +295,7 @@ function firstBalances(account: LinkedAccount | null) {
   return { current: b.current, available: b.available, limit: b.limit ?? null };
 }
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
+function numStr(n: number | null | undefined) { return n != null ? String(n) : ''; }
 function round2(n: number) { return Math.round(n * 100) / 100; }
 function monthOf(iso: string | null) {
   if (!iso) return '';
@@ -307,7 +305,6 @@ function monthOf(iso: string | null) {
 function yearOf(iso: string | null) {
   return iso ? iso.split('-')[0] ?? '' : '';
 }
-/** Returns an ISO date for the first of the month, or null when incomplete/invalid. */
 function buildDate(month: string, year: string): string | null {
   if (!month && !year) return null;
   const m = Number(month);
@@ -317,120 +314,23 @@ function buildDate(month: string, year: string): string | null {
   return `${y}-${String(m).padStart(2, '0')}-01`;
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-  },
-  headerTitle: { flex: 1, fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  closeBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
-
-  whyCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing[3],
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-  },
-  whyText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
-  whyBold: { fontWeight: Typography.bold, color: Colors.textPrimary },
-
-  staleCard: {
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-  },
+  staleCard: { backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4] },
   staleText: { fontSize: Typography.sm, color: Colors.mint700, lineHeight: 20 },
 
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing[5],
-    ...Shadows.card,
-  },
-  field: { marginBottom: Spacing[4] },
-  label: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17, marginTop: Spacing[1] },
+  label: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
   derivedValue: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-    marginTop: Spacing[2],
+    fontSize: Typography.xl, fontWeight: Typography.bold,
+    color: Colors.textPrimary, marginTop: Spacing[2],
   },
-
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    marginTop: Spacing[2],
+  explainer: {
+    fontSize: Typography.xs, color: Colors.textSecondary,
+    lineHeight: 18, marginTop: Spacing[3],
   },
-  affix: { fontSize: Typography.base, color: Colors.textMuted },
-  input: {
-    flex: 1,
-    fontSize: Typography.base,
-    color: Colors.textPrimary,
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[2],
-    minHeight: 44,
+  warnText: {
+    fontSize: Typography.xs, color: Colors.textSecondary,
+    lineHeight: 18, marginTop: Spacing[3], fontWeight: Typography.medium,
   },
-
-  segment: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
-  segmentBtn: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentBtnActive: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
-  segmentText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  segmentTextActive: { color: Colors.mint700, fontWeight: Typography.semibold },
-  warnText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17, marginTop: Spacing[3] },
-
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginTop: Spacing[3] },
-  dateInput: {
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    textAlign: 'center',
-    maxWidth: 80,
-  },
-  dateInputYear: {
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    textAlign: 'center',
-    maxWidth: 110,
-  },
-  dateSep: { fontSize: Typography.lg, color: Colors.textMuted },
-
-  saveBtn: {
-    backgroundColor: Colors.mint600,
-    borderRadius: Radius.md,
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveBtnDisabled: { opacity: 0.5 },
-  saveBtnText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
-
-  footnote: {
-    fontSize: Typography.xs,
-    color: Colors.textMuted,
-    lineHeight: 18,
-    textAlign: 'center',
-    paddingHorizontal: Spacing[2],
-  },
+  dateRow: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
 });
