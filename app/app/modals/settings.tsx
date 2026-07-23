@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase, invokeFunction } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
+import { isPaidTier } from '../../lib/pricing';
 import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
 } from '../../lib/appLock';
@@ -140,8 +141,9 @@ export default function SettingsModal() {
 
   const tierLabels: Record<string, string> = {
     free:   'Free Plan',
-    medium: 'Accelerator ($14.99/mo)',
-    full:   'Autopilot ($50/mo)',
+    pro:    'Pro',
+    medium: 'Pro (legacy plan)',
+    full:   'Pro (legacy plan)',
   };
 
   return (
@@ -169,22 +171,26 @@ export default function SettingsModal() {
           />
         </View>
 
-        {/* Automation — Full tier only */}
-        {tier === 'full' && (
+        {/* Action alerts. These decide when the user is PROMPTED — the app
+            never moves money, so there is nothing here to automate. */}
+        {isPaidTier(tier) && (
           <>
-            <SectionHeader title="Automation" subtitle={savingAutomation ? 'Saving…' : undefined} />
+            <SectionHeader
+              title="Action alerts"
+              subtitle={savingAutomation ? 'Saving…' : 'Reminders to act. You make every transfer.'}
+            />
             <View style={styles.card}>
               <ToggleRow
                 icon="repeat-outline"
-                label="Safe Sweep™"
-                subtitle="Auto-move surplus to your HELOC"
+                label="Sweep reminder"
+                subtitle="Tell me when my surplus is ready to move to the HELOC"
                 value={!!automation.safe_sweep_enabled}
                 onChange={v => saveAutomation({ safe_sweep_enabled: v })}
               />
               <ToggleRow
                 icon="flash-outline"
-                label="Safe Dump™"
-                subtitle="Auto-dump HELOC balance to mortgage"
+                label="Dump reminder"
+                subtitle="Tell me when the HELOC is replenished enough to dump"
                 value={!!automation.safe_dump_enabled}
                 onChange={v => saveAutomation({ safe_dump_enabled: v })}
               />
@@ -208,8 +214,8 @@ export default function SettingsModal() {
         <View style={styles.card}>
           <ToggleRow
             icon="notifications-outline"
-            label="Balance Alerts"
-            subtitle="HELOC/savings threshold crossing notifications"
+            label="Balance alerts"
+            subtitle="Reminders scheduled on this device"
             value={notificationsEnabled}
             onChange={setNotificationsEnabled}
             isLast

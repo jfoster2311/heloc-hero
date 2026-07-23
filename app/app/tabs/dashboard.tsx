@@ -38,6 +38,8 @@ import { computeHelocScore, genericHelocScore } from '../../lib/helocScore';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
 import { resolveHelocRate, deriveCreditLimit, termsAreStale } from '../../lib/helocTerms';
+import { isPaidTier } from '../../lib/pricing';
+import { useCycleReminders } from '../../hooks/useCycleReminders';
 import type { LinkedAccount } from '../../lib/types';
 
 const MILESTONES = [25, 50, 75];
@@ -138,6 +140,15 @@ export default function DashboardScreen() {
   const monthsToDump = displayHelocBalance > 0 && surplus > 0
     ? Math.max(1, Math.ceil(displayHelocBalance / surplus))
     : 0;
+
+  // Keeps the on-device action prompts in step with the cycle. The app never
+  // acts on the user's behalf — these decide when it asks them to.
+  const { remindersOn } = useCycleReminders(profile?.id, {
+    helocDrawn:     displayHelocBalance,
+    monthlySurplus: Math.max(0, surplus),
+    dumpAmount:     effectiveDump,
+    enabled:        isPaidTier(tier),
+  });
 
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
@@ -353,13 +364,16 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {tier === 'full' && (
+        {isPaidTier(tier) && (
           <View style={CommonStyles.card}>
-            <Text style={styles.cardTitle}>Automation</Text>
-            <AutomationRow label="Safe Sweep™" subtitle="Auto-move surplus to HELOC" active />
-            <AutomationRow label="Safe Dump™"  subtitle="Auto-dump HELOC to mortgage" active={false} />
+            <Text style={styles.cardTitle}>Action alerts</Text>
+            <Text style={styles.cardConclusion}>
+              {remindersOn
+                ? 'We\u2019ll remind you when it\u2019s time to sweep or dump. You make the transfer.'
+                : 'Alerts are off, so you\u2019ll need to check back yourself.'}
+            </Text>
             <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/modals/settings')}>
-              <Text style={styles.manageText}>Manage automation</Text>
+              <Text style={styles.manageText}>Manage alerts</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -417,20 +431,6 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
   );
 }
 
-function AutomationRow({ label, subtitle, active }: {
-  label: string; subtitle: string; active: boolean;
-}) {
-  return (
-    <View style={styles.automationRow}>
-      <View style={[styles.automationDot, { backgroundColor: active ? Colors.mint600 : Colors.gray300 }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.automationLabel}>{label}</Text>
-        <Text style={styles.automationSub}>{subtitle}</Text>
-      </View>
-      <Text style={styles.automationStatus}>{active ? 'Active' : 'Off'}</Text>
-    </View>
-  );
-}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 

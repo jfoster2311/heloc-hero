@@ -170,7 +170,7 @@ export default function AccountsScreen() {
             <View style={styles.upgradeBannerIcon}><Ionicons name="lock-closed" size={18} color={Colors.mint600} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.upgradeBannerTitle}>Connect Your Accounts</Text>
-              <Text style={styles.upgradeBannerSub}>Upgrade to Accelerator to link mortgage, HELOC & savings</Text>
+              <Text style={styles.upgradeBannerSub}>Upgrade to Pro to link your mortgage, HELOC and savings</Text>
             </View>
             <View style={styles.upgradePill}><Text style={styles.upgradePillText}>Upgrade</Text></View>
           </TouchableOpacity>

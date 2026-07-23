@@ -1,6 +1,9 @@
 // lib/types.ts
 
-export type Tier = 'free' | 'medium' | 'full';
+// Two tiers: free, and pro (billed monthly or annually). 'medium' and 'full'
+// are legacy three-tier values kept so existing rows keep working; both are
+// treated as pro. See lib/pricing.ts.
+export type Tier = 'free' | 'pro' | 'medium' | 'full';
 
 /** Alias used in upgrade modal */
 export type SubscriptionTier = Tier;
@@ -83,6 +86,14 @@ export interface LinkedAccount {
   created_at: string;
 }
 
+/**
+ * Alert preferences. The column names date from a planned automation feature
+ * that was never built and never will be in this form — HELOC Hero has no
+ * payment rail and does not move money. They now govern WHEN THE USER IS
+ * PROMPTED to act, not what the app does on their behalf:
+ *   safe_sweep_enabled -> remind me when surplus is ready to move to the HELOC
+ *   safe_dump_enabled  -> remind me when the HELOC is replenished enough to dump
+ */
 export interface AutomationSettings {
   user_id: string;
   safe_sweep_enabled: boolean;
@@ -123,43 +134,8 @@ export interface CalculatorInputs {
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────
 
-export interface SubscriptionPlan {
-  tier: Exclude<Tier, 'free'>;
-  name: string;
-  price: number;
-  highlighted: boolean;
-  features: string[];
-}
+export type BillingPeriod = 'monthly' | 'annual';
 
-export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    tier: 'medium',
-    name: 'Accelerator',
-    price: 14.99,
-    highlighted: false,
-    features: [
-      'Link real bank accounts via Plaid',
-      'Personalized HELOC Hero Score™',
-      'Real payoff projections with live data',
-      'Mortgage, HELOC & savings tracking',
-      '6-month cash flow analysis',
-    ],
-  },
-  {
-    tier: 'full',
-    name: 'Autopilot',
-    price: 50,
-    highlighted: true,
-    features: [
-      'Everything in Accelerator',
-      'Safe Sweep™ — auto-move surplus to HELOC',
-      'Safe Dump™ — auto-pay HELOC to mortgage',
-      'Real-time account syncing',
-      'Push alerts for sweeps & dumps',
-      'Priority support',
-    ],
-  },
-];
 
 export interface AutomationLogEntry {
   id: string;

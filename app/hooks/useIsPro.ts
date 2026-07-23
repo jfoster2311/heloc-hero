@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { isProActive, purchasesAvailable } from '../lib/purchases';
 import { getDevProMode, subscribeDevPro } from '../lib/devPro';
+import { isPaidTier } from '../lib/pricing';
 import { useAuth } from './useAuth';
 
 export interface UseIsProResult {
@@ -33,7 +34,7 @@ export function useIsPro(): UseIsProResult {
     try {
       if (!purchasesAvailable()) {
         // Fall back to Supabase tier when native module is unavailable (Expo Go)
-        setIsPro(tier === 'medium' || tier === 'full');
+        setIsPro(isPaidTier(tier));
         return;
       }
       const active = await isProActive();

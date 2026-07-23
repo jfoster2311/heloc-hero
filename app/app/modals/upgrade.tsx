@@ -1,55 +1,81 @@
-// app/modals/upgrade.tsx
+// app/modals/upgrade.tsx — the paywall.
+//
+// Rebuilt after an audit found it selling things that do not exist. What it
+// used to claim, and why each is gone:
+//  · "Safe Sweep™ — auto-move surplus to HELOC" and "Safe Dump™ — auto-pay
+//    HELOC to mortgage" on a $50/mo tier. HELOC Hero has no payment rail and
+//    does not move money. Only the account holder can pay their mortgage.
+//  · "Real-time account syncing", while balance refresh is deliberately
+//    throttled to roughly twice a day to control Plaid cost.
+//  · "Push alerts", with no delivery pipeline deployed. Alerts are scheduled
+//    locally on the device, which is what the copy now says.
+//  · "Most Popular", with no subscribers to base it on.
+//  · Three contradictory prices across the app for the same plan.
+//  · A "7-Day Free Trial" promised unconditionally. The trial claim is now
+//    gated on StoreKit actually returning an introductory offer, so it can
+//    never promise a trial the App Store will not honour.
+//
+// Prices come from StoreKit. When StoreKit is unavailable the purchase button
+// is disabled and US list pricing is shown, labelled as such — the price
+// displayed must be the price charged, in the buyer's own currency.
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import {
   getOfferings, purchasePackage, restorePurchases, purchasesAvailable,
 } from '../../lib/purchases';
-import { SUBSCRIPTION_PLANS } from '../../lib/types';
-import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
-
-const STATIC_PRICES: Record<string, string> = {
-  monthly: '$19.99/mo',
-  annual:  '$179/yr · ~$14.92/mo',
-};
+import {
+  US_LIST_PRICE, US_LIST_ANNUAL_PER_MONTH, ANNUAL_SAVING_PCT,
+  PACKAGE_MATCH, PRO_FEATURES, FREE_FEATURES,
+} from '../../lib/pricing';
+import { hapticLight } from '../../lib/haptics';
+import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import type { BillingPeriod } from '../../lib/types';
 
 export default function UpgradeModal() {
   const router = useRouter();
-  const { tier } = useAuth();
   const { isPro, refresh: refreshPro } = useIsPro();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [offerings, setOfferings] = useState<any>(null);
-  const [loadingPkg, setLoadingPkg] = useState<string | null>(null);
+  const [period, setPeriod] = useState<BillingPeriod>('annual');
+  const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
 
+  const rcAvailable = purchasesAvailable();
+
   useEffect(() => {
-    if (purchasesAvailable()) {
-      getOfferings().then(o => setOfferings(o));
-    }
-  }, []);
+    if (rcAvailable) getOfferings().then(setOfferings);
+  }, [rcAvailable]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function packagesFor(identifier: string): any[] {
-    if (!offerings?.current?.availablePackages) return [];
+  /** The StoreKit package for the selected period, if the store returned one. */
+  const pkg = useMemo(() => {
+    const all = offerings?.current?.availablePackages;
+    if (!Array.isArray(all)) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return offerings.current.availablePackages.filter((p: any) =>
-      p.identifier.toLowerCase().includes(identifier),
-    );
-  }
+    return all.find((p: any) =>
+      String(p?.identifier ?? '').toLowerCase().includes(PACKAGE_MATCH[period]),
+    ) ?? null;
+  }, [offerings, period]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function handlePurchase(pkg: any) {
-    setLoadingPkg(pkg.identifier);
+  // Real price from the store, in the buyer's currency, or null.
+  const storePrice: string | null = pkg?.product?.priceString ?? null;
+  // Only claim a trial when the store actually carries an introductory offer.
+  const introPeriod = pkg?.product?.introPrice?.periodNumberOfUnits ?? null;
+  const introUnit   = pkg?.product?.introPrice?.periodUnit ?? null;
+  const hasTrial    = introPeriod != null && Number(introPeriod) > 0;
+  const canPurchase = rcAvailable && !!pkg && !isPro;
+
+  async function handlePurchase() {
+    if (!pkg) return;
+    setPurchasing(true);
     setError('');
     try {
       const success = await purchasePackage(pkg);
@@ -58,9 +84,9 @@ export default function UpgradeModal() {
         router.back();
       }
     } catch {
-      setError('Purchase failed. Please try again.');
+      setError('That purchase didn’t go through. You have not been charged.');
     } finally {
-      setLoadingPkg(null);
+      setPurchasing(false);
     }
   }
 
@@ -71,49 +97,78 @@ export default function UpgradeModal() {
       const restored = await restorePurchases();
       if (restored) {
         await refreshPro();
-        Alert.alert('Purchases Restored', 'Your Pro access has been restored.');
+        Alert.alert('Purchases restored', 'Your Pro access is active again.');
         router.back();
       } else {
-        Alert.alert('No Purchases Found', 'No active subscriptions were found for this Apple ID.');
+        Alert.alert('Nothing to restore', 'No active subscription was found for this Apple ID.');
       }
     } catch {
-      setError('Restore failed. Please try again.');
+      setError('Restore didn’t complete. Please try again.');
     } finally {
       setRestoring(false);
     }
   }
 
-  const nonFreePlans = SUBSCRIPTION_PLANS.filter(
-    (p): p is (typeof SUBSCRIPTION_PLANS)[number] => p.tier !== ('free' as string),
-  );
-
-  const rcAvailable = purchasesAvailable();
-
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color={Colors.textPrimary} />
+        <Text style={styles.headerTitle}>HELOC Hero Pro</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
+          <Ionicons name="close" size={22} color={Colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Choose Your Plan</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={Gradients.primary} style={styles.hero}>
-          <Text style={styles.heroTitle}>Unlock Your Full Strategy</Text>
-          <Text style={styles.heroSubtitle}>
-            Connect real accounts and let HELOC Hero do the work for you.
-          </Text>
-        </LinearGradient>
+        <Text style={styles.lede}>
+          Connect your accounts and HELOC Hero watches your balances, then tells you the moment
+          it&apos;s worth moving money.
+        </Text>
 
-        {/* 7-day trial banner */}
-        <View style={styles.trialBanner}>
-          <Ionicons name="gift-outline" size={20} color={Colors.mint600} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.trialTitle}>7-Day Free Trial Included</Text>
-            <Text style={styles.trialSubtitle}>Try any paid plan free for 7 days. Cancel anytime, no charge.</Text>
+        {isPro && (
+          <View style={styles.currentBanner}>
+            <Ionicons name="checkmark-circle-outline" size={18} color={Colors.mint700} />
+            <Text style={styles.currentText}>Pro is active on this Apple ID.</Text>
           </View>
+        )}
+
+        {/* ── Billing period. A toggle, not two competing cards. ──────────── */}
+        <View style={styles.periodToggle}>
+          <PeriodBtn
+            label="Monthly"
+            active={period === 'monthly'}
+            onPress={() => { hapticLight(); setPeriod('monthly'); }}
+          />
+          <PeriodBtn
+            label="Annual"
+            badge={ANNUAL_SAVING_PCT > 0 ? `Save ${ANNUAL_SAVING_PCT}%` : undefined}
+            active={period === 'annual'}
+            onPress={() => { hapticLight(); setPeriod('annual'); }}
+          />
+        </View>
+
+        <View style={styles.priceCard}>
+          <Text style={styles.price}>
+            {storePrice ?? US_LIST_PRICE[period]}
+            <Text style={styles.pricePer}>{period === 'monthly' ? ' / month' : ' / year'}</Text>
+          </Text>
+
+          {period === 'annual' && !storePrice && (
+            <Text style={styles.priceSub}>
+              Works out to about {US_LIST_ANNUAL_PER_MONTH} a month
+            </Text>
+          )}
+
+          {!storePrice && (
+            <Text style={styles.priceNote}>
+              US pricing. Your App Store shows the exact price in your own currency.
+            </Text>
+          )}
+
+          {hasTrial && (
+            <Text style={styles.trialNote}>
+              Includes a {introPeriod}-{String(introUnit ?? 'day').toLowerCase()} free trial.
+            </Text>
+          )}
         </View>
 
         {error ? (
@@ -122,82 +177,43 @@ export default function UpgradeModal() {
           </View>
         ) : null}
 
-        {/* Plan cards */}
-        {nonFreePlans.map((plan, idx) => {
-          const isRecommended = idx === 0;
-          const isCurrent = tier === plan.tier || isPro;
-          const pkgKey = plan.tier === 'full' ? 'annual' : 'monthly';
-          const rcPkgs = packagesFor(pkgKey);
-          const staticPrice = STATIC_PRICES[pkgKey];
-
-          return (
-            <View
-              key={plan.tier}
-              style={[
-                styles.planCard,
-                isRecommended && styles.planCardHighlighted,
-                isCurrent && styles.planCardCurrent,
-              ]}
-            >
-              {isRecommended && (
-                <View style={styles.popularBadge}>
-                  <Ionicons name="star" size={11} color={Colors.white} />
-                  <Text style={styles.popularBadgeText}>Most Popular</Text>
-                </View>
-              )}
-
-              <View style={styles.planHeader}>
-                <View>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planPrice}>
-                    {rcPkgs[0]?.product?.priceString ?? staticPrice}
-                  </Text>
-                </View>
-                {isCurrent && (
-                  <View style={styles.currentBadge}>
-                    <Text style={styles.currentBadgeText}>Current Plan</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.featureList}>
-                {plan.features.map((feat, i) => (
-                  <View key={i} style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={Colors.mint600} />
-                    <Text style={styles.featureText}>{feat}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {!isCurrent && (
-                rcAvailable && rcPkgs.length > 0 ? (
-                  <TouchableOpacity
-                    style={[styles.upgradeBtn, isRecommended && styles.upgradeBtnPrimary]}
-                    onPress={() => handlePurchase(rcPkgs[0])}
-                    disabled={!!loadingPkg}
-                    accessibilityLabel={`Start ${plan.name} free trial`}
-                  >
-                    {loadingPkg === rcPkgs[0]?.identifier ? (
-                      <ActivityIndicator color={isRecommended ? Colors.white : Colors.mint600} size="small" />
-                    ) : (
-                      <Text style={[styles.upgradeBtnText, isRecommended && styles.upgradeBtnTextPrimary]}>
-                        Start {plan.name} — Free for 7 Days
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                ) : (
-                  <View style={[styles.upgradeBtn, isRecommended && styles.upgradeBtnPrimary, styles.upgradeBtnDisabled]}>
-                    <Text style={[styles.upgradeBtnText, isRecommended && styles.upgradeBtnTextPrimary]}>
-                      {staticPrice} — Available in app
-                    </Text>
-                  </View>
-                )
-              )}
+        {/* ── What Pro actually does ─────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>What you get</Text>
+          {PRO_FEATURES.map(f => (
+            <View key={f} style={styles.featureRow}>
+              <Ionicons name="checkmark" size={16} color={Colors.mint600} />
+              <Text style={styles.featureText}>{f}</Text>
             </View>
-          );
-        })}
+          ))}
+          <Text style={styles.noAutomation}>
+            HELOC Hero never moves money. Only you can pay your mortgage or draw your HELOC —
+            we tell you when and how much, and keep the score.
+          </Text>
+        </View>
 
-        {/* Restore + Manage */}
+        <TouchableOpacity
+          style={[styles.cta, !canPurchase && styles.ctaDisabled]}
+          onPress={handlePurchase}
+          disabled={!canPurchase || purchasing}
+          accessibilityLabel={hasTrial ? 'Start free trial' : 'Subscribe to Pro'}
+        >
+          {purchasing
+            ? <ActivityIndicator color={Colors.white} />
+            : (
+              <Text style={styles.ctaText}>
+                {isPro ? 'Pro is active' : hasTrial ? 'Start free trial' : 'Subscribe'}
+              </Text>
+            )}
+        </TouchableOpacity>
+
+        {!rcAvailable && (
+          <Text style={styles.unavailableNote}>
+            Purchases aren&apos;t available in this build. Open HELOC Hero from the App Store to
+            subscribe.
+          </Text>
+        )}
+
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.actionBtn}
@@ -205,11 +221,9 @@ export default function UpgradeModal() {
             disabled={restoring || !rcAvailable}
             accessibilityLabel="Restore purchases"
           >
-            {restoring ? (
-              <ActivityIndicator size="small" color={Colors.mint600} />
-            ) : (
-              <Text style={styles.actionBtnText}>Restore Purchases</Text>
-            )}
+            {restoring
+              ? <ActivityIndicator size="small" color={Colors.mint600} />
+              : <Text style={styles.actionBtnText}>Restore purchases</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -217,158 +231,177 @@ export default function UpgradeModal() {
             onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
             accessibilityLabel="Manage subscription in App Store"
           >
-            <Text style={styles.actionBtnText}>Manage Subscription</Text>
+            <Text style={styles.actionBtnText}>Manage subscription</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Free tier reminder */}
-        <View style={styles.freeTier}>
-          <View style={styles.freeTierHeading}>
-            <Ionicons name="checkmark-circle" size={16} color={Colors.mint600} />
-            <Text style={styles.freeTierTitle}>Free Plan Always Available</Text>
-          </View>
-          <Text style={styles.freeTierText}>
-            Calculator, projections, and educational content are always free —
-            no credit card required.
-          </Text>
+        {/* ── Free tier, stated plainly rather than as a downgrade ────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Free, always</Text>
+          {FREE_FEATURES.map(f => (
+            <View key={f} style={styles.featureRow}>
+              <Ionicons name="checkmark" size={16} color={Colors.gray400} />
+              <Text style={styles.featureTextMuted}>{f}</Text>
+            </View>
+          ))}
+          <Text style={styles.freeNote}>No card needed. Pro adds live accounts and alerts.</Text>
         </View>
 
         <Text style={styles.legal}>
-          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
-          automatically renews unless auto-renew is turned off at least 24 hours before the end of
-          the current period. Manage or cancel in App Store settings.
+          Payment is charged to your Apple ID at confirmation of purchase. The subscription renews
+          automatically unless auto-renew is switched off at least 24 hours before the end of the
+          current period, and your account is charged for renewal within 24 hours of the period
+          ending. Manage or cancel in your App Store subscription settings.
+          {'\n\n'}
+          Projections are estimates based on the figures you provide. HELOC Hero is not a lender,
+          not a broker, and does not provide financial advice.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function PeriodBtn({ label, badge, active, onPress }: {
+  label: string; badge?: string; active: boolean; onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.periodBtn, active && styles.periodBtnActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
+    >
+      <Text style={[styles.periodText, active && styles.periodTextActive]}>{label}</Text>
+      {badge && <Text style={[styles.periodBadge, active && styles.periodBadgeActive]}>{badge}</Text>}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1, backgroundColor: Colors.surface },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing[5],
     paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  headerTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
-  hero: {
-    borderRadius: Radius.xl,
-    padding: Spacing[6],
-    gap: Spacing[2],
+  headerTitle: { flex: 1, fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  closeBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
+
+  lede: {
+    fontSize: Typography.base,
+    color: Colors.textSecondary,
+    lineHeight: 23,
+    paddingHorizontal: Spacing[1],
   },
-  heroTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.white },
-  heroSubtitle: { fontSize: Typography.sm, color: Colors.mint100, lineHeight: 20 },
-  trialBanner: {
+
+  currentBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing[3],
+    alignItems: 'center',
+    gap: Spacing[2],
     backgroundColor: Colors.mint50,
     borderRadius: Radius.lg,
     padding: Spacing[4],
-    borderWidth: 1.5,
-    borderColor: Colors.mint200,
   },
-  trialTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
-  trialSubtitle: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
-  errorBanner: {
+  currentText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700 },
+
+  periodToggle: {
+    flexDirection: 'row',
+    gap: Spacing[2],
     backgroundColor: Colors.gray50,
     borderRadius: Radius.md,
-    padding: Spacing[3],
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.gray300,
+    padding: Spacing[1],
   },
+  periodBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  periodBtnActive: { backgroundColor: Colors.surface, ...Shadows.card },
+  periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
+  periodTextActive: { color: Colors.textPrimary, fontWeight: Typography.semibold },
+  periodBadge: { fontSize: 10, color: Colors.textMuted },
+  periodBadgeActive: { color: Colors.mint600 },
+
+  priceCard: { alignItems: 'center', gap: Spacing[1], paddingVertical: Spacing[2] },
+  price: {
+    fontSize: Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: -0.6,
+  },
+  pricePer: { fontSize: Typography.base, fontWeight: Typography.regular, color: Colors.textMuted },
+  priceSub: { fontSize: Typography.sm, color: Colors.textSecondary },
+  priceNote: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing[1] },
+  trialNote: { fontSize: Typography.sm, color: Colors.mint600, marginTop: Spacing[1] },
+
+  errorBanner: { backgroundColor: Colors.gray50, borderRadius: Radius.md, padding: Spacing[4] },
   errorText: { color: Colors.textSecondary, fontSize: Typography.sm },
-  planCard: {
+
+  card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    gap: Spacing[4],
+    gap: Spacing[3],
     ...Shadows.card,
   },
-  planCardHighlighted: { borderColor: Colors.mint600, borderWidth: 2 },
-  planCardCurrent: { borderColor: Colors.mint400 },
-  popularBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.mint600,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  popularBadgeText: { color: Colors.white, fontSize: Typography.xs, fontWeight: Typography.semibold },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  planName: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  planPrice: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.mint600, marginTop: 2 },
-  currentBadge: {
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.mint200,
-  },
-  currentBadgeText: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.medium },
-  featureList: { gap: Spacing[2] },
-  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[2] },
+  cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
   featureText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  upgradeBtn: {
-    borderWidth: 1.5,
-    borderColor: Colors.mint600,
-    borderRadius: Radius.md,
-    padding: Spacing[4],
-    alignItems: 'center',
+  featureTextMuted: { flex: 1, fontSize: Typography.sm, color: Colors.textMuted, lineHeight: 20 },
+  noAutomation: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 18,
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
   },
-  upgradeBtnPrimary: {
+  freeNote: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  cta: {
     backgroundColor: Colors.mint600,
-    borderColor: Colors.mint600,
-    ...Shadows.glow,
-  },
-  upgradeBtnDisabled: { opacity: 0.6 },
-  upgradeBtnText: { color: Colors.mint600, fontSize: Typography.base, fontWeight: Typography.semibold },
-  upgradeBtnTextPrimary: { color: Colors.white },
-  actionsRow: {
-    flexDirection: 'row',
+    borderRadius: Radius.md,
+    minHeight: 52,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing[4],
   },
-  actionBtn: {
-    paddingVertical: Spacing[2],
-    paddingHorizontal: Spacing[3],
-  },
-  actionBtnText: {
-    fontSize: Typography.sm,
-    color: Colors.mint600,
-    fontWeight: Typography.medium,
-    textDecorationLine: 'underline',
-  },
-  freeTier: {
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-    gap: Spacing[2],
-  },
-  freeTierHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  freeTierTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  freeTierText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  legal: {
+  ctaDisabled: { opacity: 0.45 },
+  ctaText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
+  unavailableNote: {
     fontSize: Typography.xs,
     color: Colors.textMuted,
     textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: Spacing[2],
+    lineHeight: 17,
+    marginTop: -Spacing[2],
+  },
+
+  actionsRow: { flexDirection: 'row', gap: Spacing[3] },
+  actionBtn: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionBtnText: { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
+
+  legal: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 17,
+    paddingHorizontal: Spacing[1],
   },
 });

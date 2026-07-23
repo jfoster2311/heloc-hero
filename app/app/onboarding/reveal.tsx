@@ -376,18 +376,21 @@ export default function RevealScreen() {
             style={styles.primaryBtn}
             onPress={() => finishAndNavigate(true)}
             disabled={saving}
-            accessibilityLabel="Start 7-day free trial"
+            accessibilityLabel="See what Pro adds"
           >
-            <Text style={styles.primaryBtnText}>Start 7 Days Free</Text>
+            <Text style={styles.primaryBtnText}>See what Pro adds</Text>
             <Ionicons name="arrow-forward" size={18} color={Colors.white} />
           </TouchableOpacity>
 
-          <Text style={styles.pricing}>$179/yr · $19.99/mo after trial. Cancel anytime.</Text>
+          {/* No introductory offer is configured in App Store Connect, so this
+              must not promise a trial. The paywall shows a trial only when
+              StoreKit actually returns one. */}
+          <Text style={styles.pricing}>Pro is $19.99/mo or $175/yr. Cancel anytime.</Text>
 
           <View style={styles.riskReversal}>
             <Ionicons name="shield-checkmark-outline" size={14} color={Colors.mint600} />
             <Text style={styles.riskReversalText}>
-              Free trial ends automatically — no surprise charges.
+              Everything you just saw stays free. Pro adds live accounts and alerts.
             </Text>
           </View>
 
