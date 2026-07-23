@@ -18,7 +18,8 @@ import { hapticMedium } from '../../lib/haptics';
 
 // ── Board ritual timeline (ms) ─────────────────────────────────────────────
 // Black beat, then the aurora rises slowly while the projection "computes",
-// then an avatar walks the year board and stops on the projected payoff year.
+// then an avatar walks the countdown board from the years left today down to
+// the projected payoff year.
 // The walk's own length is dynamic, so everything after arrival is sequenced
 // from the board's onArrive rather than a fixed offset chain.
 //
@@ -123,7 +124,12 @@ export default function RevealScreen() {
   const [boardActive, setBoardActive] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
 
-  // Board geometry: full original term, avatar stops on the projected year.
+  // Board geometry. The board counts DOWN: it opens on the years left under
+  // the current schedule and the avatar walks to the projected payoff year, so
+  // the distance travelled is the time the strategy removes. computeProjection
+  // amortizes forward from today's balance, so originalMonths is already
+  // remaining term, not the original 30-year note.
+  //
   // ceil, not round: the tile is the year payoff happens *in*. Month 170 is
   // 14.2 years, but year 14 ends at month 168 — so that payoff lands in year
   // 15. Rounding would show a year they have not actually reached yet, and it

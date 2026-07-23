@@ -1,9 +1,15 @@
-// components/PayoffBoard.tsx — the reveal ritual's year board.
+// components/PayoffBoard.tsx — the reveal ritual's countdown board.
 //
-// A serpentine path of year tiles spanning the ORIGINAL mortgage term. An
-// avatar hops tile to tile and stops on the projected payoff year; every tile
-// past that stays dim. Those unwalked tiles are the point of the whole screen —
-// they are the years the strategy is projected to remove.
+// A serpentine path of "years remaining" tiles. The FIRST tile is the user's
+// current remaining term (e.g. 25) and the numbers count DOWN. The avatar
+// starts there and hops until it reaches the projected payoff year (e.g. 5),
+// so the distance it travels IS the time the strategy removes.
+//
+// The direction is the whole point. This board used to count UP (1…25) and
+// stop on the payoff year, which meant a bigger saving produced a SHORTER
+// walk — the animation shrank as the result got better, and landing on tile 5
+// of 25 read as stopping early. Counting down makes the journey proportional
+// to the win: 20 years saved is 20 hops.
 //
 // Deliberately not board-game trade dress: no ring layout, corner squares,
 // property bands, or licensed iconography. Just a green path of year tiles.
@@ -13,24 +19,35 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius, Aurora } from '../lib/theme';
 import { hapticLight, hapticSuccess } from '../lib/haptics';
 
-const COLS = 6;
+const BASE_COLS = 6;
+const MAX_COLS = 10;
+const MAX_ROWS = 6;          // keeps the board on screen on a 4.7" device
 const GAP = 6;
 const HOP_ARC = 14;          // peak lift of a single hop, in points
 const WALK_BUDGET_MS = 2200; // total walk time, spread across however many hops
-const HOP_MIN_MS = 70;
+const HOP_MIN_MS = 55;
 const HOP_MAX_MS = 165;
 
+/**
+ * Columns needed to keep the board under MAX_ROWS. Six reads best and covers
+ * every ordinary term, but computeProjection caps at 720 months — a 60-tile
+ * board is 10 rows and taller than a small phone, so widen rather than overflow.
+ */
+function colsFor(total: number): number {
+  return Math.min(MAX_COLS, Math.max(BASE_COLS, Math.ceil(total / MAX_ROWS)));
+}
+
 /** Serpentine layout: rows alternate direction so the path reads as continuous. */
-function tileColRow(i: number): { col: number; row: number } {
-  const row = Math.floor(i / COLS);
-  const within = i % COLS;
-  return { col: row % 2 === 0 ? within : COLS - 1 - within, row };
+function tileColRow(i: number, cols: number): { col: number; row: number } {
+  const row = Math.floor(i / cols);
+  const within = i % cols;
+  return { col: row % 2 === 0 ? within : cols - 1 - within, row };
 }
 
 interface Props {
-  /** Years in the original term — the full length of the board. */
+  /** Years left on the original schedule — the first tile and the board's length. */
   totalYears: number;
-  /** Projected payoff year — where the avatar stops. */
+  /** Projected payoff year under the strategy — the tile the avatar stops on. */
   targetYear: number;
   /** Flips to true to start the walk. */
   active: boolean;
@@ -50,8 +67,14 @@ export default function PayoffBoard({
   const total = Math.max(1, Math.ceil(totalYears));
   const target = Math.min(Math.max(1, Math.ceil(targetYear)), total);
 
+  // Tile i is labelled (total - i), so tile 0 reads `total` and the numbers
+  // count down. The avatar's destination is therefore the tile at index
+  // (total - target), and the number of hops equals the years removed.
+  const targetIdx = total - target;
+  const yearsSaved = targetIdx;
+
   const [boardW, setBoardW] = useState(0);
-  const [walked, setWalked] = useState(0); // years walked so far (1-based); 0 = not started
+  const [passed, setPassed] = useState(0); // tile index the avatar currently occupies
   const [arrived, setArrived] = useState(false);
 
   const pos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -62,32 +85,54 @@ export default function PayoffBoard({
   const avatarFade = useRef(new Animated.Value(1)).current;
   const calloutIn = useRef(new Animated.Value(0)).current;
 
-  const rows = Math.ceil(total / COLS);
-  const tileSize = boardW > 0 ? (boardW - GAP * (COLS - 1)) / COLS : 0;
+  const cols = colsFor(total);
+  const rows = Math.ceil(total / cols);
+  const tileSize = boardW > 0 ? (boardW - GAP * (cols - 1)) / cols : 0;
 
   const tileXY = useCallback(
-    (yearIdx: number) => {
-      const { col, row } = tileColRow(yearIdx);
+    (idx: number) => {
+      const { col, row } = tileColRow(idx, cols);
       return { x: col * (tileSize + GAP), y: row * (tileSize + GAP) };
     },
-    [tileSize],
+    [tileSize, cols],
   );
 
-  // Park the avatar on tile 0 as soon as we know the geometry.
+  // Park the avatar on the first tile (the user's current remaining term).
   useEffect(() => {
     if (tileSize <= 0) return;
-    const p = tileXY(0);
-    pos.setValue(p);
+    pos.setValue(tileXY(0));
   }, [tileSize, tileXY, pos]);
 
   useEffect(() => {
     if (!active || tileSize <= 0) return;
     let cancelled = false;
 
+    /** Landing sequence: pulse, then step aside so the tile's year is legible. */
+    function land() {
+      setArrived(true);
+      hapticSuccess();
+      Animated.sequence([
+        Animated.timing(landPulse, {
+          toValue: 1, duration: 260, easing: Easing.out(Easing.back(2.2)), useNativeDriver: true,
+        }),
+        Animated.timing(landPulse, {
+          toValue: 0.55, duration: 320, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.parallel([
+          Animated.timing(avatarFade, {
+            toValue: 0, duration: 380, easing: Easing.out(Easing.quad), useNativeDriver: true,
+          }),
+          Animated.timing(calloutIn, {
+            toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+      onArrive?.();
+    }
+
     if (reduceMotion) {
-      const p = tileXY(target - 1);
-      pos.setValue(p);
-      setWalked(target);
+      pos.setValue(tileXY(targetIdx));
+      setPassed(targetIdx);
       setArrived(true);
       landPulse.setValue(0.55);
       avatarFade.setValue(0);
@@ -96,20 +141,26 @@ export default function PayoffBoard({
       return;
     }
 
+    // No projected saving — nothing to walk. Land on the first tile immediately
+    // rather than animating a zero-length journey.
+    if (targetIdx <= 0) {
+      setPassed(0);
+      land();
+      return;
+    }
+
     const hopMs = Math.min(
       HOP_MAX_MS,
-      Math.max(HOP_MIN_MS, Math.round(WALK_BUDGET_MS / Math.max(1, target - 1 || 1))),
+      Math.max(HOP_MIN_MS, Math.round(WALK_BUDGET_MS / targetIdx)),
     );
 
-    function stepTo(yearIdx: number) {
+    function stepTo(idx: number) {
       if (cancelled) return;
 
-      const dest = tileXY(yearIdx);
       hop.setValue(0);
-
       Animated.parallel([
         Animated.timing(pos, {
-          toValue: dest,
+          toValue: tileXY(idx),
           duration: hopMs,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
@@ -123,48 +174,22 @@ export default function PayoffBoard({
       ]).start(({ finished }) => {
         if (cancelled || !finished) return;
 
-        setWalked(yearIdx + 1);
+        setPassed(idx);
 
-        if (yearIdx + 1 >= target) {
-          setArrived(true);
-          hapticSuccess();
-          Animated.sequence([
-            Animated.timing(landPulse, {
-              toValue: 1, duration: 260, easing: Easing.out(Easing.back(2.2)), useNativeDriver: true,
-            }),
-            Animated.timing(landPulse, {
-              toValue: 0.55, duration: 320, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
-            }),
-            // Step aside so the landed tile's year is legible.
-            Animated.parallel([
-              Animated.timing(avatarFade, {
-                toValue: 0, duration: 380, easing: Easing.out(Easing.quad), useNativeDriver: true,
-              }),
-              Animated.timing(calloutIn, {
-                toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-              }),
-            ]),
-          ]).start();
-          onArrive?.();
+        if (idx >= targetIdx) {
+          land();
           return;
         }
-
         hapticLight();
-        stepTo(yearIdx + 1);
+        stepTo(idx + 1);
       });
     }
 
-    setWalked(1);
-    if (target > 1) stepTo(1);
-    else {
-      setArrived(true);
-      hapticSuccess();
-      onArrive?.();
-    }
+    stepTo(1);
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, tileSize, target]);
+  }, [active, tileSize, targetIdx]);
 
   const hopLift = hop.interpolate({
     inputRange: [0, 0.5, 1],
@@ -172,27 +197,32 @@ export default function PayoffBoard({
   });
 
   const boardH = rows > 0 && tileSize > 0 ? rows * tileSize + (rows - 1) * GAP : 0;
-  const yearsSaved = total - target;
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.caption}>
-        {arrived ? 'Your projected payoff' : 'Fast-forwarding your timeline…'}
+        {arrived ? 'Your projected payoff' : 'Cutting years off your mortgage…'}
       </Text>
 
       <View
         style={[styles.board, boardH > 0 && { height: boardH }]}
         onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}
+        accessibilityRole="image"
+        accessibilityLabel={
+          `Payoff board. ${total} years remaining on your current schedule, ` +
+          `projected down to ${target}.`
+        }
       >
         {tileSize > 0 && Array.from({ length: total }, (_, i) => {
-          const year = i + 1;
-          const { col, row } = tileColRow(i);
-          const isWalked = year <= walked;
-          const isTarget = year === target;
+          const yearsLeft = total - i;
+          const { col, row } = tileColRow(i, cols);
+          // Tiles the avatar has already crossed are the years being removed.
+          const isRemoved = i < passed;
+          const isTarget = i === targetIdx;
 
           return (
             <View
-              key={year}
+              key={yearsLeft}
               style={[
                 styles.tile,
                 {
@@ -201,18 +231,21 @@ export default function PayoffBoard({
                   left: col * (tileSize + GAP),
                   top: row * (tileSize + GAP),
                 },
-                isWalked && styles.tileWalked,
+                // Years you still pay sit past the destination — solid, but quiet.
+                i > targetIdx && styles.tileKept,
+                isRemoved && styles.tileRemoved,
                 isTarget && arrived && styles.tileTarget,
               ]}
             >
               <Text
                 style={[
                   styles.tileLabel,
-                  isWalked && styles.tileLabelWalked,
+                  i > targetIdx && styles.tileLabelKept,
+                  isRemoved && styles.tileLabelRemoved,
                   isTarget && arrived && styles.tileLabelTarget,
                 ]}
               >
-                {year}
+                {yearsLeft}
               </Text>
             </View>
           );
@@ -251,7 +284,7 @@ export default function PayoffBoard({
         )}
       </View>
 
-      {/* Landed year, stated outright — the tile alone is small to read */}
+      {/* The conclusion, stated outright — a board the user has to decode is homework */}
       <Animated.View
         style={[
           styles.callout,
@@ -263,31 +296,33 @@ export default function PayoffBoard({
           },
         ]}
       >
-        <Text style={styles.calloutYear}>YEAR {target}</Text>
+        <Text style={styles.calloutYear}>
+          {target} {target === 1 ? 'year' : 'years'} left
+        </Text>
         {yearsSaved > 0 && (
           <Text style={styles.calloutSub}>
-            instead of year {total} — {yearsSaved} {yearsSaved === 1 ? 'year' : 'years'} projected
+            instead of {total} — {yearsSaved} {yearsSaved === 1 ? 'year' : 'years'} projected off
           </Text>
         )}
       </Animated.View>
 
-      {/* Legend — the unwalked tail is the product's whole argument */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.swatch, styles.swatchWalked]} />
-          <Text style={styles.legendText}>
-            {arrived ? `Paid off year ${target}` : 'Years you pay'}
-          </Text>
-        </View>
-        {yearsSaved > 0 && (
+      {/* Legend states conclusions, not colour definitions */}
+      {yearsSaved > 0 && (
+        <View style={styles.legend}>
           <View style={styles.legendItem}>
-            <View style={[styles.swatch, styles.swatchDim]} />
+            <View style={[styles.swatch, styles.swatchRemoved]} />
             <Text style={styles.legendText}>
-              {arrived ? `${yearsSaved} years you skip` : `Original term: ${total} yrs`}
+              {yearsSaved} {yearsSaved === 1 ? 'year' : 'years'} removed
             </Text>
           </View>
-        )}
-      </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.swatch, styles.swatchKept]} />
+            <Text style={styles.legendText}>
+              {target} {target === 1 ? 'year' : 'years'} you pay
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -302,6 +337,7 @@ const styles = StyleSheet.create({
   },
   board: { width: '100%', position: 'relative' },
 
+  // Default tile = a year still on the clock, not yet crossed.
   tile: {
     position: 'absolute',
     borderRadius: Radius.sm,
@@ -311,9 +347,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileWalked: {
-    backgroundColor: 'rgba(18,183,106,0.22)',
-    borderColor: 'rgba(18,183,106,0.55)',
+  // Crossed by the avatar: these years are gone. Receding, not celebrating —
+  // the accent belongs to exactly one element on this screen.
+  tileRemoved: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  // The years the user still pays: present and solid, deliberately quiet.
+  tileKept: {
+    backgroundColor: 'rgba(18,183,106,0.16)',
+    borderColor: 'rgba(18,183,106,0.38)',
   },
   tileTarget: {
     backgroundColor: Aurora.glow,
@@ -329,7 +372,8 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: 'rgba(255,255,255,0.30)',
   },
-  tileLabelWalked: { color: 'rgba(255,255,255,0.72)' },
+  tileLabelRemoved: { color: 'rgba(255,255,255,0.16)' },
+  tileLabelKept: { color: 'rgba(255,255,255,0.72)' },
   tileLabelTarget: { color: Aurora.deepest, fontWeight: Typography.extrabold },
 
   avatar: {
@@ -372,13 +416,13 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   swatch: { width: 10, height: 10, borderRadius: 2, borderWidth: 1 },
-  swatchWalked: {
-    backgroundColor: 'rgba(18,183,106,0.22)',
-    borderColor: 'rgba(18,183,106,0.55)',
+  swatchRemoved: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  swatchDim: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: 'rgba(255,255,255,0.10)',
+  swatchKept: {
+    backgroundColor: 'rgba(18,183,106,0.16)',
+    borderColor: 'rgba(18,183,106,0.38)',
   },
   legendText: { fontSize: Typography.xs, color: 'rgba(255,255,255,0.55)' },
 });
