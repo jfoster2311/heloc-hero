@@ -1,292 +1,334 @@
-// app/tabs/cashflow.tsx
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl,
-} from 'react-native';
+// app/tabs/cashflow.tsx — cash flow and cycle history.
+//
+// This screen used to render eight hardcoded budget categories and a fabricated
+// six-month income/expense chart. The disclosure was also inverted: the
+// "Example" chip and badge only rendered for FREE users, so a PAYING user saw
+// invented categories labelled "This month" and an invented trend chart with no
+// caveat at all. In a finance app that is a claim the product cannot back up.
+//
+// Nothing persists Plaid transactions — there is no transactions table and the
+// webhook does not store any — so per-category spending and an income/expense
+// trend cannot be computed. They are therefore not shown. What IS real:
+//   · the figures the user entered at onboarding (labelled as their figures)
+//   · live HELOC/mortgage balances when accounts are linked
+//   · dumps they have logged, from automation_log
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
+import { useDumpHistory } from '../../hooks/useDumpHistory';
+import { hapticLight } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import type { LinkedAccount } from '../../lib/types';
 
-const BUDGET_CATEGORIES: {
-  name: string; icon: string; budget: number; spent: number; color: string;
-}[] = [
-  { name: 'Housing',        icon: 'home-outline',            budget: 2000, spent: 1800, color: Colors.mint600 },
-  { name: 'Food & Dining',  icon: 'restaurant-outline',      budget: 1000, spent: 1050, color: Colors.mint400 },
-  { name: 'Transportation', icon: 'car-outline',             budget: 600,  spent: 580,  color: Colors.mint400 },
-  { name: 'Utilities',      icon: 'flash-outline',           budget: 500,  spent: 420,  color: Colors.mint600 },
-  { name: 'Healthcare',     icon: 'medkit-outline',          budget: 300,  spent: 120,  color: Colors.mint600 },
-  { name: 'Subscriptions',  icon: 'phone-portrait-outline',  budget: 200,  spent: 180,  color: Colors.mint200 },
-  { name: 'Entertainment',  icon: 'game-controller-outline', budget: 250,  spent: 310,  color: Colors.gray400 },
-  { name: 'Savings/HELOC',  icon: 'wallet-outline',          budget: 800,  spent: 700,  color: Colors.mint600 },
-];
-
-const TREND_MONTHS = [
-  { month: 'Jan', income: 8200, expenses: 5800 },
-  { month: 'Feb', income: 8000, expenses: 6100 },
-  { month: 'Mar', income: 9500, expenses: 7200 },
-  { month: 'Apr', income: 8000, expenses: 5500 },
-  { month: 'May', income: 8000, expenses: 5600 },
-  { month: 'Jun', income: 8400, expenses: 5700 },
-];
-
-function getBudgetStatus(pct: number): { color: string; label: string } {
-  if (pct > 100) return { color: Colors.gray400,   label: 'Over budget' };
-  if (pct >= 90) return { color: Colors.mint400,  label: 'Near limit' };
-  return             { color: Colors.mint600,  label: 'On track' };
-}
+const ASSUMED_HELOC_RATE = 0.085;
 
 export default function CashFlowScreen() {
   const router = useRouter();
-  const { profile, tier } = useAuth();
-  const { refreshing, refresh } = useAccounts(profile?.id ?? null);
+  const { profile } = useAuth();
+  const { refreshing, refresh, helocAccount } = useAccounts(profile?.id ?? null);
+  const {
+    buckets, totalDumped, count, lastDumpAt, loading: historyLoading,
+    error: historyError, refresh: refreshHistory,
+  } = useDumpHistory(profile?.id);
 
-  const income          = profile?.monthly_income   ?? TREND_MONTHS[TREND_MONTHS.length - 1].income;
-  const livingExpenses  = profile?.monthly_expenses ?? TREND_MONTHS[TREND_MONTHS.length - 1].expenses;
-  const mortgagePayment = profile?.monthly_payment  ?? 0;
+  const helocBalance = firstBalance(helocAccount);
 
-  // True HELOC surplus: income minus ALL obligations
-  const totalObligations = livingExpenses + mortgagePayment;
-  const surplus          = income - totalObligations;
-  const savingsRate      = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
+  const income   = profile?.monthly_income   ?? 0;
+  const expenses = profile?.monthly_expenses ?? 0;
+  const payment  = profile?.monthly_payment  ?? 0;
+  const helocInterest = (helocBalance ?? 0) * ASSUMED_HELOC_RATE / 12;
 
-  const totalBudgeted = BUDGET_CATEGORIES.reduce((s, c) => s + c.budget, 0);
-  const overCount     = BUDGET_CATEGORIES.filter(c => c.spent > c.budget).length;
-  const budgetPct     = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
-  const isLocked      = tier === 'free';
-  const maxBar        = Math.max(...TREND_MONTHS.map(m => m.income));
+  const hasFigures = income > 0;
+  const committed  = expenses + payment + (helocInterest > 1 ? helocInterest : 0);
+  const surplus    = income - committed;
+  const committedPct = income > 0 ? Math.min((committed / income) * 100, 100) : 0;
 
-  // Dynamic month header
-  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const onRefresh = useCallback(() => {
+    refresh();
+    refreshHistory();
+  }, [refresh, refreshHistory]);
+
+  const maxBucket = Math.max(...buckets.map(b => b.total), 0);
 
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Budget & Cash Flow</Text>
-          <Text style={styles.headerSub}>{currentMonth}</Text>
-        </View>
-        {isLocked && (
-          <View style={styles.exampleBadge}>
-            <Text style={styles.exampleBadgeText}>Example</Text>
-          </View>
-        )}
+        <Text style={styles.headerTitle}>Cash flow</Text>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.mint600} />
+        }
       >
-        {/* Monthly summary — uses profile-based numbers for accuracy */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryTop}>
-            <SummaryNum label="Income"  value={`$${income.toLocaleString()}`}                                         color={Colors.mint600} />
-            <View style={styles.summaryDivider} />
-            <SummaryNum label="Spent"   value={`$${totalObligations.toLocaleString()}`}                               color={Colors.textPrimary} />
-            <View style={styles.summaryDivider} />
-            <SummaryNum
-              label="Surplus"
-              value={surplus >= 0 ? `$${surplus.toLocaleString()}` : `-$${Math.abs(surplus).toLocaleString()}`}
-              color={surplus >= 0 ? Colors.mint600 : Colors.gray400}
-            />
-          </View>
-          <View style={styles.overallTrack}>
-            <View style={[
-              styles.overallFill,
-              { width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetPct > 100 ? Colors.gray400 : budgetPct > 85 ? Colors.mint400 : Colors.mint600 },
-            ]} />
-          </View>
-          <View style={styles.summaryFooter}>
-            <Text style={styles.summaryFooterText}>
-              {overCount > 0 ? `${overCount} categor${overCount === 1 ? 'y' : 'ies'} over budget` : 'All categories on track'}
-            </Text>
-            <Text style={[styles.savingsRateChip, { color: savingsRate >= 20 ? Colors.mint600 : savingsRate >= 10 ? Colors.mint400 : Colors.gray400 }]}>
-              {savingsRate.toFixed(1)}% savings rate
-            </Text>
-          </View>
-        </View>
+        {/* ── Monthly cash flow, from the user's own figures ──────────────── */}
+        {hasFigures ? (
+          <View style={CommonStyles.card}>
+            <Text style={styles.cardTitle}>Every month</Text>
 
-        {/* Budget categories */}
-        <View style={CommonStyles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Budget Categories</Text>
-            <Text style={styles.sectionSub}>{isLocked ? 'Example data' : 'This month'}</Text>
-          </View>
+            <Line label="Income" amount={income} />
+            <Line label="Mortgage payment" amount={-payment} />
+            <Line label="Living expenses" amount={-expenses} />
+            {helocInterest > 1 && (
+              <Line label="HELOC interest (estimated)" amount={-helocInterest} />
+            )}
 
-          {BUDGET_CATEGORIES.map((cat, i) => {
-            const pct    = cat.budget > 0 ? (cat.spent / cat.budget) * 100 : 0;
-            const status = getBudgetStatus(pct);
-            const rem    = cat.budget - cat.spent;
-            const isLast = i === BUDGET_CATEGORIES.length - 1;
-            return (
-              <View key={cat.name} style={[styles.budgetRow, isLast && styles.budgetRowLast]}>
-                <View style={[styles.catIcon, { backgroundColor: `${cat.color}18` }]}>
-                  <Ionicons name={cat.icon as any} size={15} color={cat.color} />
-                </View>
-                <View style={styles.catBody}>
-                  <View style={styles.catTopRow}>
-                    <Text style={styles.catName}>{cat.name}</Text>
-                    <Text style={[styles.catSpent, pct > 100 && { color: Colors.gray400 }]}>
-                      ${cat.spent.toLocaleString()}
-                      <Text style={styles.catBudget}> / ${cat.budget.toLocaleString()}</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.catTrack}>
-                    <View style={[styles.catFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: status.color }]} />
-                  </View>
-                  <View style={styles.catBottomRow}>
-                    <View style={[styles.statusDot, { backgroundColor: status.color }]} />
-                    <Text style={[styles.statusLabel, { color: status.color }]}>{status.label}</Text>
-                    <Text style={styles.catRemaining}>
-                      {rem >= 0 ? `$${rem.toLocaleString()} left` : `$${Math.abs(rem).toLocaleString()} over`}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Surplus → HELOC opportunity */}
-        {surplus > 0 && (
-          <View style={styles.helocOpp}>
-            <View style={styles.helocOppIcon}><Ionicons name="flash" size={20} color={Colors.mint600} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.helocOppTitle}>Monthly HELOC Surplus</Text>
-              <Text style={styles.helocOppSub}>
-                After all expenses & mortgage, ${surplus.toLocaleString()} goes to your HELOC each month
+            <View style={styles.surplusRow}>
+              <Text style={styles.surplusLabel}>
+                {surplus >= 0 ? 'Left to cycle' : 'Short each month'}
+              </Text>
+              <Text style={[styles.surplusValue, surplus < 0 && styles.surplusNegative]}>
+                {surplus >= 0 ? '' : '−'}${fmt(Math.abs(surplus))}
               </Text>
             </View>
-            <Text style={styles.helocOppAmount}>${surplus.toLocaleString()}</Text>
+
+            <View style={styles.track}>
+              <View style={[styles.trackFill, { width: `${committedPct}%` }]} />
+            </View>
+            <Text style={styles.trackNote}>
+              {committedPct.toFixed(0)}% of income committed
+              {surplus < 0 ? ' — expenses exceed income, so there is nothing to cycle' : ''}
+            </Text>
+
+            <Text style={styles.sourceNote}>
+              Based on the figures you entered
+              {helocInterest > 1 ? ', plus interest estimated from your linked HELOC balance' : ''}.
+              Update them in Settings.
+            </Text>
+          </View>
+        ) : (
+          <View style={CommonStyles.card}>
+            <Text style={styles.cardTitle}>Every month</Text>
+            <Text style={styles.emptyBody}>
+              Add your income and expenses to see what you have available to cycle.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => router.push('/modals/settings')}
+              accessibilityLabel="Add your figures"
+            >
+              <Text style={styles.emptyBtnText}>Add your figures</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* 6-month trend */}
+        {/* ── Cycle history — real logged dumps ───────────────────────────── */}
         <View style={CommonStyles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>6-Month Trend</Text>
-            {isLocked && <View style={styles.exampleChip}><Text style={styles.exampleChipText}>Example</Text></View>}
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Your dumps</Text>
+            {count > 0 && (
+              <Text style={styles.cardStatus}>
+                {count} logged · ${fmt(totalDumped)} total
+              </Text>
+            )}
           </View>
-          <View style={styles.chartArea}>
-            {TREND_MONTHS.map((m, i) => (
-              <View key={i} style={styles.barGroup}>
-                <View style={styles.bars}>
-                  <View style={[styles.bar, styles.barIncome,  { height: Math.max(8, (m.income   / maxBar) * 100) }]} />
-                  <View style={[styles.bar, styles.barExpense, { height: Math.max(8, (m.expenses / maxBar) * 100) }]} />
-                </View>
-                <Text style={styles.barLabel}>{m.month}</Text>
+
+          {historyError ? (
+            <View style={styles.stateBlock}>
+              <Text style={styles.emptyBody}>
+                Couldn&apos;t load your history: {historyError}
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={refreshHistory}
+                accessibilityLabel="Try loading history again"
+              >
+                <Text style={styles.emptyBtnText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : historyLoading ? (
+            <Text style={styles.emptyBody}>Loading…</Text>
+          ) : count === 0 ? (
+            <View style={styles.stateBlock}>
+              <Text style={styles.emptyBody}>
+                No dumps logged yet. When you move money onto your principal, record it here
+                and this fills in with your real history.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
+                accessibilityLabel="Plan a move"
+              >
+                <Text style={styles.emptyBtnText}>Plan a move</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.chart}>
+                {buckets.map((b, i) => (
+                  <View key={i} style={styles.barGroup}>
+                    <View style={styles.barSlot}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: maxBucket > 0 ? Math.max(3, (b.total / maxBucket) * 88) : 3,
+                            backgroundColor: b.total > 0 ? Colors.mint600 : Colors.gray100,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.barLabel}>{b.label}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-          <View style={styles.legend}>
-            <LegendItem color={Colors.mint600} label="Income" />
-            <LegendItem color={Colors.gray300}  label="Expenses" />
-          </View>
+              {/* The totals above are all-time; the chart is a 6-month window.
+                  Say so, rather than leaving two different numbers unexplained. */}
+              <Text style={styles.chartNote}>
+                Last 6 months
+                {lastDumpAt
+                  ? ` · most recent ${lastDumpAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  : ''}
+              </Text>
+            </>
+          )}
         </View>
 
-        {/* Connect CTA */}
-        {isLocked && (
-          <TouchableOpacity style={styles.connectPrompt} onPress={() => router.push('/modals/upgrade')} activeOpacity={0.85}>
-            <View style={styles.connectPromptIcon}><Ionicons name="bar-chart-outline" size={22} color={Colors.mint600} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.connectPromptTitle}>Replace examples with your real budget</Text>
-              <Text style={styles.connectPromptSub}>Connect your bank to track actual spending by category</Text>
-            </View>
-            <View style={styles.connectPill}><Text style={styles.connectPillText}>Upgrade</Text></View>
-          </TouchableOpacity>
-        )}
+        {/* ── What this screen deliberately does not show ─────────────────── */}
+        <View style={styles.noteCard}>
+          <Ionicons name="information-circle-outline" size={18} color={Colors.textMuted} />
+          <Text style={styles.noteText}>
+            Spending by category isn&apos;t shown because HELOC Hero doesn&apos;t read your
+            transactions — only account balances. For category budgeting, a dedicated budgeting
+            app will serve you better.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function SummaryNum({ label, value, color }: { label: string; value: string; color: string }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function Line({ label, amount }: { label: string; amount: number }) {
+  const negative = amount < 0;
   return (
-    <View style={styles.summaryItem}>
-      <Text style={styles.summaryItemLabel}>{label}</Text>
-      <Text style={[styles.summaryItemValue, { color }]}>{value}</Text>
+    <View style={styles.line}>
+      <Text style={styles.lineLabel}>{label}</Text>
+      <Text style={styles.lineAmount}>
+        {negative ? '−' : ''}${fmt(Math.abs(amount))}
+      </Text>
     </View>
   );
 }
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={styles.legendText}>{label}</Text>
-    </View>
-  );
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function firstBalance(account: LinkedAccount | null): number | null {
+  if (!account || account.accounts.length === 0) return null;
+  return account.accounts[0].balances.current;
 }
+function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5], paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[4],
+    backgroundColor: Colors.surface,
   },
   headerTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  headerSub:   { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
-  exampleBadge: { backgroundColor: Colors.mint400 + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: Spacing[1], borderWidth: 1, borderColor: Colors.mint400 + '55' },
-  exampleBadgeText: { fontSize: Typography.xs, color: Colors.mint400, fontWeight: Typography.semibold },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
-  summaryCard:       { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], gap: Spacing[3], ...Shadows.card },
-  summaryTop:        { flexDirection: 'row', alignItems: 'stretch' },
-  summaryItem:       { flex: 1, alignItems: 'center', gap: 3 },
-  summaryItemLabel:  { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.medium },
-  summaryItemValue:  { fontSize: Typography.xl, fontWeight: Typography.extrabold },
-  summaryDivider:    { width: 1, backgroundColor: Colors.gray100, marginHorizontal: Spacing[2] },
-  overallTrack:      { height: 10, backgroundColor: Colors.gray100, borderRadius: 5 },
-  overallFill:       { height: 10, borderRadius: 5 },
-  summaryFooter:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryFooterText: { fontSize: Typography.xs, color: Colors.textMuted },
-  savingsRateChip:   { fontSize: Typography.xs, fontWeight: Typography.semibold },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[3],
+  },
+  cardTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing[3],
+  },
+  cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
 
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[4] },
-  sectionTitle:  { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  sectionSub:    { fontSize: Typography.xs, color: Colors.textMuted },
-  exampleChip:     { backgroundColor: Colors.mint400 + '22', borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 2 },
-  exampleChipText: { fontSize: 10, color: Colors.mint400, fontWeight: Typography.semibold },
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing[2],
+  },
+  lineLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  lineAmount: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
 
-  budgetRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
-  budgetRowLast: { borderBottomWidth: 0 },
-  catIcon:    { width: 34, height: 34, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginTop: 2, flexShrink: 0 },
-  catBody:    { flex: 1, gap: Spacing[2] },
-  catTopRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  catName:    { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  catSpent:   { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  catBudget:  { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.regular },
-  catTrack:   { height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
-  catFill:    { height: 6, borderRadius: 3 },
-  catBottomRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  statusDot:    { width: 6, height: 6, borderRadius: 3 },
-  statusLabel:  { fontSize: Typography.xs, fontWeight: Typography.medium, flex: 1 },
-  catRemaining: { fontSize: Typography.xs, color: Colors.textMuted },
+  surplusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+    marginBottom: Spacing[3],
+  },
+  surplusLabel: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  surplusValue: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: Colors.mint600,
+  },
+  // Negative numbers use muted grey, never red.
+  surplusNegative: { color: Colors.gray400 },
 
-  helocOpp:       { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.mint200 },
-  helocOppIcon:   { width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.mint100, alignItems: 'center', justifyContent: 'center' },
-  helocOppTitle:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
-  helocOppSub:    { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
-  helocOppAmount: { fontSize: Typography.xl, fontWeight: Typography.extrabold, color: Colors.mint600 },
+  track: { height: 8, backgroundColor: Colors.gray100, borderRadius: 4, overflow: 'hidden' },
+  trackFill: { height: 8, borderRadius: 4, backgroundColor: Colors.gray400 },
+  trackNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
+  sourceNote: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 17,
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
 
-  chartArea:  { flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: Spacing[2] },
-  barGroup:   { flex: 1, alignItems: 'center', gap: Spacing[2] },
-  bars:       { flexDirection: 'row', gap: 3, alignItems: 'flex-end' },
-  bar:        { width: 12, borderRadius: 4, minHeight: 4 },
-  barIncome:  { backgroundColor: Colors.mint600 },
-  barExpense: { backgroundColor: Colors.gray300 },
-  barLabel:   { fontSize: 11, color: Colors.textMuted, fontWeight: Typography.medium },
-  legend:     { flexDirection: 'row', gap: Spacing[4], marginTop: Spacing[3] },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  legendDot:  { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: Typography.xs, color: Colors.textSecondary },
+  stateBlock: { gap: Spacing[3] },
+  emptyBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  emptyBtn: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+    backgroundColor: Colors.mint50,
+  },
+  emptyBtnText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+  },
 
-  connectPrompt:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[4], backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.mint200, ...Shadows.card },
-  connectPromptIcon: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.mint50, alignItems: 'center', justifyContent: 'center' },
-  connectPromptTitle:{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  connectPromptSub:  { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
-  connectPill:       { backgroundColor: Colors.mint600, borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: Spacing[1] + 2 },
-  connectPillText:   { color: Colors.white, fontSize: Typography.xs, fontWeight: Typography.semibold },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing[2], height: 112 },
+  barGroup: { flex: 1, alignItems: 'center', gap: Spacing[2] },
+  barSlot: { height: 88, justifyContent: 'flex-end' },
+  bar: { width: 18, borderRadius: 4 },
+  barLabel: { fontSize: 11, color: Colors.textMuted },
+  chartNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[3] },
+
+  noteCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[3],
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
+    ...Shadows.card,
+  },
+  noteText: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
 });
