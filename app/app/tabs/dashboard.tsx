@@ -1,4 +1,25 @@
 // app/tabs/dashboard.tsx
+//
+// One number owns this screen: the Payoff Clock. Everything else is context.
+//
+// Design constraints it is built to satisfy:
+//  · Exactly one accent element (Von Restorff). The payoff figure and its
+//    progress bar are mint; every other datum is grey or secondary. This screen
+//    previously carried EIGHT hero-scale numbers — two at 56pt, one at 52pt,
+//    plus 3xl/2xl figures for utilization, credit and interest saved — most of
+//    them mint. Nothing stood out because everything did.
+//  · Hierarchy by de-emphasising, not emphasising. The payoff number is a
+//    restrained 30pt; the separation comes from muting its surroundings.
+//  · Five data elements (Miller's Law): payoff clock, this cycle, your
+//    position, readiness score, pinned action. Related metrics are chunked into
+//    one card instead of each claiming a tile — this screen used to carry ~16
+//    sections, several of them duplicates (two payoff comparisons, two budget
+//    bars, two "interest saved" figures).
+//  · Progress states its own conclusion and carries 25/50/75 milestone marks,
+//    so someone years from payoff still has a near-term goal (Zeigarnik and
+//    goal-gradient).
+//  · The primary action is pinned in the thumb zone (Fitts's Law) rather than
+//    stranded at the bottom of a long scroll.
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, Alert,
@@ -6,7 +27,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useOnboardingStore } from '../../lib/onboardingStore';
@@ -20,6 +40,7 @@ import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../.
 import type { LinkedAccount } from '../../lib/types';
 
 const ASSUMED_HELOC_RATE = 0.085;
+const MILESTONES = [25, 50, 75];
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -38,64 +59,30 @@ export default function DashboardScreen() {
   const income          = profile?.monthly_income   ?? 0;
   const livingExpenses  = profile?.monthly_expenses ?? 0;
   const mortgagePayment = profile?.monthly_payment  ?? 0;
+  const surplus         = income - livingExpenses - mortgagePayment;
 
-  const surplus          = income - livingExpenses - mortgagePayment;
-  const savingsRate      = income > 0 ? Math.max(0, surplus / income) * 100 : 0;
-  const totalObligations = livingExpenses + mortgagePayment;
-  const budgetPct        = income > 0 ? Math.min((totalObligations / income) * 100, 100) : 0;
+  const homeValue  = profile?.home_value ?? 0;
+  const liveDebt   = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
+  const homeEquity = Math.max(0, homeValue - liveDebt);
 
-  const homeValue       = profile?.home_value ?? 0;
-  const liveDebt        = (mortgageBalance ?? profile?.mortgage_balance ?? 0) + (helocBalance ?? 0);
-  const homeEquity      = Math.max(0, homeValue - liveDebt);
-  const totalNetWorth   = homeEquity + (savingsBalance ?? 0);
-  const hasNetWorthData = homeValue > 0;
-
-  const helocInterestMin = (helocBalance ?? 0) * ASSUMED_HELOC_RATE / 12;
-  const debtRatio = income > 0
-    ? ((mortgagePayment + helocInterestMin) / income) * 100
+  // Ownership is the progress metric because it means something on day one.
+  // Principal-paid-since-signup sits at 0% for every new user — exactly when a
+  // progress bar most needs to show them something.
+  const ownedPct = homeValue > 0
+    ? Math.min(Math.max((homeEquity / homeValue) * 100, 0), 100)
     : 0;
-
-  // Mortgage payoff progress: compare original balance to live (or profile) balance
-  const originalMortgage = profile?.mortgage_balance ?? 0;
-  const liveMortgage     = mortgageBalance ?? originalMortgage;
-  const paidDown         = Math.max(0, originalMortgage - liveMortgage);
-  const payoffProgressPct = originalMortgage > 0
-    ? Math.min((paidDown / originalMortgage) * 100, 100)
-    : 0;
+  const underwater = homeValue > 0 && liveDebt > homeValue;
 
   const hasRealData = tier !== 'free' && mortgageBalance !== null;
 
-  // ── Card data: HELOC utilization + next-dump ────────────────────────────
-  // When Plaid isn't linked, fall back to a surplus-derived estimate so cards
-  // look populated (per CLAUDE.md: use demo seed values where live data absent).
+  // Without Plaid, fall back to a surplus-derived estimate so the cycle card is
+  // populated. Always labelled as an estimate.
   const fallbackHelocLimit  = Math.max(25_000, Math.min(Math.max(0, surplus) * 12, 150_000)) || 50_000;
   const displayHelocBalance = helocBalance ?? 0;
   const displayHelocLimit   = helocLimit   ?? fallbackHelocLimit;
   const effectiveDump       = displayHelocLimit > 0
     ? Math.min(displayHelocLimit, Math.max(0, surplus * 12))
     : Math.max(0, surplus * 12);
-
-  // ── DEV-ONLY: restart / reset onboarding flow ─────────────────────────────
-  // __DEV__ is false in production — Metro dead-strips this function entirely.
-  function handleDevTools() {
-    if (!__DEV__) return;
-    Alert.alert('DEV Tools', 'Onboarding flow', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Preview (keep data)',
-        onPress: () => router.replace('/onboarding/welcome' as never),
-      },
-      {
-        text: 'Reset + Preview',
-        style: 'destructive',
-        onPress: () => {
-          useOnboardingStore.getState().reset();
-          router.replace('/onboarding/welcome' as never);
-        },
-      },
-    ]);
-  }
-  // ── END DEV TOOLS ──────────────────────────────────────────────────────────
 
   const score = hasRealData
     ? computeHelocScore({
@@ -119,18 +106,39 @@ export default function DashboardScreen() {
       })
     : genericProjection();
 
+  // ── DEV-ONLY: restart / reset onboarding flow ─────────────────────────────
+  // __DEV__ is false in production — Metro dead-strips this function entirely.
+  function handleDevTools() {
+    if (!__DEV__) return;
+    Alert.alert('DEV Tools', 'Onboarding flow', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Preview (keep data)', onPress: () => router.replace('/onboarding/welcome' as never) },
+      {
+        text: 'Reset + Preview',
+        style: 'destructive',
+        onPress: () => {
+          useOnboardingStore.getState().reset();
+          router.replace('/onboarding/welcome' as never);
+        },
+      },
+    ]);
+  }
+  // ── END DEV TOOLS ──────────────────────────────────────────────────────────
+
+  const cycleReady   = displayHelocBalance <= 0 && effectiveDump > 0;
+  const monthsToDump = displayHelocBalance > 0 && surplus > 0
+    ? Math.max(1, Math.ceil(displayHelocBalance / surplus))
+    : 0;
+
   return (
     <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
       <NotificationPrimer triggerKey={profile?.id ?? null} />
+
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>
-            {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'Dashboard'}
-          </Text>
-          <Text style={styles.headerSub}>Your mortgage payoff dashboard</Text>
-        </View>
+        <Text style={styles.greeting}>
+          {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'Dashboard'}
+        </Text>
         <View style={styles.headerRight}>
-          {/* DEV-ONLY badge — never visible in production builds */}
           {__DEV__ && (
             <TouchableOpacity
               style={styles.devBadge}
@@ -140,7 +148,11 @@ export default function DashboardScreen() {
               <Text style={styles.devBadgeText}>DEV</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/modals/settings')}>
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            onPress={() => router.push('/modals/settings')}
+            accessibilityLabel="Settings"
+          >
             <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -149,357 +161,233 @@ export default function DashboardScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.mint600} />
+        }
       >
-        {/* Payoff headline — screen focal point */}
-        <View style={styles.payoffHeroCard}>
+        {/* ── 1. THE PAYOFF CLOCK — the only accent on this screen ────────── */}
+        <View style={styles.clockCard}>
           {!hasRealData && (
-            <View style={styles.payoffHeroBadge}>
-              <Text style={styles.payoffHeroBadgeText}>Example</Text>
+            <View style={styles.exampleBadge}>
+              <Text style={styles.exampleBadgeText}>Example</Text>
             </View>
           )}
-          <Text style={styles.payoffHeroEyebrow}>PROJECTED MORTGAGE-FREE DATE</Text>
-          <Text style={styles.payoffHeroValue}>
-            {formatMonths(projection.acceleratedMonths)}
+
+          <Text style={styles.eyebrow}>MORTGAGE-FREE IN</Text>
+          <Text style={styles.clockValue}>{formatMonths(projection.acceleratedMonths)}</Text>
+          <Text style={styles.clockDate}>
+            around {fmtPayoffDate(projection.acceleratedPayoffDate)}
           </Text>
-          <Text style={styles.payoffHeroDate}>
-            {fmtPayoffDate(projection.acceleratedPayoffDate)}
-          </Text>
+
+          {/* The conclusion, stated outright — not a legend to decode */}
           {projection.monthsSaved > 0 && (
-            <View style={styles.payoffHeroSavingsRow}>
-              <Ionicons name="flash" size={13} color={Colors.mint600} />
-              <Text style={styles.payoffHeroSavingsSub}>
-                {formatMonths(projection.monthsSaved)} sooner than without HELOC Hero
-              </Text>
+            <Text style={styles.clockConclusion}>
+              {formatMonths(projection.monthsSaved)} sooner than your current schedule,
+              saving about ${fmtK(projection.interestSaved)} in interest
+            </Text>
+          )}
+
+          {/* Progress toward owning the home outright, with near-term goals */}
+          {homeValue > 0 && (
+            <View style={styles.progressBlock}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${ownedPct}%` }]} />
+                {MILESTONES.map(m => (
+                  <View key={m} style={[styles.milestone, { left: `${m}%` }]} />
+                ))}
+              </View>
+              <View style={styles.progressLabels}>
+                <Text style={styles.progressText}>
+                  {underwater
+                    ? 'Owe more than the home is currently worth'
+                    : `You own ${ownedPct.toFixed(0)}% of your home`}
+                </Text>
+                <Text style={styles.progressGoal}>{nextMilestone(ownedPct)}</Text>
+              </View>
             </View>
           )}
+
+          <Text style={styles.clockDisclaimer}>Projected estimate, not a guarantee.</Text>
         </View>
 
-        {/* Score card */}
-        <LinearGradient colors={['#1a9e7a', '#0d7a5e']} style={styles.scoreCard}>
-          <View style={styles.scoreLeft}>
-            <Text style={styles.scoreLabel}>HELOC Hero Score™</Text>
-            {!hasRealData && <Text style={styles.scoreEstimate}>Estimated — connect accounts</Text>}
-            <Text style={styles.scoreNumber}>{score.total}</Text>
-            <View style={styles.scoreBadge}>
-              <Text style={styles.scoreBadgeText}>{score.label}</Text>
-            </View>
-          </View>
-          <View style={styles.scoreGauge}><ScoreRing score={score.total} /></View>
-        </LinearGradient>
-
-        {/* ── Interest Saved Hero ─────────────────────────────────────────── */}
-        <InterestHeroCard
-          interestSaved={projection.interestSaved}
-          monthsSaved={projection.monthsSaved}
-          hasDumped={streak > 0}
-          onCTA={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
-        />
-
-        {/* Upgrade prompt — free tier */}
-        {tier === 'free' && (
-          <TouchableOpacity
-            style={styles.upgradeBanner}
-            onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
-          >
-            <Ionicons name="star-outline" size={18} color={Colors.mint600} />
-            <Text style={styles.upgradeText}>
-              Connect real accounts for a live score, projections & budget tracking
-            </Text>
-            <Text style={styles.upgradeLink}>Upgrade →</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Streak strip */}
         {streak > 0 && (
-          <View style={styles.streakStrip}>
-            <Ionicons name="flame-outline" size={16} color={Colors.mint600} />
-            <Text style={styles.streakText}>
-              {streak}-month cycling streak — keep it going
-            </Text>
-          </View>
+          <Text style={styles.streakLine}>
+            {streak}-month cycling streak — keep it going
+          </Text>
         )}
 
-        {/* ── HELOC Utilization ───────────────────────────────────────────── */}
-        <HelocUtilCard
-          balance={displayHelocBalance}
-          limit={displayHelocLimit}
-          hasLiveData={helocBalance !== null}
-          onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-        />
-
-        {/* ── Next Dump ───────────────────────────────────────────────────── */}
-        <NextDumpCard
-          surplus={surplus}
-          helocDrawn={displayHelocBalance}
-          dumpAmount={effectiveDump}
-          hasLiveData={helocBalance !== null}
+        {/* ── 2. THIS CYCLE — utilization and next dump are one story ─────── */}
+        <TouchableOpacity
+          style={CommonStyles.card}
           onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
-        />
-
-        {/* ── Credit Score ────────────────────────────────────────────────── */}
-        <CreditScoreCard
-          score={profile?.credit_score ?? 700}
-          selfReported={profile?.credit_score != null}
-          onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-        />
-
-        {/* Account stats */}
-        {hasLinkedAccounts ? (
-          <View style={styles.statsRow}>
-            <StatCard label="Mortgage"  value={mortgageBalance !== null ? `$${fmt(mortgageBalance)}` : '—'} icon="home-outline"   color={Colors.mint600}    onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="HELOC"     value={helocBalance    !== null ? `$${fmt(helocBalance)}`    : '—'} icon="card-outline"   color={Colors.mint400} onPress={() => router.push('/tabs/accounts')} />
-            <StatCard label="Savings"   value={savingsBalance  !== null ? `$${fmt(savingsBalance)}`  : '—'} icon="wallet-outline" color={Colors.mint600} onPress={() => router.push('/tabs/accounts')} />
+          activeOpacity={0.85}
+          accessibilityLabel="Cycle details"
+        >
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>This cycle</Text>
+            <Text style={styles.cardStatus}>
+              {cycleReady ? 'Ready to dump' : monthsToDump > 0 ? `~${monthsToDump} mo to go` : 'Not started'}
+            </Text>
           </View>
+
+          <View style={styles.utilTrack}>
+            <View
+              style={[styles.utilFill, { width: `${pct(displayHelocBalance, displayHelocLimit)}%` }]}
+            />
+          </View>
+
+          <Text style={styles.cardConclusion}>
+            {cycleReady
+              ? `HELOC is replenished — you can dump about $${fmt(effectiveDump)} onto your principal.`
+              : `$${fmt(displayHelocBalance)} drawn of $${fmt(displayHelocLimit)} · ` +
+                `$${fmt(Math.max(0, displayHelocLimit - displayHelocBalance))} available`}
+          </Text>
+
+          {helocBalance === null && (
+            <Text style={styles.estimateNote}>Estimated · link accounts for live balances</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* ── 3. YOUR POSITION — balances chunked into one card ───────────── */}
+        {hasLinkedAccounts ? (
+          <TouchableOpacity
+            style={CommonStyles.card}
+            onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+            activeOpacity={0.85}
+            accessibilityLabel="Account balances"
+          >
+            <Text style={styles.cardTitle}>Your position</Text>
+            <View style={styles.positionRow}>
+              <PositionStat label="Mortgage" value={mortgageBalance !== null ? `$${fmtK(mortgageBalance)}` : '—'} />
+              <PositionStat label="HELOC"    value={helocBalance    !== null ? `$${fmtK(helocBalance)}`    : '—'} />
+              <PositionStat label="Savings"  value={savingsBalance  !== null ? `$${fmtK(savingsBalance)}`  : '—'} />
+            </View>
+            <View style={styles.positionFooter}>
+              <Text style={styles.cardConclusion}>
+                {homeValue > 0 ? `$${fmtK(homeEquity)} home equity` : 'Add home value to see equity'}
+              </Text>
+              <Text style={[styles.positionSurplus, surplus < 0 && styles.positionSurplusNeg]}>
+                {surplus >= 0 ? '+' : '−'}${fmt(Math.abs(surplus))}/mo
+              </Text>
+            </View>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={styles.linkAccountsCta}
+            style={styles.linkCta}
             onPress={() => router.push(isPro ? '/modals/link-account' : '/modals/upgrade')}
+            accessibilityLabel="Link your bank accounts"
           >
-            <View style={styles.linkAccountsIcon}><Ionicons name="link-outline" size={22} color={Colors.mint600} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkAccountsTitle}>Link Your Bank Accounts</Text>
-              <Text style={styles.linkAccountsSub}>Connect mortgage, HELOC & savings for live balances</Text>
+            <View style={styles.linkIcon}>
+              <Ionicons name="link-outline" size={20} color={Colors.textSecondary} />
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.mint600} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Link your accounts</Text>
+              <Text style={styles.linkSub}>Track real balances instead of estimates</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
           </TouchableOpacity>
         )}
 
-        {/* ─── Financial Snapshot ─── */}
-        {(hasNetWorthData || income > 0) && (
-          <View style={CommonStyles.card}>
-            <Text style={styles.cardTitle}>Financial Snapshot</Text>
-
-            <View style={styles.snapshotRow}>
-              <SnapshotStat
-                label="Net Worth"
-                value={hasNetWorthData ? `$${fmtK(totalNetWorth)}` : '—'}
-                sub={hasNetWorthData ? 'Home equity + savings' : 'Add home value in onboarding'}
-                color={Colors.mint600}
-                icon="trending-up-outline"
-              />
-              <View style={styles.snapshotDivider} />
-              <SnapshotStat
-                label="Savings Rate"
-                value={income > 0 ? `${savingsRate.toFixed(1)}%` : '—'}
-                sub={savingsRate >= 20 ? 'Excellent' : savingsRate >= 10 ? 'On track' : 'Build it up'}
-                color={savingsRate >= 20 ? Colors.mint600 : savingsRate >= 10 ? Colors.mint400 : Colors.gray400}
-                icon="flash-outline"
-              />
-              <View style={styles.snapshotDivider} />
-              <SnapshotStat
-                label="Debt Ratio"
-                value={income > 0 ? `${debtRatio.toFixed(0)}%` : '—'}
-                sub={debtRatio <= 36 ? 'Healthy' : debtRatio <= 50 ? 'Moderate' : 'High'}
-                color={debtRatio <= 36 ? Colors.mint600 : debtRatio <= 50 ? Colors.mint400 : Colors.gray400}
-                icon="speedometer-outline"
-              />
-            </View>
-
-            {/* Monthly budget bar */}
-            {income > 0 && (
-              <View style={styles.budgetSection}>
-                <View style={styles.budgetHeader}>
-                  <Text style={styles.budgetLabel}>Monthly Budget</Text>
-                  <Text style={styles.budgetNumbers}>
-                    <Text style={styles.budgetSpent}>${fmt(totalObligations)}</Text>
-                    <Text style={styles.budgetOf}> of ${fmt(income)}</Text>
-                  </Text>
-                </View>
-                <View style={styles.budgetTrack}>
-                  <View
-                    style={[
-                      styles.budgetFill,
-                      {
-                        width: `${budgetPct}%`,
-                        backgroundColor:
-                          budgetPct > 95 ? Colors.gray400 :
-                          budgetPct > 80 ? Colors.gray400 :
-                          Colors.mint600,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.budgetNote}>
-                  {surplus >= 0
-                    ? `$${fmt(surplus)}/mo available for HELOC`
-                    : `$${fmt(Math.abs(surplus))}/mo over budget — reduce expenses to use HELOC strategy`}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── Budget / Cash Flow ──────────────────────────────────────────── */}
-        {income > 0 && (
-          <BudgetSpendingCard
-            income={income}
-            livingExpenses={livingExpenses}
-            mortgagePayment={mortgagePayment}
-            helocInterest={helocInterestMin}
-            surplus={surplus}
-            onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
-          />
-        )}
-
-        {/* Payoff projection */}
-        <View style={[CommonStyles.card, styles.projectionCard]}>
-          <View style={styles.projectionHeader}>
-            <Text style={styles.cardTitle}>Payoff Projection</Text>
-            {!hasRealData && <View style={styles.exampleBadge}><Text style={styles.exampleBadgeText}>Example</Text></View>}
-          </View>
-          <View style={styles.projectionRow}>
-            <View style={styles.projectionItem}>
-              <Text style={styles.projectionValue}>{formatMonths(projection.originalMonths)}</Text>
-              <Text style={styles.projectionLabel}>Without HELOC</Text>
-            </View>
-            <View style={styles.projectionDivider}><Ionicons name="arrow-forward" size={20} color={Colors.mint600} /></View>
-            <View style={styles.projectionItem}>
-              <Text style={[styles.projectionValue, styles.projectionValueAccel]}>
-                {formatMonths(projection.acceleratedMonths)}
-              </Text>
-              <Text style={styles.projectionLabel}>With HELOC</Text>
-            </View>
-          </View>
-          <View style={styles.savingsBanner}>
-            <Ionicons name="flash" size={16} color={Colors.mint600} />
-            <Text style={styles.savingsBannerText}>
-              Save {formatMonths(projection.monthsSaved)} and{' '}
-              <Text style={styles.savingsBannerBold}>${projection.interestSaved.toLocaleString()}</Text>{' '}in interest
-            </Text>
-          </View>
-
-          {/* First milestone: open HELOC when none linked */}
-          {!helocAccount && (
-            <TouchableOpacity
-              style={styles.helocMilestone}
-              onPress={() => router.push('/modals/get-heloc')}
-              accessibilityLabel="Open HELOC guide"
-            >
-              <View style={styles.helocMilestoneIcon}>
-                <Ionicons name="home-outline" size={18} color={Colors.mint600} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.helocMilestoneTitle}>Step 1: Open your HELOC</Text>
-                <Text style={styles.helocMilestoneSub}>Tap to see what to look for →</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.mint400} />
-            </TouchableOpacity>
-          )}
-
-          {/* Payoff progress milestone */}
-          {originalMortgage > 0 && (
-            <View style={styles.payoffProgress}>
-              <View style={styles.payoffProgressHeader}>
-                <Text style={styles.payoffProgressLabel}>Principal Paid Off</Text>
-                <Text style={styles.payoffProgressPct}>{payoffProgressPct.toFixed(1)}%</Text>
-              </View>
-              <View style={styles.payoffTrack}>
-                <View style={[styles.payoffFill, { width: `${payoffProgressPct}%` }]} />
-              </View>
-              <Text style={styles.payoffSub}>
-                ${fmt(paidDown)} paid • ${fmt(liveMortgage)} remaining
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Score breakdown */}
+        {/* ── 4. READINESS SCORE — context, deliberately not a second hero ── */}
         <View style={CommonStyles.card}>
-          <Text style={styles.cardTitle}>Score Breakdown</Text>
-          <ScoreBar label="Monthly Surplus"   value={score.surplusScore}     max={55} color={Colors.mint600} />
-          <ScoreBar label="HELOC Utilization" value={score.utilizationScore} max={25} color={Colors.mint400} />
-          <ScoreBar label="Credit Score"      value={score.creditPoints}     max={20} color={Colors.mint600} />
-          <View style={styles.mteRow}>
-            <Text style={styles.mteLabel}>Home Equity Modifier</Text>
-            <Text style={[styles.mteValue, { color: score.mteModifier >= 0 ? Colors.mint600 : Colors.gray400 }]}>
-              {score.mteModifier >= 0 ? '+' : ''}{score.mteModifier} pts
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Strategy readiness</Text>
+            <Text style={styles.scoreInline}>
+              {score.total}<Text style={styles.scoreOutOf}>/100</Text>
             </Text>
           </View>
+          <Text style={styles.cardConclusion}>{score.label}</Text>
+
+          <View style={styles.scoreBars}>
+            <ScoreBar label="Monthly surplus"   value={score.surplusScore}     max={55} />
+            <ScoreBar label="HELOC utilization" value={score.utilizationScore} max={25} />
+            <ScoreBar label="Credit score"      value={score.creditPoints}     max={20} />
+          </View>
+
+          {!hasRealData && (
+            <Text style={styles.estimateNote}>Estimated · link accounts for a live score</Text>
+          )}
         </View>
 
-        {/* Automation — Full tier */}
+        {tier === 'free' && (
+          <TouchableOpacity
+            style={styles.upgradeRow}
+            onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
+            accessibilityLabel="See Pro plans"
+          >
+            <Text style={styles.upgradeText}>
+              Connect accounts for live balances and automatic cycle tracking
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.mint600} />
+          </TouchableOpacity>
+        )}
+
         {tier === 'full' && (
-          <View style={[CommonStyles.card, styles.automationCard]}>
+          <View style={CommonStyles.card}>
             <Text style={styles.cardTitle}>Automation</Text>
             <AutomationRow label="Safe Sweep™" subtitle="Auto-move surplus to HELOC" active />
             <AutomationRow label="Safe Dump™"  subtitle="Auto-dump HELOC to mortgage" active={false} />
-            <TouchableOpacity style={styles.automationManageBtn} onPress={() => router.push('/modals/settings')}>
-              <Text style={styles.automationManageText}>Manage Automation →</Text>
+            <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/modals/settings')}>
+              <Text style={styles.manageText}>Manage automation</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── Rates Placeholder ───────────────────────────────────────────── */}
-        <RatesPlaceholderCard
-          onPress={() => { hapticLight(); router.push('/tabs/learn' as never); }}
-        />
-
-        {/* Quick actions */}
-        <View style={styles.quickActionsRow}>
-          <QuickAction icon="calculator-outline" label="Calculator" onPress={() => router.push('/tabs/calculator')} />
-          <QuickAction icon="wallet-outline"     label="Accounts"   onPress={() => router.push('/tabs/accounts')} />
-          <QuickAction icon="bar-chart-outline"  label="Budget"     onPress={() => router.push('/tabs/cashflow')} />
-          <QuickAction icon="book-outline"       label="Learn"      onPress={() => router.push('/tabs/learn')} />
-        </View>
+        {!helocAccount && (
+          <TouchableOpacity
+            style={styles.stepRow}
+            onPress={() => router.push('/modals/get-heloc')}
+            accessibilityLabel="Open HELOC guide"
+          >
+            <Text style={styles.stepText}>First step: open an interest-only HELOC</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+          </TouchableOpacity>
+        )}
       </ScrollView>
+
+      {/* ── 5. PRIMARY ACTION — pinned inside the thumb zone ──────────────── */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+          accessibilityLabel={cycleReady ? 'Execute your dump' : 'View your cycle'}
+        >
+          <Text style={styles.primaryBtnText}>
+            {cycleReady ? 'Execute your dump' : streak > 0 ? 'View your cycle' : 'Start your first cycle'}
+          </Text>
+          <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function ScoreRing({ score }: { score: number }) {
-  const SIZE = 90, STROKE = 8;
+function PositionStat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', width: SIZE, height: SIZE, borderRadius: SIZE / 2, borderWidth: STROKE, borderColor: 'rgba(255,255,255,0.2)' }} />
-      <Text style={{ color: Colors.white, fontSize: Typography['2xl'], fontWeight: Typography.extrabold }}>{score}</Text>
-      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: Typography.xs }}>/ 100</Text>
+    <View style={styles.positionStat}>
+      <Text style={styles.positionValue}>{value}</Text>
+      <Text style={styles.positionLabel}>{label}</Text>
     </View>
   );
 }
 
-function SnapshotStat({ label, value, sub, color, icon }: {
-  label: string; value: string; sub: string; color: string; icon: string;
-}) {
-  return (
-    <View style={styles.snapshotStat}>
-      <Ionicons name={icon as any} size={14} color={color} />
-      <Text style={[styles.snapshotValue, { color }]}>{value}</Text>
-      <Text style={styles.snapshotLabel}>{label}</Text>
-      <Text style={styles.snapshotSub}>{sub}</Text>
-    </View>
-  );
-}
-
-function StatCard({ label, value, icon, color, onPress }: {
-  label: string; value: string; icon: string; color: string; onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[styles.statCard, Shadows.card]} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.statIcon, { backgroundColor: `${color}18` }]}>
-        <Ionicons name={icon as any} size={16} color={color} />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function ScoreBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+function ScoreBar({ label, value, max }: { label: string; value: number; max: number }) {
   return (
     <View style={styles.scoreBarRow}>
       <Text style={styles.scoreBarLabel}>{label}</Text>
       <View style={styles.scoreBarTrack}>
-        <View style={[styles.scoreBarFill, { width: `${(value / max) * 100}%`, backgroundColor: color }]} />
+        <View style={[styles.scoreBarFill, { width: `${Math.min((value / max) * 100, 100)}%` }]} />
       </View>
       <Text style={styles.scoreBarValue}>{value}/{max}</Text>
     </View>
   );
 }
 
-function AutomationRow({ label, subtitle, active }: { label: string; subtitle: string; active: boolean }) {
+function AutomationRow({ label, subtitle, active }: {
+  label: string; subtitle: string; active: boolean;
+}) {
   return (
     <View style={styles.automationRow}>
       <View style={[styles.automationDot, { backgroundColor: active ? Colors.mint600 : Colors.gray300 }]} />
@@ -507,370 +395,12 @@ function AutomationRow({ label, subtitle, active }: { label: string; subtitle: s
         <Text style={styles.automationLabel}>{label}</Text>
         <Text style={styles.automationSub}>{subtitle}</Text>
       </View>
-      <Text style={[styles.automationStatus, { color: active ? Colors.mint600 : Colors.textMuted }]}>{active ? 'Active' : 'Off'}</Text>
+      <Text style={styles.automationStatus}>{active ? 'Active' : 'Off'}</Text>
     </View>
   );
 }
 
-function QuickAction({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress}>
-      <View style={styles.quickActionIcon}><Ionicons name={icon as any} size={22} color={Colors.mint600} /></View>
-      <Text style={styles.quickActionLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-// ─── New card sub-components ───────────────────────────────────────────────────────────
-
-function InterestHeroCard({
-  interestSaved, monthsSaved, hasDumped, onCTA,
-}: {
-  interestSaved: number; monthsSaved: number; hasDumped: boolean; onCTA: () => void;
-}) {
-  const savedK   = Math.round(interestSaved / 1_000);
-  const savedFmt = '$' + Math.round(interestSaved).toLocaleString('en-US', { maximumFractionDigits: 0 });
-  const yearsFmt = formatMonths(monthsSaved);
-
-  if (!hasDumped) {
-    return (
-      <View style={styles.interestCard}>
-        <Text style={styles.cardEyebrow}>YOUR POTENTIAL SAVINGS</Text>
-
-        <View style={styles.interestColdStats}>
-          <View style={styles.interestColdStat}>
-            <Text style={styles.interestColdStatNum}>
-              {savedK > 0 ? `~$${savedK}k` : '—'}
-            </Text>
-            <Text style={styles.interestColdStatLabel}>projected interest saved</Text>
-          </View>
-          <View style={styles.interestColdStatDivider} />
-          <View style={styles.interestColdStat}>
-            <Text style={styles.interestColdStatNum}>~{yearsFmt}</Text>
-            <Text style={styles.interestColdStatLabel}>off your payoff date</Text>
-          </View>
-        </View>
-
-        <Text style={styles.interestColdBody}>
-          One dump changes everything. Start cycling to watch these estimates become real savings.
-        </Text>
-
-        <TouchableOpacity style={styles.interestCTA} onPress={onCTA} activeOpacity={0.82}>
-          <Text style={styles.interestCTAText}>Start your first cycle</Text>
-          <Ionicons name="arrow-forward" size={16} color={Colors.white} />
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <LinearGradient colors={['#1a9e7a', '#0d7a5e']} style={styles.interestCardHot}>
-      <View style={styles.interestHotBadge}>
-        <Ionicons name="flash" size={14} color={Colors.mint100} />
-        <Text style={styles.interestHotEyebrow}>PROJECTED INTEREST SAVED</Text>
-      </View>
-      <Text style={styles.interestHotNum}>{savedFmt}</Text>
-      <View style={styles.interestHotSubRow}>
-        <Ionicons name="trending-up-outline" size={14} color="rgba(255,255,255,0.8)" />
-        <Text style={styles.interestHotSub}>
-          {yearsFmt} sooner · your strategy is working
-        </Text>
-      </View>
-    </LinearGradient>
-  );
-}
-
-function HelocUtilCard({
-  balance, limit, hasLiveData, onPress,
-}: {
-  balance: number; limit: number; hasLiveData: boolean; onPress: () => void;
-}) {
-  const pct       = limit > 0 ? Math.min((balance / limit) * 100, 100) : 0;
-  const available = Math.max(0, limit - balance);
-  const barColor  = pct > 80 ? Colors.gray400 : Colors.mint600;
-  const insight   = pct > 80 ? 'High utilization — consider replenishing soon'
-                  : pct > 40 ? 'Moderate — keep adding surplus to prep for your next dump'
-                  : pct > 0  ? 'Replenishing well — keep the surplus flowing'
-                  : 'HELOC fully replenished — ready to dump';
-
-  return (
-    <TouchableOpacity style={styles.utilCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.utilHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>HELOC UTILIZATION</Text>
-          {!hasLiveData && (
-            <Text style={styles.utilNote}>Estimated · link accounts for live data</Text>
-          )}
-        </View>
-        <Text style={styles.utilPct}>{pct.toFixed(0)}%</Text>
-      </View>
-
-      <View style={styles.utilAmountRow}>
-        <Text style={styles.utilDrawnAmt}>${fmt(balance)}</Text>
-        <Text style={styles.utilAmtSep}> drawn  ·  </Text>
-        <Text style={styles.utilAvailAmt}>${fmt(available)}</Text>
-        <Text style={styles.utilAmtSep}> available</Text>
-      </View>
-
-      <View style={styles.utilTrack}>
-        <View style={[styles.utilFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-      </View>
-
-      <View style={styles.utilRangeRow}>
-        <Text style={styles.utilRangeLabel}>$0</Text>
-        <Text style={styles.utilRangeLabel}>${fmt(limit)} limit</Text>
-      </View>
-
-      <View style={styles.utilFooterRow}>
-        <Ionicons name="information-circle-outline" size={13} color={Colors.textMuted} />
-        <Text style={styles.utilFooterText}>{insight}</Text>
-        <Ionicons name="chevron-forward" size={14} color={Colors.gray300} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function NextDumpCard({
-  surplus, helocDrawn, dumpAmount, hasLiveData, onPress,
-}: {
-  surplus: number; helocDrawn: number; dumpAmount: number;
-  hasLiveData: boolean; onPress: () => void;
-}) {
-  const monthsUntil = surplus > 0 && helocDrawn > 0
-    ? Math.max(1, Math.ceil(helocDrawn / surplus))
-    : 0;
-  const readyNow  = monthsUntil === 0;
-  const dumpFmt   = '$' + fmt(Math.round(dumpAmount));
-  const replenPct = dumpAmount > 0 && helocDrawn <= dumpAmount
-    ? Math.round((1 - helocDrawn / dumpAmount) * 100)
-    : 0;
-
-  return (
-    <TouchableOpacity
-      style={[styles.dumpCard, readyNow && styles.dumpCardReady]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={styles.dumpHeader}>
-        <Text style={styles.cardEyebrow}>NEXT DUMP</Text>
-        <View style={[styles.dumpBadge, { backgroundColor: readyNow ? Colors.mint600 : Colors.mint100 }]}>
-          <Text style={[styles.dumpBadgeText, { color: readyNow ? Colors.white : Colors.mint700 }]}>
-            {readyNow ? 'Ready now' : `~${monthsUntil} mo`}
-          </Text>
-        </View>
-      </View>
-
-      {readyNow ? (
-        <>
-          <Text style={styles.dumpTitle}>Your HELOC is replenished.</Text>
-          <Text style={styles.dumpBody}>
-            Dump{' '}
-            <Text style={styles.dumpAmount}>{dumpFmt}</Text>
-            {' '}onto your mortgage principal to accelerate your payoff.
-          </Text>
-
-          <View style={styles.dumpImpactRow}>
-            <Ionicons name="flash" size={15} color={Colors.mint600} />
-            <Text style={styles.dumpImpactText}>
-              Reduces your principal by{' '}
-              <Text style={styles.dumpImpactBold}>{dumpFmt}</Text>
-              {' '}immediately
-            </Text>
-          </View>
-
-          <View style={styles.dumpActionBtn}>
-            <Text style={styles.dumpActionBtnText}>Execute dump</Text>
-            <Ionicons name="arrow-forward" size={15} color={Colors.white} />
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.dumpTitle}>Replenishing HELOC…</Text>
-          <Text style={styles.dumpBody}>
-            On track to dump{' '}
-            <Text style={styles.dumpAmount}>{dumpFmt}</Text>
-            {' '}in ~{monthsUntil} month{monthsUntil !== 1 ? 's' : ''}.
-          </Text>
-
-          <View style={styles.dumpReplenTrack}>
-            <View style={[styles.dumpReplenFill, { width: `${replenPct}%` as any }]} />
-          </View>
-          <View style={styles.dumpReplenRow}>
-            <Text style={styles.dumpReplenLabel}>{replenPct}% replenished</Text>
-            <Text style={styles.dumpReplenLabel}>{dumpFmt} target</Text>
-          </View>
-
-          <View style={styles.dumpCTARow}>
-            <Text style={styles.dumpCTAText}>View cycle details</Text>
-            <Ionicons name="arrow-forward" size={14} color={Colors.mint600} />
-          </View>
-        </>
-      )}
-
-      {!hasLiveData && (
-        <Text style={styles.utilNote}>Estimated · link accounts for live data</Text>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-function BudgetSpendingCard({
-  income, livingExpenses, mortgagePayment, helocInterest, surplus, onPress,
-}: {
-  income: number; livingExpenses: number; mortgagePayment: number;
-  helocInterest: number; surplus: number; onPress: () => void;
-}) {
-  const totalOut = livingExpenses + mortgagePayment + (helocInterest > 1 ? helocInterest : 0);
-  const commPct  = income > 0 ? Math.min((totalOut / income) * 100, 100) : 0;
-  const barColor = commPct > 95 ? Colors.gray400 : commPct > 80 ? Colors.mint400 : Colors.mint600;
-
-  return (
-    <TouchableOpacity style={styles.bfCard} onPress={onPress} activeOpacity={0.85}>
-      <Text style={styles.cardEyebrow}>MONTHLY CASH FLOW</Text>
-
-      <View style={styles.bfIncomeRow}>
-        <Text style={styles.bfIncomeLabel}>Monthly income</Text>
-        <Text style={styles.bfIncomePrimary}>${fmt(income)}</Text>
-      </View>
-
-      <View style={styles.bfDivider} />
-
-      <View style={styles.bfLineRow}>
-        <View style={styles.bfLineLeft}>
-          <Ionicons name="home-outline" size={14} color={Colors.textMuted} />
-          <Text style={styles.bfLineLabel}>Mortgage payment</Text>
-        </View>
-        <Text style={styles.bfLineAmt}>−${fmt(mortgagePayment)}</Text>
-      </View>
-      <View style={styles.bfLineRow}>
-        <View style={styles.bfLineLeft}>
-          <Ionicons name="cart-outline" size={14} color={Colors.textMuted} />
-          <Text style={styles.bfLineLabel}>Living expenses</Text>
-        </View>
-        <Text style={styles.bfLineAmt}>−${fmt(livingExpenses)}</Text>
-      </View>
-      {helocInterest > 1 && (
-        <View style={styles.bfLineRow}>
-          <View style={styles.bfLineLeft}>
-            <Ionicons name="card-outline" size={14} color={Colors.textMuted} />
-            <Text style={styles.bfLineLabel}>HELOC interest (est.)</Text>
-          </View>
-          <Text style={styles.bfLineAmt}>−${fmt(Math.round(helocInterest))}</Text>
-        </View>
-      )}
-
-      <View style={styles.bfDivider} />
-
-      <View style={styles.bfSurplusRow}>
-        <Text style={styles.bfSurplusLabel}>Monthly surplus</Text>
-        <Text style={[styles.bfSurplusAmt, { color: surplus >= 0 ? Colors.mint600 : Colors.gray400 }]}>
-          {surplus >= 0 ? '+' : ''}${fmt(surplus)}
-        </Text>
-      </View>
-
-      <View style={styles.bfAllocTrack}>
-        <View style={[styles.bfAllocFill, { width: `${commPct}%` as any, backgroundColor: barColor }]} />
-      </View>
-      <Text style={styles.bfAllocNote}>
-        {commPct.toFixed(0)}% of income committed  ·  {surplus >= 0
-          ? `$${fmt(surplus)}/mo free for HELOC`
-          : 'over budget — reduce expenses to cycle effectively'}
-      </Text>
-
-      <View style={styles.bfFooter}>
-        <Text style={styles.bfFooterText}>View budget details</Text>
-        <Ionicons name="chevron-forward" size={14} color={Colors.mint600} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function CreditScoreCard({
-  score, selfReported, onPress,
-}: {
-  score: number; selfReported: boolean; onPress: () => void;
-}) {
-  const band = score >= 800 ? { label: 'Exceptional', color: Colors.mint600 }
-             : score >= 740 ? { label: 'Very Good',   color: Colors.mint600 }
-             : score >= 670 ? { label: 'Good',         color: Colors.mint400 }
-             : score >= 580 ? { label: 'Fair',          color: Colors.gray400 }
-             :                 { label: 'Poor',          color: Colors.gray400 };
-
-  const scorePct = Math.min(Math.max(((score - 300) / 550) * 100, 0), 100);
-
-  return (
-    <TouchableOpacity style={styles.creditCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.creditHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardEyebrow}>CREDIT SCORE</Text>
-          <Text style={styles.utilNote}>
-            {selfReported
-              ? 'Self-reported · link accounts for live data'
-              : 'Example · enter your score in settings'}
-          </Text>
-        </View>
-        <View style={[styles.creditBandBadge, { backgroundColor: `${band.color}22` }]}>
-          <Text style={[styles.creditBandBadgeText, { color: band.color }]}>{band.label}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.creditScoreNum}>{score}</Text>
-
-      <View style={styles.creditTrack}>
-        <View style={[styles.creditFill, { width: `${scorePct}%` as any, backgroundColor: band.color }]} />
-      </View>
-      <View style={styles.creditRangeRow}>
-        <Text style={styles.creditRangeLabel}>300 · Poor</Text>
-        <Text style={styles.creditRangeLabel}>850 · Exceptional</Text>
-      </View>
-
-      <View style={styles.creditInsightRow}>
-        <Ionicons name="information-circle-outline" size={13} color={Colors.textMuted} />
-        <Text style={styles.creditInsightText}>
-          A higher score qualifies you for better HELOC rates and larger credit limits
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function RatesPlaceholderCard({ onPress }: { onPress: () => void }) {
-  return (
-    <View style={styles.ratesCard}>
-      <View style={styles.ratesHeader}>
-        <Text style={styles.cardEyebrow}>HELOC RATES</Text>
-        <View style={styles.ratesComingSoonBadge}>
-          <Text style={styles.ratesComingSoonText}>Coming soon</Text>
-        </View>
-      </View>
-
-      <View style={styles.ratesStatsRow}>
-        <View style={styles.ratesStatItem}>
-          <Text style={styles.ratesStatNum}>7 – 10%</Text>
-          <Text style={styles.ratesStatLabel}>typical variable range</Text>
-        </View>
-        <View style={styles.ratesStatDivider} />
-        <View style={styles.ratesStatItem}>
-          <Text style={styles.ratesStatNum}>10+ yr</Text>
-          <Text style={styles.ratesStatLabel}>draw period to look for</Text>
-        </View>
-      </View>
-
-      <Text style={styles.ratesBody}>
-        Live rate comparison and personalized lender matching are coming to HELOC Hero Pro.
-        For the cycling strategy, look for an interest-only HELOC with a 10+ year draw period.
-      </Text>
-
-      <TouchableOpacity style={styles.ratesCTARow} onPress={onPress} activeOpacity={0.85}>
-        <Ionicons name="school-outline" size={15} color={Colors.mint600} />
-        <Text style={styles.ratesCTAText}>Learn what to look for in a HELOC</Text>
-        <Ionicons name="chevron-forward" size={14} color={Colors.mint400} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ─── Utilities ─────────────────────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function firstBalance(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
@@ -880,720 +410,260 @@ function firstLimit(account: LinkedAccount | null): number | null {
   if (!account || account.accounts.length === 0) return null;
   return account.accounts[0].balances.limit ?? null;
 }
-function fmt(n: number) { return n.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+function pct(part: number, whole: number): number {
+  return whole > 0 ? Math.min(Math.max((part / whole) * 100, 0), 100) : 0;
+}
+function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function fmtPayoffDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 function fmtK(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(0)}k`;
-  return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (Math.abs(n) >= 1_000)     return `${Math.round(n / 1_000)}k`;
+  return Math.round(n).toLocaleString('en-US');
+}
+/** Near-term goal, so someone years from payoff still has something close by. */
+function nextMilestone(ownedPct: number): string {
+  const next = MILESTONES.find(m => ownedPct < m);
+  return next === undefined ? 'Final stretch' : `Next: ${next}%`;
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing[5], paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
-  headerRight:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  greeting: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
   devBadge: {
     backgroundColor: '#7C3AED',   // purple — unmistakably not production UI
-    borderRadius:    Radius.sm,
+    borderRadius: Radius.sm,
     paddingHorizontal: Spacing[2],
-    paddingVertical:   3,
+    paddingVertical: 3,
   },
-  devBadgeText: {
-    fontSize:      10,
-    fontWeight:    Typography.extrabold,
-    color:         '#fff',
-    letterSpacing: 1,
+  devBadgeText: { fontSize: 10, fontWeight: Typography.extrabold, color: '#fff', letterSpacing: 1 },
+  settingsBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
   },
-  greeting:  { fontSize: Typography.xl,  fontWeight: Typography.bold, color: Colors.textPrimary },
-  headerSub: { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
-  settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.gray100, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
+  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
 
-  payoffHeroCard: {
-    backgroundColor: Colors.mint50,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    borderWidth:     1,
-    borderColor:     Colors.mint200,
-    alignItems:      'center',
-    gap:             Spacing[1],
+  // ── 1. Payoff clock ────────────────────────────────────────────────────────
+  clockCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    paddingVertical: Spacing[6],
+    paddingHorizontal: Spacing[5],
+    alignItems: 'center',
+    gap: Spacing[1],
     ...Shadows.card,
   },
-  payoffHeroBadge: {
-    position:          'absolute',
-    top:               Spacing[3],
-    right:             Spacing[3],
-    backgroundColor:   Colors.gray100,
-    borderRadius:      Radius.full,
+  exampleBadge: {
+    position: 'absolute',
+    top: Spacing[3],
+    right: Spacing[3],
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
-    paddingVertical:   2,
+    paddingVertical: 2,
   },
-  payoffHeroBadgeText: { fontSize: Typography.xs, color: Colors.textMuted },
-  payoffHeroEyebrow: {
-    fontSize:      10,
-    fontWeight:    Typography.extrabold,
-    color:         Colors.mint400,
-    letterSpacing: 1.4,
-    marginBottom:  Spacing[1],
-  },
-  payoffHeroValue: {
-    fontSize:   Typography['3xl'],
+  exampleBadgeText: { fontSize: Typography.xs, color: Colors.textMuted },
+  eyebrow: {
+    fontSize: 10,
     fontWeight: Typography.extrabold,
-    color:      Colors.mint700,
+    color: Colors.textMuted,
+    letterSpacing: 1.4,
+    marginBottom: Spacing[1],
   },
-  payoffHeroDate: {
-    fontSize:   Typography.base,
-    fontWeight: Typography.semibold,
-    color:      Colors.mint600,
+  // The one accent element. Restrained in size — the hierarchy comes from
+  // everything around it being muted, not from this being large.
+  clockValue: {
+    fontSize: Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.mint600,
+    letterSpacing: -0.6,
   },
-  payoffHeroSavingsRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
-    marginTop:     Spacing[1],
-  },
-  payoffHeroSavingsSub: {
+  clockDate: { fontSize: Typography.sm, color: Colors.textSecondary },
+  clockConclusion: {
     fontSize: Typography.sm,
-    color:    Colors.mint600,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: Spacing[2],
+    maxWidth: 300,
+  },
+  clockDisclaimer: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
+
+  progressBlock: { width: '100%', marginTop: Spacing[4], gap: Spacing[2] },
+  progressTrack: {
+    height: 8,
+    backgroundColor: Colors.gray100,
+    borderRadius: 4,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  progressFill: { height: 8, borderRadius: 4, backgroundColor: Colors.mint600 },
+  // Milestone ticks read as gaps in the bar rather than as extra chrome.
+  milestone: {
+    position: 'absolute',
+    top: 0,
+    width: 2,
+    height: 8,
+    backgroundColor: Colors.surface,
+  },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressText: { fontSize: Typography.xs, color: Colors.textSecondary },
+  progressGoal: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  streakLine: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: -Spacing[2],
   },
 
-  scoreCard:     { borderRadius: Radius.lg, padding: Spacing[5], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...Shadows.glow },
-  scoreLeft:     { flex: 1 },
-  scoreLabel:    { fontSize: Typography.sm, color: 'rgba(255,255,255,0.8)', fontWeight: Typography.medium },
-  scoreEstimate: { fontSize: Typography.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2, marginBottom: 4 },
-  scoreNumber:   { fontSize: 52, fontWeight: Typography.extrabold, color: Colors.white, lineHeight: 60, marginTop: Spacing[1] },
-  scoreBadge:    { alignSelf: 'flex-start', borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: 3, marginTop: Spacing[2], backgroundColor: 'rgba(255,255,255,0.2)' },
-  scoreBadgeText:{ fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.white },
-  scoreGauge:    { marginLeft: Spacing[4] },
+  // ── Shared card furniture ──────────────────────────────────────────────────
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[3],
+  },
+  cardTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  cardStatus: { fontSize: Typography.xs, color: Colors.textMuted },
+  cardConclusion: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  estimateNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
 
-  upgradeBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1, borderColor: Colors.mint200 },
-  upgradeText:   { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
-  upgradeLink:   { color: Colors.mint600, fontWeight: Typography.semibold, fontSize: Typography.sm },
+  // ── 2. This cycle ──────────────────────────────────────────────────────────
+  utilTrack: {
+    height: 8,
+    backgroundColor: Colors.gray100,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: Spacing[3],
+  },
+  utilFill: { height: 8, borderRadius: 4, backgroundColor: Colors.gray400 },
 
-  statsRow:  { flexDirection: 'row', gap: Spacing[3] },
-  statCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[3], gap: Spacing[2], alignItems: 'flex-start' },
-  statIcon:  { width: 32, height: 32, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
-  statLabel: { fontSize: Typography.xs, color: Colors.textMuted },
+  // ── 3. Your position ───────────────────────────────────────────────────────
+  positionRow: { flexDirection: 'row', gap: Spacing[3] },
+  positionStat: { flex: 1, gap: 2 },
+  positionValue: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  positionLabel: { fontSize: Typography.xs, color: Colors.textMuted },
+  positionFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing[4],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  positionSurplus: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  // Negative numbers use muted grey, never red.
+  positionSurplusNeg: { color: Colors.gray400 },
 
-  linkAccountsCta:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.mint200, borderStyle: 'dashed', ...Shadows.card },
-  linkAccountsIcon: { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: Colors.mint50, alignItems: 'center', justifyContent: 'center' },
-  linkAccountsTitle:{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  linkAccountsSub:  { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  linkCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
+    ...Shadows.card,
+  },
+  linkIcon: {
+    width: 44, height: 44, borderRadius: Radius.lg,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  linkTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  linkSub: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
 
-  cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary, marginBottom: Spacing[4] },
+  // ── 4. Readiness score ─────────────────────────────────────────────────────
+  scoreInline: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
+  scoreOutOf: { fontSize: Typography.xs, fontWeight: Typography.regular, color: Colors.textMuted },
+  scoreBars: { marginTop: Spacing[4], gap: Spacing[3] },
+  scoreBarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  scoreBarLabel: { width: 118, fontSize: Typography.xs, color: Colors.textSecondary },
+  scoreBarTrack: { flex: 1, height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
+  scoreBarFill: { height: 6, borderRadius: 3, backgroundColor: Colors.gray400 },
+  scoreBarValue: {
+    width: 40, textAlign: 'right',
+    fontSize: Typography.xs, color: Colors.textMuted,
+  },
 
-  snapshotRow:    { flexDirection: 'row', marginBottom: Spacing[4] },
-  snapshotDivider:{ width: 1, backgroundColor: Colors.gray100, marginHorizontal: Spacing[2] },
-  snapshotStat:   { flex: 1, alignItems: 'center', gap: 3 },
-  snapshotValue:  { fontSize: Typography.lg, fontWeight: Typography.bold },
-  snapshotLabel:  { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.medium },
-  snapshotSub:    { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
-
-  budgetSection: { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing[4], gap: Spacing[2] },
-  budgetHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  budgetLabel:   { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  budgetNumbers: { fontSize: Typography.sm },
-  budgetSpent:   { color: Colors.textPrimary, fontWeight: Typography.semibold },
-  budgetOf:      { color: Colors.textMuted },
-  budgetTrack:   { height: 8, backgroundColor: Colors.gray100, borderRadius: 4 },
-  budgetFill:    { height: 8, borderRadius: 4 },
-  budgetNote:    { fontSize: Typography.xs, color: Colors.textMuted },
-
-  projectionCard:       { gap: Spacing[3] },
-  projectionHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  exampleBadge:         { backgroundColor: Colors.gray100, borderRadius: Radius.full, paddingHorizontal: Spacing[3], paddingVertical: 2 },
-  exampleBadgeText:     { fontSize: Typography.xs, color: Colors.textMuted },
-  projectionRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: Spacing[3] },
-  projectionItem:       { alignItems: 'center', gap: Spacing[1] },
-  projectionValue:      { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  projectionValueAccel: { color: Colors.mint600 },
-  projectionLabel:      { fontSize: Typography.xs, color: Colors.textMuted },
-  projectionDivider:    { paddingHorizontal: Spacing[3] },
-  savingsBanner:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: Colors.mint50, borderRadius: Radius.md, padding: Spacing[3] },
-  savingsBannerText:    { fontSize: Typography.sm, color: Colors.mint700, flex: 1, lineHeight: 18 },
-  savingsBannerBold:    { fontWeight: Typography.bold },
-
-  payoffProgress:       { borderTopWidth: 1, borderTopColor: Colors.gray100, paddingTop: Spacing[3], gap: Spacing[2] },
-  payoffProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  payoffProgressLabel:  { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  payoffProgressPct:    { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint600 },
-  payoffTrack:          { height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
-  payoffFill:           { height: 6, borderRadius: 3, backgroundColor: Colors.mint600 },
-  payoffSub:            { fontSize: Typography.xs, color: Colors.textMuted },
-  helocMilestone: {
+  upgradeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
     backgroundColor: Colors.mint50,
-    borderRadius: Radius.md,
-    padding: Spacing[3],
-    marginTop: Spacing[3],
-    borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderRadius: Radius.lg,
+    padding: Spacing[4],
   },
-  helocMilestoneIcon: {
-    width: 32,
-    height: 32,
+  upgradeText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 18 },
+
+  automationRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
+    paddingVertical: Spacing[2],
+  },
+  automationDot: { width: 8, height: 8, borderRadius: 4 },
+  automationLabel: {
+    fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary,
+  },
+  automationSub: { fontSize: Typography.xs, color: Colors.textMuted },
+  automationStatus: { fontSize: Typography.xs, color: Colors.textMuted },
+  manageBtn: { paddingTop: Spacing[3], minHeight: 44, justifyContent: 'center' },
+  manageText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
+
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[4],
+    minHeight: 44,
+  },
+  stepText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+
+  // ── 5. Pinned primary action ───────────────────────────────────────────────
+  footer: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[3],
+    backgroundColor: Colors.surface,
+  },
+  primaryBtn: {
+    backgroundColor: Colors.mint600,
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint100,
+    paddingVertical: Spacing[4],
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  helocMilestoneTitle: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.mint700,
-  },
-  helocMilestoneSub: { fontSize: Typography.xs, color: Colors.mint600 },
-  streakStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.mint50,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2] + 2,
-    borderWidth: 1,
-    borderColor: Colors.mint200,
+    minHeight: 44,
   },
-  streakText: { fontSize: Typography.sm, color: Colors.mint700, fontWeight: Typography.medium },
-
-  scoreBarRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3], borderBottomWidth: 1, borderBottomColor: Colors.gray100 },
-  scoreBarLabel: { width: 120, fontSize: Typography.sm, color: Colors.textSecondary },
-  scoreBarTrack: { flex: 1, height: 6, backgroundColor: Colors.gray100, borderRadius: 3 },
-  scoreBarFill:  { height: 6, borderRadius: 3 },
-  scoreBarValue: { width: 36, textAlign: 'right', fontSize: Typography.xs, fontWeight: Typography.medium, color: Colors.textMuted },
-  mteRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing[3] },
-  mteLabel:      { fontSize: Typography.sm, color: Colors.textSecondary },
-  mteValue:      { fontSize: Typography.sm, fontWeight: Typography.bold },
-
-  automationCard:       { gap: Spacing[3] },
-  automationRow:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[2] },
-  automationDot:        { width: 10, height: 10, borderRadius: 5 },
-  automationLabel:      { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  automationSub:        { fontSize: Typography.xs, color: Colors.textMuted },
-  automationStatus:     { fontSize: Typography.sm, fontWeight: Typography.medium },
-  automationManageBtn:  { paddingTop: Spacing[2] },
-  automationManageText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
-
-  quickActionsRow:  { flexDirection: 'row', gap: Spacing[3] },
-  quickAction:      { flex: 1, alignItems: 'center', gap: Spacing[2] },
-  quickActionIcon:  { width: 52, height: 52, borderRadius: Radius.lg, backgroundColor: Colors.mint50, borderWidth: 1, borderColor: Colors.mint200, alignItems: 'center', justifyContent: 'center' },
-  quickActionLabel: { fontSize: Typography.xs, color: Colors.textSecondary, textAlign: 'center' },
-
-  // ── Shared eyebrow ──────────────────────────────────────────────────────────
-  cardEyebrow: {
-    fontSize:      10,
-    fontWeight:    Typography.extrabold,
-    color:         Colors.mint400,
-    letterSpacing: 1.4,
-    marginBottom:  Spacing[1],
-  },
-
-  // ── Interest Saved Hero card ────────────────────────────────────────────────
-  interestCard: {
-    backgroundColor: Colors.mint50,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[6],
-    borderWidth:     1,
-    borderColor:     Colors.mint200,
-    gap:             Spacing[4],
-    ...Shadows.card,
-  },
-  interestCardHot: {
-    borderRadius: Radius.xl,
-    padding:      Spacing[6],
-    gap:          Spacing[2],
-    ...Shadows.glow,
-  },
-  interestHotBadge: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           Spacing[1] + 2,
-  },
-  interestHotEyebrow: {
-    fontSize:      10,
-    fontWeight:    Typography.extrabold,
-    color:         'rgba(255,255,255,0.75)',
-    letterSpacing: 1.4,
-  },
-  interestHotNum: {
-    fontSize:   56,
-    fontWeight: Typography.extrabold,
-    color:      Colors.white,
-    lineHeight: 64,
-    marginTop:  Spacing[1],
-  },
-  interestHotSubRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           Spacing[1] + 2,
-    marginTop:     Spacing[1],
-  },
-  interestHotSub: {
-    fontSize:   Typography.sm,
-    color:      'rgba(255,255,255,0.85)',
-    fontWeight: Typography.medium,
-  },
-  interestColdStats: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           Spacing[3],
-  },
-  interestColdStat: {
-    flex:       1,
-    alignItems: 'center',
-    gap:        Spacing[1],
-  },
-  interestColdStatDivider: {
-    width:           1,
-    height:          44,
-    backgroundColor: Colors.mint200,
-  },
-  interestColdStatNum: {
-    fontSize:   Typography['2xl'],
-    fontWeight: Typography.extrabold,
-    color:      Colors.mint700,
-    lineHeight: 30,
-  },
-  interestColdStatLabel: {
-    fontSize:  Typography.xs,
-    color:     Colors.textMuted,
-    textAlign: 'center',
-  },
-  interestColdBody: {
-    fontSize:   Typography.sm,
-    color:      Colors.textSecondary,
-    lineHeight: 21,
-  },
-  interestCTA: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'center',
-    backgroundColor: Colors.mint600,
-    borderRadius:    Radius.md,
-    paddingVertical: Spacing[4],
-    gap:             Spacing[2],
-    ...Shadows.glow,
-  },
-  interestCTAText: {
-    color:      Colors.white,
-    fontWeight: Typography.semibold,
-    fontSize:   Typography.base,
-  },
-
-  // ── HELOC Utilization card ──────────────────────────────────────────────────
-  utilCard: {
-    backgroundColor: Colors.surface,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    gap:             Spacing[3],
-    ...Shadows.card,
-  },
-  utilHeader: { flexDirection: 'row', alignItems: 'flex-start' },
-  utilPct: {
-    fontSize:   Typography['3xl'],
-    fontWeight: Typography.extrabold,
-    color:      Colors.mint600,
-    lineHeight: 38,
-  },
-  utilAmountRow: {
-    flexDirection: 'row',
-    alignItems:    'baseline',
-    flexWrap:      'wrap',
-  },
-  utilDrawnAmt: {
-    fontSize:   Typography.xl,
-    fontWeight: Typography.bold,
-    color:      Colors.textPrimary,
-  },
-  utilAmtSep: {
+  primaryBtnText: {
+    color: Colors.white,
     fontSize: Typography.base,
-    color:    Colors.textMuted,
-  },
-  utilAvailAmt: {
-    fontSize:   Typography.xl,
-    fontWeight: Typography.bold,
-    color:      Colors.mint600,
-  },
-  utilNote: {
-    fontSize:  Typography.xs,
-    color:     Colors.textMuted,
-    marginTop: 2,
-  },
-  utilTrack: {
-    height:          14,
-    backgroundColor: Colors.gray100,
-    borderRadius:    7,
-    overflow:        'hidden',
-  },
-  utilFill: {
-    height:       14,
-    borderRadius: 7,
-  },
-  utilRangeRow: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    marginTop:      -Spacing[1],
-  },
-  utilRangeLabel: {
-    fontSize: Typography.xs,
-    color:    Colors.textMuted,
-  },
-  utilFooterRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            Spacing[1] + 2,
-    paddingTop:     Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  utilFooterText: {
-    flex:     1,
-    fontSize: Typography.sm,
-    color:    Colors.textSecondary,
-  },
-
-  // ── Next Dump card ──────────────────────────────────────────────────────────
-  dumpCard: {
-    backgroundColor: Colors.surface,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    gap:             Spacing[3],
-    borderWidth:     1.5,
-    borderColor:     Colors.mint200,
-    ...Shadows.card,
-  },
-  dumpCardReady: {
-    borderColor:     Colors.mint600,
-    backgroundColor: Colors.mint50,
-  },
-  dumpHeader: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-  },
-  dumpBadge: {
-    borderRadius:      Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical:   4,
-  },
-  dumpBadgeText: {
-    fontSize:   Typography.xs,
-    fontWeight: Typography.bold,
-  },
-  dumpTitle: {
-    fontSize:   Typography.base,
     fontWeight: Typography.semibold,
-    color:      Colors.textPrimary,
-  },
-  dumpAmount: {
-    color:      Colors.mint600,
-    fontWeight: Typography.bold,
-  },
-  dumpBody: {
-    fontSize:   Typography.sm,
-    color:      Colors.textSecondary,
-    lineHeight: 20,
-  },
-  dumpImpactRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             Spacing[2],
-    backgroundColor: Colors.mint100,
-    borderRadius:    Radius.md,
-    padding:         Spacing[3],
-  },
-  dumpImpactText: {
-    flex:       1,
-    fontSize:   Typography.sm,
-    color:      Colors.mint700,
-    lineHeight: 20,
-  },
-  dumpImpactBold: {
-    fontWeight: Typography.bold,
-    color:      Colors.mint700,
-  },
-  dumpActionBtn: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'center',
-    backgroundColor: Colors.mint600,
-    borderRadius:    Radius.md,
-    paddingVertical: Spacing[3] + 2,
-    gap:             Spacing[2],
-    ...Shadows.glow,
-  },
-  dumpActionBtnText: {
-    fontSize:   Typography.base,
-    fontWeight: Typography.semibold,
-    color:      Colors.white,
-  },
-  dumpReplenTrack: {
-    height:          10,
-    backgroundColor: Colors.gray100,
-    borderRadius:    5,
-    overflow:        'hidden',
-  },
-  dumpReplenFill: {
-    height:          10,
-    borderRadius:    5,
-    backgroundColor: Colors.mint400,
-  },
-  dumpReplenRow: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    marginTop:      -Spacing[1],
-  },
-  dumpReplenLabel: {
-    fontSize: Typography.xs,
-    color:    Colors.textMuted,
-  },
-  dumpCTARow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            Spacing[1],
-    paddingTop:     Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  dumpCTAText: {
-    fontSize:   Typography.sm,
-    fontWeight: Typography.semibold,
-    color:      Colors.mint600,
-  },
-
-  // ── Budget / Cash Flow card ──────────────────────────────────────────────────
-  bfCard: {
-    backgroundColor: Colors.surface,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    gap:             Spacing[3],
-    ...Shadows.card,
-  },
-  bfIncomeRow: {
-    flexDirection:  'row',
-    alignItems:     'baseline',
-    justifyContent: 'space-between',
-  },
-  bfIncomeLabel: {
-    fontSize:   Typography.sm,
-    color:      Colors.textMuted,
-    fontWeight: Typography.medium,
-  },
-  bfIncomePrimary: {
-    fontSize:   Typography['2xl'],
-    fontWeight: Typography.extrabold,
-    color:      Colors.textPrimary,
-  },
-  bfDivider: {
-    height:          1,
-    backgroundColor: Colors.gray100,
-  },
-  bfLineRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    paddingVertical: 3,
-  },
-  bfLineLeft: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           Spacing[2],
-    flex:          1,
-  },
-  bfLineLabel: {
-    fontSize: Typography.sm,
-    color:    Colors.textSecondary,
-  },
-  bfLineAmt: {
-    fontSize:   Typography.sm,
-    fontWeight: Typography.medium,
-    color:      Colors.textPrimary,
-  },
-  bfSurplusRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    paddingVertical: Spacing[1],
-  },
-  bfSurplusLabel: {
-    fontSize:   Typography.sm,
-    fontWeight: Typography.semibold,
-    color:      Colors.textPrimary,
-  },
-  bfSurplusAmt: {
-    fontSize:   Typography.xl,
-    fontWeight: Typography.extrabold,
-  },
-  bfAllocTrack: {
-    height:          10,
-    backgroundColor: Colors.gray100,
-    borderRadius:    5,
-    overflow:        'hidden',
-  },
-  bfAllocFill: {
-    height:       10,
-    borderRadius: 5,
-  },
-  bfAllocNote: {
-    fontSize:   Typography.xs,
-    color:      Colors.textMuted,
-    lineHeight: 18,
-  },
-  bfFooter: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'flex-end',
-    gap:            Spacing[1],
-    paddingTop:     Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  bfFooterText: {
-    fontSize:   Typography.sm,
-    fontWeight: Typography.medium,
-    color:      Colors.mint600,
-  },
-
-  // ── Credit Score card ──────────────────────────────────────────────────────
-  creditCard: {
-    backgroundColor: Colors.surface,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    gap:             Spacing[3],
-    ...Shadows.card,
-  },
-  creditHeader: {
-    flexDirection: 'row',
-    alignItems:    'flex-start',
-    gap:           Spacing[3],
-  },
-  creditBandBadge: {
-    borderRadius:      Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical:   4,
-  },
-  creditBandBadgeText: {
-    fontSize:   Typography.xs,
-    fontWeight: Typography.bold,
-  },
-  creditScoreNum: {
-    fontSize:   56,
-    fontWeight: Typography.extrabold,
-    color:      Colors.textPrimary,
-    lineHeight: 62,
-  },
-  creditTrack: {
-    height:          14,
-    backgroundColor: Colors.gray100,
-    borderRadius:    7,
-    overflow:        'hidden',
-  },
-  creditFill: {
-    height:       14,
-    borderRadius: 7,
-  },
-  creditRangeRow: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    marginTop:      -Spacing[1],
-  },
-  creditRangeLabel: {
-    fontSize: Typography.xs,
-    color:    Colors.textMuted,
-  },
-  creditInsightRow: {
-    flexDirection:  'row',
-    alignItems:     'flex-start',
-    gap:            Spacing[1] + 2,
-    paddingTop:     Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  creditInsightText: {
-    flex:       1,
-    fontSize:   Typography.sm,
-    color:      Colors.textSecondary,
-    lineHeight: 20,
-  },
-
-  // ── Rates Placeholder card ──────────────────────────────────────────────────
-  ratesCard: {
-    backgroundColor: Colors.surface,
-    borderRadius:    Radius.xl,
-    padding:         Spacing[5],
-    gap:             Spacing[4],
-    borderWidth:     1,
-    borderColor:     Colors.border,
-    ...Shadows.card,
-  },
-  ratesHeader: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-  },
-  ratesComingSoonBadge: {
-    backgroundColor:   Colors.gray100,
-    borderRadius:      Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical:   4,
-  },
-  ratesComingSoonText: {
-    fontSize:   Typography.xs,
-    fontWeight: Typography.medium,
-    color:      Colors.textMuted,
-  },
-  ratesStatsRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-  },
-  ratesStatItem: {
-    flex:       1,
-    alignItems: 'center',
-    gap:        Spacing[1],
-  },
-  ratesStatNum: {
-    fontSize:   Typography.xl,
-    fontWeight: Typography.extrabold,
-    color:      Colors.mint700,
-  },
-  ratesStatLabel: {
-    fontSize:  Typography.xs,
-    color:     Colors.textMuted,
-    textAlign: 'center',
-  },
-  ratesStatDivider: {
-    width:            1,
-    height:           40,
-    backgroundColor:  Colors.gray100,
-    marginHorizontal: Spacing[3],
-  },
-  ratesBody: {
-    fontSize:   Typography.sm,
-    color:      Colors.textSecondary,
-    lineHeight: 21,
-  },
-  ratesCTARow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            Spacing[2],
-    paddingTop:     Spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  ratesCTAText: {
-    flex:       1,
-    fontSize:   Typography.sm,
-    fontWeight: Typography.medium,
-    color:      Colors.mint600,
   },
 });
