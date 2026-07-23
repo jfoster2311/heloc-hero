@@ -35,9 +35,10 @@ function relativeTime(dateStr: string | null | undefined): string {
 function syncDotColor(dateStr: string | null | undefined): string {
   if (!dateStr) return Colors.mint400;
   const diffSeconds = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diffSeconds < 3600)  return Colors.mint600;  // < 1 hour: green
-  if (diffSeconds < 86400) return Colors.mint400;  // < 24 hours: amber
-  return Colors.gray400;                              // > 24 hours: red
+  // Monochrome green: freshness reads as saturation, never as amber or red.
+  if (diffSeconds < 3600)  return Colors.mint600;  // < 1 hour
+  if (diffSeconds < 86400) return Colors.mint400;  // < 24 hours
+  return Colors.gray400;                           // > 24 hours: stale
 }
 
 function firstBalance(account: LinkedAccount | null): number | null {
@@ -66,7 +67,10 @@ export default function AccountsScreen() {
   const totalLiabilities = liveMortgage + liveHeloc;
   const netWorth         = totalAssets - totalLiabilities;
   const hasBalanceSheet  = homeValue > 0 || liveMortgage > 0;
-  const assetPct         = totalAssets > 0 ? (totalAssets / (totalAssets + totalLiabilities)) * 100 : 50;
+  // 0 when there are no assets, not 50 — the balance sheet renders whenever a
+  // mortgage exists, so defaulting to half would draw an assets block for
+  // someone who has entered none.
+  const assetPct         = totalAssets > 0 ? (totalAssets / (totalAssets + totalLiabilities)) * 100 : 0;
 
   // Debt paydown: compare original onboarding balance vs live balance
   const originalMortgage = profile?.mortgage_balance ?? 0;

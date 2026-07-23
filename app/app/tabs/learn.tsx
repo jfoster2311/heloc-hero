@@ -25,21 +25,21 @@ The math works because HELOC interest accrues daily on the average daily balance
     id: 2,
     category: 'Strategy',
     title: 'Safe Sweep™ Explained',
-    body: `Safe Sweep™ is HELOC Hero's automatic cash management system. It watches your savings account balance and, when it rises above your set buffer amount, automatically moves the surplus into your HELOC.
+    body: `Safe Sweep™ works out how much cash is genuinely spare before you move anything into your HELOC. HELOC Hero does not move money — you make the transfer at your bank, and Safe Sweep™ tells you the amount.
 
 Formula: Sweep Amount = Available Balance − Buffer Target − Upcoming Bills
 
-The buffer ensures you always have cash on hand for unexpected expenses. The upcoming bills estimate protects against overdrafts. Only the true surplus gets swept.`,
+The buffer keeps cash on hand for unexpected expenses. The upcoming bills estimate guards against overdrafting yourself. Only the true surplus is suggested.`,
   },
   {
     id: 3,
     category: 'Strategy',
     title: 'Safe Dump™ Explained',
-    body: `Safe Dump™ handles the mortgage acceleration piece. Once enough HELOC credit has been freed up through Safe Sweeps, HELOC Hero automatically makes a lump-sum payment toward your mortgage principal.
+    body: `Safe Dump™ handles the mortgage acceleration piece. Once enough HELOC credit has been freed up, it calculates the lump sum to put toward your mortgage principal and shows you what that move costs and saves. You make the payment; HELOC Hero records it and updates your payoff.
 
 Formula: Dump Amount = min(Accumulated Sweep, HELOC Available Credit)
 
-This only triggers when your accumulated sweep balance reaches your minimum dump threshold — protecting you from over-leveraging your HELOC.`,
+It only suggests a dump once your accumulated sweep reaches your minimum threshold, so you are not repeatedly drawing your HELOC down to nothing.`,
   },
   {
     id: 4,
@@ -70,14 +70,16 @@ The strategy works best for people with stable income, controlled expenses, and 
 
 The process: apply with a lender → home appraisal → underwriting → close. Usually takes 2–6 weeks.
 
-HELOC Hero's marketplace shows you pre-qualified offers from multiple lenders based on your profile — no hard credit pull required to browse.`,
+What to look for, because the strategy depends on it: an interest-only draw period of at least 10 years. A HELOC that amortizes from day one, or whose draw period ends sooner, will not support cycling. Ask about the rate cap, the margin over prime, and any annual or early-closure fees.
+
+HELOC Hero does not broker HELOCs or receive offers on your behalf. Shop lenders yourself and compare on those terms.`,
   },
 ];
 
 const FAQ = [
   {
     q: 'Do I need a HELOC to use this app?',
-    a: 'No! The calculator and projections work without one. But the full strategy requires a HELOC. We can help you find and apply for one through our marketplace.',
+    a: 'No. The calculator and projections work without one. The full strategy does require a HELOC — see "How to Get a HELOC" above for what to look for. You apply directly with a lender; HELOC Hero is not a lender or a broker.',
   },
   {
     q: 'Is my banking data safe?',
@@ -85,7 +87,7 @@ const FAQ = [
   },
   {
     q: 'How much could I realistically save?',
-    a: 'It depends on your mortgage balance, interest rate, and monthly surplus. The typical HELOC Hero user saves 5–12 years and $40,000–$120,000 in interest. Run the calculator to see your specific numbers.',
+    a: 'It depends entirely on your mortgage balance, interest rate, and how much surplus you can consistently put toward it — the surplus matters most. Run the calculator for a projection from your own numbers. Those figures are estimates based on what you enter, not a guarantee, and we don\'t publish typical-user results.',
   },
   {
     q: 'What if my HELOC rate is higher than my mortgage?',
@@ -93,7 +95,7 @@ const FAQ = [
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes. Cancel anytime from Settings. Your data is yours — we can export it for you on request.',
+    a: 'Yes. Subscriptions are billed through your Apple ID, so you cancel in the App Store under Subscriptions — the same place you manage every other app. You can also delete your account and its data from Settings at any time.',
   },
 ];
 
