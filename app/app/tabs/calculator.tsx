@@ -18,15 +18,18 @@ import {
   View, Text, StyleSheet, ScrollView,
   TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
+import { TAB_BAR_CLEARANCE } from './_layout';
+import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
-import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
 import type { CalculatorInputs } from '../../lib/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -57,6 +60,7 @@ function money(n: number): string {
 
 export default function CalculatorScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile, tier } = useAuth();
   const { accounts } = useAccounts(profile?.id ?? null);
 
@@ -134,58 +138,57 @@ export default function CalculatorScreen() {
   const hasGain = !!projection && projection.monthsSaved > 0;
 
   return (
-    <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
+    <View style={CommonStyles.screenContainer}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* ── The billboard. Everything above the fold is the answer. ────── */}
-          <View style={styles.billboard}>
-            <Text style={styles.billboardLabel}>YOUR PROJECTED PAYOFF</Text>
+          <Hero
+            intensity={0.85}
+            topBar={<Text style={styles.topTitle}>Calculator</Text>}
+          >
+            <Text style={styles.heroEyebrow}>YOUR PROJECTED PAYOFF</Text>
 
             {status === 'ok' && projection ? (
               hasGain ? (
                 <>
-                  <Text style={styles.billboardHero}>
-                    {formatMonths(projection.acceleratedMonths)}
-                  </Text>
-                  <Text style={styles.billboardSub}>
+                  <HeroValue>{formatMonths(projection.acceleratedMonths)}</HeroValue>
+                  <HeroCaption>
                     instead of {formatMonths(projection.originalMonths)} on your current schedule
-                  </Text>
-                  <View style={styles.billboardMetaRow}>
-                    <Text style={styles.billboardMeta}>
+                  </HeroCaption>
+                  <View style={styles.heroMetaRow}>
+                    <Text style={styles.heroMeta}>
                       {formatMonths(projection.monthsSaved)} sooner
                     </Text>
-                    <Text style={styles.billboardMetaDot}>·</Text>
-                    <Text style={styles.billboardMeta}>
+                    <Text style={styles.heroMetaDot}>·</Text>
+                    <Text style={styles.heroMeta}>
                       ~{money(projection.interestSaved)} interest saved
                     </Text>
                   </View>
                 </>
               ) : (
                 <>
-                  <Text style={styles.billboardHero}>
-                    {formatMonths(projection.originalMonths)}
-                  </Text>
-                  <Text style={styles.billboardSub}>
+                  <HeroValue>{formatMonths(projection.originalMonths)}</HeroValue>
+                  <HeroCaption>
                     Cycling doesn&apos;t change your payoff at these numbers. Add monthly
                     surplus below — that&apos;s the fuel the strategy runs on.
-                  </Text>
+                  </HeroCaption>
                 </>
               )
             ) : (
               <>
-                <Text style={styles.billboardHero}>—</Text>
-                <Text style={styles.billboardSub}>
+                <HeroValue>—</HeroValue>
+                <HeroCaption>
                   {status === 'needs-balance'
                     ? 'Enter your remaining mortgage balance to see a projection.'
                     : 'That payment doesn’t cover the monthly interest, so the balance would never fall. Check the payment under Advanced.'}
-                </Text>
+                </HeroCaption>
               </>
             )}
 
@@ -193,15 +196,16 @@ export default function CalculatorScreen() {
                 overstates the remaining term — and so the saving — for anyone
                 part-way through a mortgage. Say so where the number is read,
                 not only in the Advanced hint. */}
-            <Text style={styles.billboardDisclaimer}>
+            <Text style={styles.heroDisclaimer}>
               {status === 'ok' && !paymentTouched
                 ? 'Assumes a 30-year schedule. Enter your actual monthly payment under Advanced for a figure based on your real term.'
                 : 'Projected estimate from the numbers below. Not a guarantee.'}
             </Text>
-          </View>
+          </Hero>
 
+          <View style={styles.content}>
           {/* ── Three inputs. Everything else is behind Advanced. ──────────── */}
-          <View style={CommonStyles.card}>
+          <Card>
             <NumericField
               label="Remaining balance"
               prefix="$"
@@ -224,10 +228,10 @@ export default function CalculatorScreen() {
               hint="What's left over each month after all expenses, including your mortgage payment"
               isLast
             />
-          </View>
+          </Card>
 
           {/* ── Advanced disclosure ────────────────────────────────────────── */}
-          <View style={CommonStyles.card}>
+          <Card>
             <TouchableOpacity
               style={styles.advancedHeader}
               onPress={toggleAdvanced}
@@ -272,11 +276,11 @@ export default function CalculatorScreen() {
                 />
               </View>
             )}
-          </View>
+          </Card>
 
           {/* ── Supporting detail, subordinate to the billboard ─────────────── */}
           {projection && hasGain && (
-            <View style={CommonStyles.card}>
+            <Card>
               <Text style={styles.sectionTitle}>How it gets there</Text>
 
               <BreakdownRow
@@ -300,7 +304,7 @@ export default function CalculatorScreen() {
                 })}
                 isLast
               />
-            </View>
+            </Card>
           )}
 
           {/* ── Contextual upgrade, shown against their own result ──────────── */}
@@ -337,9 +341,10 @@ export default function CalculatorScreen() {
             Estimates only, based on the values above. Not financial advice, and not a lender.
             Results vary with rates, spending, and how consistently the strategy is followed.
           </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -450,51 +455,34 @@ function BreakdownRow({ label, value, isLast }: {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
+  content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
 
-  // ── Billboard ─────────────────────────────────────────────────────────────
-  billboard: {
-    alignItems: 'center',
-    paddingTop: Spacing[6],
-    paddingBottom: Spacing[5],
-    paddingHorizontal: Spacing[4],
-    gap: Spacing[1],
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  topTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: OnDark.secondary,
+    marginBottom: Spacing[5],
   },
-  billboardLabel: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.bold,
-    color: Colors.textMuted,
-    letterSpacing: 1.2,
-    marginBottom: Spacing[1],
-  },
-  // The one accent element on the screen.
-  billboardHero: {
-    fontSize: Typography['4xl'],
+  heroEyebrow: {
+    fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
-    letterSpacing: -0.8,
-    textAlign: 'center',
+    color: OnDark.muted,
+    letterSpacing: 1.4,
   },
-  billboardSub: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 320,
-  },
-  billboardMetaRow: {
+  heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
     marginTop: Spacing[2],
   },
-  billboardMeta: { fontSize: Typography.sm, color: Colors.textPrimary, fontWeight: Typography.semibold },
-  billboardMetaDot: { fontSize: Typography.sm, color: Colors.textMuted },
-  billboardDisclaimer: {
+  heroMeta: { fontSize: Typography.sm, color: OnDark.primary, fontWeight: Typography.semibold },
+  heroMetaDot: { fontSize: Typography.sm, color: OnDark.faint },
+  heroDisclaimer: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: Spacing[2],
+    color: OnDark.faint,
+    lineHeight: 17,
+    marginTop: Spacing[3],
   },
 
   sectionTitle: {

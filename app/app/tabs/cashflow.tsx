@@ -13,20 +13,24 @@
 //   · live HELOC/mortgage balances when accounts are linked
 //   · dumps they have logged, from automation_log
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
+import { TAB_BAR_CLEARANCE } from './_layout';
+import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import { Card, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { hapticLight } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
 import { resolveHelocRate } from '../../lib/helocTerms';
 import type { LinkedAccount } from '../../lib/types';
 
 export default function CashFlowScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const { refreshing, refresh, helocAccount } = useAccounts(profile?.id ?? null);
   const {
@@ -55,21 +59,41 @@ export default function CashFlowScreen() {
   const maxBucket = Math.max(...buckets.map(b => b.total), 0);
 
   return (
-    <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Cash flow</Text>
-      </View>
-
+    <View style={CommonStyles.screenContainer}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.mint600} />
         }
       >
+        <Hero
+          intensity={0.75}
+          topBar={<Text style={styles.topTitle}>Cash flow</Text>}
+        >
+          <Text style={styles.heroEyebrow}>
+            {surplus >= 0 ? 'AVAILABLE TO CYCLE EACH MONTH' : 'SHORT EACH MONTH'}
+          </Text>
+          <HeroValue>
+            {hasFigures ? `${surplus < 0 ? '−' : ''}$${fmt(Math.abs(surplus))}` : '—'}
+          </HeroValue>
+          <HeroCaption>
+            {hasFigures
+              ? `${committedPct.toFixed(0)}% of your income is already committed` +
+                (surplus < 0 ? ' — there is nothing left to cycle' : '')
+              : 'Add your income and expenses to see what the strategy has to work with'}
+          </HeroCaption>
+          {hasFigures && (
+            <View style={{ marginTop: Spacing[4] }}>
+              <Meter value={committedPct / 100} tone="muted" onDark height={8} />
+            </View>
+          )}
+        </Hero>
+
+        <View style={styles.content}>
         {/* ── Monthly cash flow, from the user's own figures ──────────────── */}
         {hasFigures ? (
-          <View style={CommonStyles.card}>
+          <Card>
             <Text style={styles.cardTitle}>Every month</Text>
 
             <Line label="Income" amount={income} />
@@ -93,38 +117,37 @@ export default function CashFlowScreen() {
               </Text>
             </View>
 
-            <View style={styles.track}>
-              <View style={[styles.trackFill, { width: `${committedPct}%` }]} />
-            </View>
-            <Text style={styles.trackNote}>
-              {committedPct.toFixed(0)}% of income committed
-              {surplus < 0 ? ' — expenses exceed income, so there is nothing to cycle' : ''}
-            </Text>
-
             <Text style={styles.sourceNote}>
               Based on the figures you entered
               {helocInterest > 1 ? ', plus interest estimated from your linked HELOC balance' : ''}.
-              Update them in Settings.
+              Update them under Assumptions.
             </Text>
-          </View>
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => router.push('/modals/assumptions' as never)}
+              accessibilityLabel="Edit your figures"
+            >
+              <Text style={styles.emptyBtnText}>Edit these figures</Text>
+            </TouchableOpacity>
+          </Card>
         ) : (
-          <View style={CommonStyles.card}>
+          <Card>
             <Text style={styles.cardTitle}>Every month</Text>
             <Text style={styles.emptyBody}>
               Add your income and expenses to see what you have available to cycle.
             </Text>
             <TouchableOpacity
               style={styles.emptyBtn}
-              onPress={() => router.push('/modals/settings')}
+              onPress={() => router.push('/modals/assumptions' as never)}
               accessibilityLabel="Add your figures"
             >
               <Text style={styles.emptyBtnText}>Add your figures</Text>
             </TouchableOpacity>
-          </View>
+          </Card>
         )}
 
         {/* ── Cycle history — real logged dumps ───────────────────────────── */}
-        <View style={CommonStyles.card}>
+        <Card>
           <View style={styles.cardHead}>
             <Text style={styles.cardTitle}>Your dumps</Text>
             {count > 0 && (
@@ -193,7 +216,7 @@ export default function CashFlowScreen() {
               </Text>
             </>
           )}
-        </View>
+        </Card>
 
         {/* ── What this screen deliberately does not show ─────────────────── */}
         <View style={styles.noteCard}>
@@ -204,8 +227,9 @@ export default function CashFlowScreen() {
             app will serve you better.
           </Text>
         </View>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -234,13 +258,19 @@ function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
+  topTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: OnDark.secondary,
+    marginBottom: Spacing[5],
   },
-  headerTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: Typography.extrabold,
+    color: OnDark.muted,
+    letterSpacing: 1.4,
+  },
+  content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
 
   cardHead: {
     flexDirection: 'row',
@@ -288,9 +318,6 @@ const styles = StyleSheet.create({
   // Negative numbers use muted grey, never red.
   surplusNegative: { color: Colors.gray400 },
 
-  track: { height: 8, backgroundColor: Colors.gray100, borderRadius: 4, overflow: 'hidden' },
-  trackFill: { height: 8, borderRadius: 4, backgroundColor: Colors.gray400 },
-  trackNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
   sourceNote: {
     fontSize: Typography.xs,
     color: Colors.textMuted,
@@ -333,7 +360,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray50,
     borderRadius: Radius.lg,
     padding: Spacing[4],
-    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
   },
   noteText: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
 });

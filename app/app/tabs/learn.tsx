@@ -3,10 +3,13 @@ import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Colors, Typography, Spacing, Radius, Shadows, CommonStyles } from '../../lib/theme';
+import { TAB_BAR_CLEARANCE } from './_layout';
+import Hero, { HeroCaption } from '../../components/ui/Hero';
+import { SectionLabel } from '../../components/ui/primitives';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
 
 const ARTICLES = [
   {
@@ -100,18 +103,26 @@ const FAQ = [
 ];
 
 export default function LearnScreen() {
+  const insets = useSafeAreaInsets();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
 
   return (
-    <SafeAreaView style={CommonStyles.screenContainer} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Learn</Text>
-      </View>
+    <View style={CommonStyles.screenContainer}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Hero intensity={0.6}>
+          <Text style={styles.heroTitle}>Learn</Text>
+          <HeroCaption>
+            How the strategy works, what it costs, and who it is wrong for.
+          </HeroCaption>
+        </Hero>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
         {/* Articles */}
-        <Text style={styles.sectionTitle}>Strategy Guides</Text>
+        <SectionLabel>STRATEGY GUIDES</SectionLabel>
         {ARTICLES.map(article => (
           <TouchableOpacity
             key={article.id}
@@ -139,9 +150,7 @@ export default function LearnScreen() {
         ))}
 
         {/* FAQ */}
-        <Text style={[styles.sectionTitle, { marginTop: Spacing[4] }]}>
-          Frequently Asked Questions
-        </Text>
+        <SectionLabel>FREQUENTLY ASKED</SectionLabel>
         {FAQ.map((item, i) => (
           <TouchableOpacity
             key={i}
@@ -171,27 +180,20 @@ export default function LearnScreen() {
             licensed financial advisor before making significant financial decisions.
           </Text>
         </View>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  heroTitle: {
+    fontSize: Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color: OnDark.primary,
+    letterSpacing: -0.6,
   },
-  headerTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  content: { padding: Spacing[4], gap: Spacing[3], paddingBottom: Spacing[10] },
-  sectionTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing[1],
-  },
+  content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
   articleCard: { gap: Spacing[2] },
   articleHeader: {
     flexDirection: 'row',

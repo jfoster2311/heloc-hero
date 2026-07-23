@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
@@ -30,6 +31,8 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
   const router = useRouter();
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      {/* Sheets are light, and they slide over tabs that set this to light. */}
+      <StatusBar style="dark" />
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.close} accessibilityLabel="Close">

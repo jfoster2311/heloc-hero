@@ -12,6 +12,7 @@
 // each inventing their own bottom padding.
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
@@ -25,7 +26,11 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
 
   return (
-    <Tabs
+    <>
+      {/* Every tab opens on the aurora, so the clock and battery have to be
+          light. Modals re-declare it as dark when they slide over the top. */}
+      <StatusBar style="light" />
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor:   Colors.mint600,
@@ -97,7 +102,8 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </>
   );
 }
 
