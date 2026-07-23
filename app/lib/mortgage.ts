@@ -197,8 +197,22 @@ export function deriveBaseline(
   return { payoffDate, monthsRemaining, percentComplete, source };
 }
 
+/**
+ * Parses a date, treating a bare `YYYY-MM-DD` as LOCAL rather than UTC.
+ *
+ * `new Date('2024-03-01')` is UTC midnight, which renders as 29 February for
+ * anyone west of Greenwich. Every date in this app — draw-period end,
+ * origination, maturity, home-value as-of — is a calendar date with no time of
+ * day attached, so showing the previous month is simply wrong, and wrong in a
+ * way that looks like the app got the user's own terms muddled.
+ */
 export function parseDate(s: string | null | undefined): Date | null {
   if (!s) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (dateOnly) {
+    const d = new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }

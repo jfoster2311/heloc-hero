@@ -37,7 +37,7 @@ import {
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
-import type { Sourced } from '../../lib/mortgage';
+import { parseDate, type Sourced } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 
 export default function AccountsScreen() {
@@ -93,9 +93,8 @@ export default function AccountsScreen() {
     }
   }
 
-  const drawEndLabel = profile?.heloc_draw_end_date
-    ? fmtMonthYear(new Date(profile.heloc_draw_end_date))
-    : null;
+  const drawEnd = parseDate(profile?.heloc_draw_end_date);
+  const drawEndLabel = drawEnd ? fmtMonthYear(drawEnd) : null;
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
 
   return (
@@ -316,7 +315,9 @@ export default function AccountsScreen() {
                 ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
                 : 'you entered this'} />
             <DataRow label="Value as of"
-              value={f.homeValueAsOf ? dateStr(f.homeValueAsOf.toISOString()) : '—'} />
+              value={f.homeValueAsOf
+                ? f.homeValueAsOf.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                : '—'} />
             <DataRow label="Mortgage balance" value={f.mortgageBalance !== null ? money(f.mortgageBalance) : '—'} />
             <DataRow label="HELOC drawn" value={f.helocDrawn !== null ? money(f.helocDrawn) : '—'} />
             <DataRow label="Estimated equity" value={f.equity !== null ? money(f.equity) : '—'} />
@@ -597,8 +598,10 @@ function months(m: number) {
   return m % 12 === 0 ? `${m / 12} years` : `${m} months`;
 }
 function dateStr(s: string) {
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? '—'
+  // parseDate, not new Date: a bare YYYY-MM-DD is a calendar date, and reading
+  // it as UTC shows the previous day for most US users.
+  const d = parseDate(s);
+  return d === null ? '—'
     : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function fmtMonthYear(d: Date) {

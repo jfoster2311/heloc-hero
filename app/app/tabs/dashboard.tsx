@@ -229,9 +229,10 @@ export default function DashboardScreen() {
               <View style={styles.bufferRow}>
                 <Ionicons name="water-outline" size={15} color={Colors.textSecondary} />
                 <Text style={styles.bufferText}>
-                  Buffer after the move: {f.safeToMove.bufferMonthsAfter.toFixed(1)} months of expenses
-                  {f.safeToMove.bufferMonthsBefore !== null &&
-                    ` (from ${f.safeToMove.bufferMonthsBefore.toFixed(1)})`}
+                  {bufferSentence(
+                    f.safeToMove.bufferMonthsBefore,
+                    f.safeToMove.bufferMonthsAfter,
+                  )}
                 </Text>
               </View>
             )}
@@ -418,6 +419,22 @@ function limitSourceLabel(s: 'plaid_limit' | 'derived' | 'user' | 'unknown'): st
     : 'not set';
 }
 function clamp(min: number, n: number, max: number) { return Math.min(max, Math.max(min, n)); }
+
+/**
+ * The liquidity line.
+ *
+ * On HOLD there is no move, so before and after are the same figure — printing
+ * "2.4 months (from 2.4)" reads as a rounding bug and undermines the one number
+ * on this card whose job is to be trusted.
+ */
+function bufferSentence(before: number | null, after: number): string {
+  const moved = before !== null && Math.abs(before - after) >= 0.05;
+  if (!moved) {
+    return `Cash plus available credit covers ${after.toFixed(1)} months of expenses.`;
+  }
+  return `Buffer after the move: ${after.toFixed(1)} months of expenses, ` +
+         `down from ${before!.toFixed(1)}.`;
+}
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

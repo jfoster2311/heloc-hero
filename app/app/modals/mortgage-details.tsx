@@ -18,6 +18,7 @@ import FormField from '../../components/ui/FormField';
 import { Card, Chip, DataRow } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
+import { parseDate } from '../../lib/mortgage';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticSuccess } from '../../lib/haptics';
 import { Colors, Typography, Spacing } from '../../lib/theme';
@@ -99,7 +100,7 @@ export default function MortgageDetailsModal() {
           <DataRow label="Interest rate"
             value={f.mortgage.rate.value !== null ? `${(f.mortgage.rate.value * 100).toFixed(3)}%` : '—'} />
           <DataRow label="Maturity"
-            value={f.mortgage.maturityDate.value ?? '—'} />
+            value={fmtDate(f.mortgage.maturityDate.value)} />
           <DataRow label="Next payment"
             value={f.mortgage.nextPayment.value !== null ? money(f.mortgage.nextPayment.value) : '—'}
             last />
@@ -188,6 +189,11 @@ export default function MortgageDetailsModal() {
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function money(n: number) { return `$${Math.round(n).toLocaleString('en-US')}`; }
+function fmtDate(s: string | null) {
+  const d = parseDate(s);
+  return d === null ? '—'
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 function monthOf(iso: string | null | undefined) {
   if (!iso) return '';
   const m = iso.split('-')[1];
