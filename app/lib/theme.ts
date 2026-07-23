@@ -112,6 +112,15 @@ export const Spacing = {
   16: 64,
 } as const;
 
+/**
+ * The tab bar floats over content rather than docking under it, so every
+ * scrolling tab has to reserve room for it. Lives here rather than in
+ * tabs/_layout so screens can import it without depending on a route module —
+ * expo-router reserves named exports on route files for its own use.
+ */
+export const TAB_BAR_HEIGHT = 64;
+export const TAB_BAR_CLEARANCE = TAB_BAR_HEIGHT + 24;
+
 export const Radius = {
   sm:   8,
   md:   12,

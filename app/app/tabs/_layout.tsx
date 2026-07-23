@@ -15,12 +15,7 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
-
-/** Height of the floating bar. Screens add their own safe-area inset on top. */
-export const TAB_BAR_HEIGHT = 64;
-/** What a scrolling tab needs at the bottom so content clears the bar. */
-export const TAB_BAR_CLEARANCE = TAB_BAR_HEIGHT + Spacing[6];
+import { Colors, Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();

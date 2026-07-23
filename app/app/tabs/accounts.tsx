@@ -19,7 +19,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TAB_BAR_CLEARANCE } from './_layout';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
   Card, CardHead, Chip, DataRow, Meter, SectionLabel, SourceNote,
@@ -37,7 +36,7 @@ import {
 } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import type { Sourced } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 

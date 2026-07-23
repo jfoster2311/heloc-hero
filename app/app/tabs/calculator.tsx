@@ -22,14 +22,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
-import { TAB_BAR_CLEARANCE } from './_layout';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import type { CalculatorInputs } from '../../lib/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {

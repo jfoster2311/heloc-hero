@@ -6,10 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { TAB_BAR_CLEARANCE } from './_layout';
 import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { SectionLabel } from '../../components/ui/primitives';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 
 const ARTICLES = [
   {

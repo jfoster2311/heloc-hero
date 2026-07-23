@@ -112,7 +112,7 @@ export default function OnboardingStep({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: Colors.background },
   progressTrack: {
     height: 3,
     backgroundColor: Colors.gray100,

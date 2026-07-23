@@ -17,14 +17,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { TAB_BAR_CLEARANCE } from './_layout';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { hapticLight } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles } from '../../lib/theme';
+import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { resolveHelocRate } from '../../lib/helocTerms';
 import type { LinkedAccount } from '../../lib/types';
 
