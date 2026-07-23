@@ -23,6 +23,13 @@ export function useAccounts(userId: string | null): AccountsState {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoRefreshed = useRef(false);
+  // A per-instance suffix so each mounted hook gets its OWN realtime topic.
+  // Several screens use this hook, and a modal (move-money) opens on top of a
+  // tab that is already subscribed — all with the same userId. A shared topic
+  // means the modal's .subscribe() rebinds callbacks onto the tab's already-
+  // joined channel, which Realtime rejects: "cannot add postgres_changes
+  // callbacks after subscribe()". A unique topic per instance avoids the clash.
+  const instanceId = useRef(Math.random().toString(36).slice(2)).current;
 
   const fetchLocal = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
@@ -88,7 +95,7 @@ export function useAccounts(userId: string | null): AccountsState {
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel(`accounts:${userId}`)
+      .channel(`accounts:${userId}:${instanceId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'linked_accounts', filter: `user_id=eq.${userId}` },
@@ -96,7 +103,7 @@ export function useAccounts(userId: string | null): AccountsState {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [userId, fetchLocal]);
+  }, [userId, fetchLocal, instanceId]);
 
   const mortgageAccount = accounts.find(a => a.account_type === 'mortgage') ?? null;
   const helocAccount    = accounts.find(a => a.account_type === 'home equity') ?? null;
