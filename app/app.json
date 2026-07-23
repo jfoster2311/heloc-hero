@@ -14,7 +14,11 @@
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.jfoster2311.helochwero"
+      "package": "com.jfoster2311.helochwero",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -23,7 +27,8 @@
         {
           "faceIDPermission": "Allows HELOC Hero to unlock the app with Face ID after it has been in the background."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "heloc-hero",
     "experiments": {
@@ -33,9 +38,11 @@
       "devAuthBypass": false,
       "supabaseUrl": "https://lpsqrjwlleewckucdlhz.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxwc3FyandsbGVld2NrdWNkbGh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODE1NjIsImV4cCI6MjA4NzU1NzU2Mn0.kE_R68zmF8dFCmYx8hRiqw82JRmjZGKB9LNR_aaNVGs",
+      "router": {},
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": "72310397-7768-40a9-96b1-399bbb94423e"
       }
-    }
+    },
+    "owner": "jfoster2311"
   }
 }
