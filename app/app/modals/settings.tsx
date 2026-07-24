@@ -283,6 +283,16 @@ export default function SettingsModal() {
               value={!!automation.safe_dump_enabled}
               onChange={v => handleReminderToggle({ safe_dump_enabled: v }, v)}
             />
+            {/* Not a toggle: a HELOC rate is variable and no bank reports it, so
+                once terms are entered we book a monthly "still correct?" nudge
+                on the same notification consent. Stated so it is not a surprise. */}
+            {notifStatus === 'granted' && (
+              <NoticeRow
+                icon="pricetag-outline"
+                label="Monthly terms check"
+                subtitle="Once your HELOC terms are set, we remind you monthly to confirm the rate is still current."
+              />
+            )}
             <SettingRow
               icon="shield-outline"
               label="What to leave behind"

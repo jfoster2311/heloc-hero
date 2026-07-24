@@ -1,16 +1,18 @@
-// app/tabs/accounts.tsx — where every number on the dashboard comes from.
+// app/tabs/accounts.tsx — the daily glance, not the terms ledger.
 //
-// Six sections, in the order a doubt arrives: what is connected and how fresh
-// it is, what the servicer says about the mortgage, what the user had to tell
-// us about the HELOC, what the home is worth, what the projection assumes, and
-// how to leave.
+// This screen used to render every figure the app holds — mortgage rate type,
+// maturity, escrow, HELOC index, margin, three separate fees — as read-only
+// rows a user was meant to scan every day. Almost none of it changes, almost
+// none of it is worth a daily look, and every one of those figures is already
+// editable inside a modal. The screen was duplicating the editors as a ledger.
 //
-// The through-line is provenance. This screen mixes servicer-reported figures,
-// bank balances, values the user typed months ago, and the app's own
-// arithmetic, and the difference between those is exactly what someone needs
-// before acting on a recommendation. So every value carries where it came
-// from, and freshness is displayed as a feature rather than as debug detail —
-// a stale balance is how a wrong recommendation gets made.
+// So it answers three questions now and hands off for the rest:
+//   1. What is my position?      → the hero: equity and combined LTV
+//   2. Is anything wrong/stale?  → Needs attention, the app's own watch feed
+//   3. What is connected?        → the account cards, freshness led
+// Everything a user typed once — mortgage, HELOC terms, home value, the
+// projection assumptions — collapses to one summary row that opens its editor.
+// The detail lives one tap down, in the modal that owns it, not on this page.
 import { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
@@ -21,32 +23,29 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
-  Card, CardHead, Chip, DataRow, Meter, SectionLabel, SourceNote,
-  EmptyState, LinkRow, Divider, Disclosure,
+  Card, Chip, DataRow, SectionLabel, SourceNote, EmptyState, LinkRow, Divider,
 } from '../../components/ui/primitives';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
+import WatchRow from '../../components/ui/WatchRow';
 import EquityCurve from '../../components/EquityCurve';
 import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
 import { invokeFunction } from '../../lib/supabase';
-import { formatMonths, computeEquitySeries } from '../../lib/projections';
+import { computeEquitySeries } from '../../lib/projections';
 import { daysSinceVerified } from '../../lib/helocTerms';
-import {
-  INTEREST_CALC_LABEL, INTEREST_CALC_EXPLAINER, HOME_VALUE_SOURCE_LABEL,
-  RATE_STRESS_STEPS_BPS, STALE_SYNC_HOURS,
-} from '../../lib/config';
+import { HOME_VALUE_SOURCE_LABEL, STALE_SYNC_HOURS } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
-import { parseDate, type Sourced } from '../../lib/mortgage';
+import { parseDate } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 
 export default function AccountsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { profile, tier, updateProfile } = useAuth();
+  const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
   const f = useFinancials();
   const [unlinking, setUnlinking] = useState<PlaidAccountType | null>(null);
@@ -121,8 +120,35 @@ export default function AccountsScreen() {
   }, [f.homeValue, f.mortgageBalance, f.mortgage.rate.value, f.payment, f.surplus, f.helocRate, f.helocLimit]);
 
   const drawEnd = parseDate(profile?.heloc_draw_end_date);
-  const drawEndLabel = drawEnd ? fmtMonthYear(drawEnd) : null;
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
+
+  // ── Setup summaries — one line each, the detail behind the editor ──────────
+  const mortgageValue = f.mortgageBalance !== null
+    ? `${money(f.mortgageBalance)}${f.mortgage.rate.value !== null ? ` · ${rate(f.mortgage.rate.value)}` : ''}`
+    : 'Add your mortgage';
+
+  const helocValue = (() => {
+    if (f.helocLimit === null && f.helocRateAssumed) return 'Add your HELOC terms';
+    const parts: string[] = [];
+    if (f.helocLimit !== null) parts.push(`${money(f.helocLimit)} limit`);
+    parts.push(f.helocRateAssumed ? 'rate not set' : rate(f.helocRate));
+    return parts.join(' · ');
+  })();
+
+  // The two strategy-critical unknowns, flagged inline so they are not a surprise
+  // in a projection. Amortizing defeats cycling outright; the interest-calc
+  // method decides whether cycling saves anything at all.
+  const helocFlag =
+    profile?.heloc_payment_type === 'amortizing'
+      ? 'Amortizing — cycling does not apply to this line'
+      : !profile?.heloc_interest_calc_method
+        ? 'Set how interest is charged — it decides whether cycling helps'
+        : undefined;
+
+  const homeValueLabel = f.homeValue !== null ? money(f.homeValue) : 'Add your home value';
+  const homeSub = f.homeValue !== null && profile?.home_value_source
+    ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
+    : undefined;
 
   return (
     <View style={CommonStyles.screenContainer}>
@@ -154,11 +180,6 @@ export default function AccountsScreen() {
         >
           <Text style={styles.heroEyebrow}>ESTIMATED HOME EQUITY</Text>
 
-          {/* Deferred while the linked balances land. Equity subtracts
-              `helocDrawn ?? 0`, so before they arrive it is overstated by the
-              entire drawn balance and the LTV beneath it is understated — the
-              headline figure of this screen, wrong in the flattering direction,
-              correcting itself a second later in front of the user. */}
           {f.loading ? (
             <SkeletonGroup label="Loading your home equity" style={styles.heroSkeleton}>
               <Skeleton onDark width={190} height={40} radius={Radius.sm} />
@@ -177,9 +198,6 @@ export default function AccountsScreen() {
             </>
           )}
 
-          {/* Forward only. See components/EquityCurve for why there is no
-              history here — the app stores two balance snapshots, not a series,
-              and a chart of the past would be a chart of nothing. */}
           {equitySeries && (
             <View style={{ marginTop: Spacing[5] }}>
               <EquityCurve
@@ -192,15 +210,33 @@ export default function AccountsScreen() {
         </Hero>
 
         <View style={styles.content}>
-          {/* ── 1. CONNECTED ACCOUNTS ──────────────────────────────────── */}
-          <SectionLabel>CONNECTED ACCOUNTS</SectionLabel>
+          {/* ── NEEDS ATTENTION ────────────────────────────────────────────
+              The app already ranks what is wrong or stale — prepayment penalty,
+              a rate to re-confirm, a draw period closing, spending drifting from
+              the estimate. It leads the screen when there is anything to say, so
+              the scattered inline warnings this page used to carry are gone. */}
+          {f.watchItems.length > 0 && (
+            <>
+              <SectionLabel>NEEDS ATTENTION</SectionLabel>
+              <Card>
+                {f.watchItems.map((item, i) => (
+                  <WatchRow
+                    key={item.kind}
+                    item={item}
+                    last={i === f.watchItems.length - 1}
+                    onPress={item.action ? () => { hapticLight(); router.push(item.action!.route as never); } : undefined}
+                  />
+                ))}
+              </Card>
+            </>
+          )}
 
-          {/* Three states, not two. "Loading", "we could not check" and "you
-              genuinely have none" were all collapsed into the empty state, so a
-              Pro user with three linked banks was told "Nothing connected yet"
-              on every cold load — and told the same thing, permanently, if the
-              read failed. Announcing that someone's accounts are gone is not a
-              default worth having. */}
+          {/* ── ACCOUNTS ───────────────────────────────────────────────────
+              Three states, not two: loading, "we could not check", and "you
+              genuinely have none" are all different, and telling a linked user
+              their accounts are gone is not a default worth having. */}
+          <SectionLabel>ACCOUNTS</SectionLabel>
+
           {f.loading && f.accounts.length === 0 ? (
             <Card>
               <SkeletonGroup label="Loading your connected accounts">
@@ -246,9 +282,6 @@ export default function AccountsScreen() {
             </Card>
           ) : null}
 
-          {/* Rendered whenever we have rows, including alongside the error card
-              above — stale balances beat a blank screen, provided they are
-              labelled as stale. */}
           {f.accounts.map(account => (
             <ConnectionCard
               key={account.id}
@@ -276,248 +309,58 @@ export default function AccountsScreen() {
             </Card>
           )}
 
-          {/* ── 2. MORTGAGE ────────────────────────────────────────────── */}
-          <SectionLabel>MORTGAGE</SectionLabel>
+          {/* ── YOUR SETUP ─────────────────────────────────────────────────
+              One row per thing a user entered once. The figure is a summary; the
+              tap opens the editor that owns every detail behind it. */}
+          <SectionLabel>YOUR SETUP</SectionLabel>
           <Card>
-            <CardHead
-              title={f.mortgage.isLive ? 'Reported by your servicer' : 'Your figures'}
-              right={
-                <Chip
-                  label={f.mortgage.isLive ? 'live' : 'entered'}
-                  icon={f.mortgage.isLive ? 'shield-checkmark-outline' : 'create-outline'}
-                  tone={f.mortgage.isLive ? 'accent' : 'neutral'}
-                />
-              }
-            />
-
-            {/* A prepayment penalty gates the entire strategy, so it is stated
-                before any of the numbers it would undermine. */}
-            {f.mortgage.hasPrepaymentPenalty.value === true && (
-              <View style={styles.warnBlock}>
-                <Ionicons name="alert-circle-outline" size={18} color={Colors.textPrimary} />
-                <Text style={styles.warnText}>
-                  This mortgage carries a prepayment penalty. Paying principal ahead of
-                  schedule may cost you a fee that offsets the interest saved — check the
-                  terms before cycling.
-                </Text>
-              </View>
-            )}
-
-            {/* The four a person actually came here to check. */}
-            <SourcedRow label="Balance"           v={f.mortgage.balance}         fmtV={money} />
-            <SourcedRow label="Interest rate"     v={f.mortgage.rate}            fmtV={rate} />
-            <SourcedRow label="Next payment"      v={f.mortgage.nextPayment}     fmtV={money} />
-            <SourcedRow label="Interest paid YTD" v={f.mortgage.ytdInterestPaid} fmtV={money} last />
-
-            <Disclosure count={8}>
-              <SourcedRow label="Rate type"          v={f.mortgage.rateType}           fmtV={titleCase} />
-              <SourcedRow label="Term"               v={f.mortgage.termMonths}         fmtV={months} />
-              <SourcedRow label="Maturity"           v={f.mortgage.maturityDate}       fmtV={dateStr} />
-              <SourcedRow label="Next due"           v={f.mortgage.nextPaymentDueDate} fmtV={dateStr} />
-              <SourcedRow label="Escrow balance"     v={f.mortgage.escrowBalance}      fmtV={money} />
-              <SourcedRow label="Principal paid YTD" v={f.mortgage.ytdPrincipalPaid}   fmtV={money} />
-              <SourcedRow label="Originated"         v={f.mortgage.originationDate}    fmtV={dateStr} />
-              <SourcedRow label="Original principal" v={f.mortgage.originationPrincipal} fmtV={money} last />
-            </Disclosure>
-
-            {!f.mortgage.isLive && (
-              <SourceNote>
-                Not every servicer shares loan terms through a bank connection. These are the
-                figures you entered — keeping them current keeps the payoff date honest.
-              </SourceNote>
-            )}
-
-            <LinkRow
-              icon="create-outline"
-              label="Edit mortgage details"
-              sub="Origination, term, and prepayment penalty"
+            <SetupRow
+              icon="home-outline"
+              label="Mortgage"
+              value={mortgageValue}
+              valueMuted={f.mortgageBalance === null}
+              chip={{
+                label: f.mortgage.isLive ? 'live' : 'entered',
+                tone: f.mortgage.isLive ? 'accent' : 'neutral',
+                icon: f.mortgage.isLive ? 'shield-checkmark-outline' : 'create-outline',
+              }}
               onPress={() => router.push('/modals/mortgage-details' as never)}
             />
-          </Card>
-
-          {/* ── 3. HELOC TERMS ─────────────────────────────────────────── */}
-          <SectionLabel>HELOC TERMS</SectionLabel>
-          <Card>
-            <CardHead
-              title="You told us these"
-              right={
-                <Chip
-                  label={sinceVerified === null
-                    ? 'not confirmed'
-                    : `confirmed ${sinceVerified}d ago`}
-                  tone={f.helocTermsStale ? 'neutral' : 'accent'}
-                />
-              }
+            <SetupRow
+              icon="card-outline"
+              label="HELOC"
+              value={helocValue}
+              valueMuted={f.helocLimit === null && f.helocRateAssumed}
+              flag={helocFlag}
+              chip={{
+                label: sinceVerified === null ? 'not confirmed' : `confirmed ${sinceVerified}d`,
+                tone: f.helocTermsStale ? 'neutral' : 'accent',
+              }}
+              onPress={() => router.push(
+                (profile?.heloc_terms_updated_at ? '/modals/confirm-terms' : '/modals/heloc-terms') as never,
+              )}
             />
-            <SourceNote>
-              No provider reports HELOC terms — not Plaid, not MX, not any of them. Every
-              line here came from you, so it is only as current as the last statement you
-              checked.
-            </SourceNote>
-
-            {/* The four terms that decide whether cycling works at all. The
-                fees matter, but they are a question someone asks once. */}
-            <DataRow label="Credit limit" value={f.helocLimit !== null ? money(f.helocLimit) : '—'}
-              hint={limitSourceHint(f.helocLimitSource)} />
-            <DataRow label="Current APR" value={f.helocRateAssumed ? 'not set' : rate(f.helocRate)}
-              hint={f.helocRateAssumed ? 'Projections assume 8.5% until you set it' : undefined} />
-            <DataRow label="Payments"
-              value={profile?.heloc_payment_type === 'interest_only' ? 'Interest-only'
-                : profile?.heloc_payment_type === 'amortizing' ? 'Amortizing' : '—'}
-              hint={profile?.heloc_payment_type === 'amortizing'
-                ? 'Cycling does not work on an amortizing line'
-                : undefined} />
-            <DataRow label="Draw period ends" value={drawEndLabel ?? '—'} last />
-
-            <Disclosure count={5} label="terms and fees">
-              <DataRow label="Rate index" value={profile?.heloc_rate_index || '—'} />
-              <DataRow label="Margin over index"
-                value={profile?.heloc_margin != null ? rate(profile.heloc_margin) : '—'} />
-              <DataRow label="Draw fee"
-                value={profile?.heloc_draw_fee != null ? money(profile.heloc_draw_fee) : '—'} />
-              <DataRow label="Annual fee"
-                value={profile?.heloc_annual_fee != null ? money(profile.heloc_annual_fee) : '—'} />
-              <DataRow label="Early closure fee"
-                value={profile?.heloc_early_closure_fee != null ? money(profile.heloc_early_closure_fee) : '—'}
-                last />
-            </Disclosure>
-
-            {/* The one term that decides whether the strategy works at all, so
-                it gets its own block and an explainer rather than a row. */}
-            <View style={styles.calcBlock}>
-              <Text style={styles.calcLabel}>How interest is calculated</Text>
-              <Text style={styles.calcValue}>
-                {profile?.heloc_interest_calc_method
-                  ? INTEREST_CALC_LABEL[profile.heloc_interest_calc_method]
-                  : 'Not set'}
-              </Text>
-              <Text style={styles.calcExplainer}>
-                {profile?.heloc_interest_calc_method
-                  ? INTEREST_CALC_EXPLAINER[profile.heloc_interest_calc_method]
-                  : 'This one line decides whether cycling saves anything on your account. ' +
-                    'Until you set it, projections here assume the strategy works as intended, ' +
-                    'which may not be true of your line.'}
-              </Text>
-            </View>
-
-            {/* Phrased as a question. "Re-verify your terms" is a chore; asking
-                whether something is still true is a thing a person can answer. */}
-            {f.helocTermsStale && (
-              <View style={styles.nudge}>
-                <Text style={styles.nudgeText}>
-                  {sinceVerified === null
-                    ? 'What does your HELOC statement say your rate is?'
-                    : `It has been ${sinceVerified} days — is your rate still ${rate(f.helocRate)}?`}
-                </Text>
-              </View>
-            )}
-
-            <LinkRow
-              icon="create-outline"
-              label="Update HELOC terms"
-              onPress={() => router.push('/modals/heloc-terms' as never)}
-            />
-          </Card>
-
-          {/* ── 4. HOME EQUITY ─────────────────────────────────────────── */}
-          <SectionLabel>HOME EQUITY</SectionLabel>
-          <Card>
-            <CardHead title="What the home is worth" />
-
-            <DataRow label="Estimated value"
-              value={f.homeValue !== null ? money(f.homeValue) : '—'}
-              hint={profile?.home_value_source
-                ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
-                : 'you entered this'} />
-            <DataRow label="Estimated equity" value={f.equity !== null ? money(f.equity) : '—'} />
-            <DataRow label="Combined LTV"
-              value={f.combinedLTV !== null ? `${Math.round(f.combinedLTV * 100)}%` : '—'} last />
-
-            <Disclosure count={4} label="details">
-              <DataRow label="Property"
-                value={f.mortgage.propertyAddress.value ?? '—'}
-                hint={f.mortgage.propertyAddress.source === 'liability' ? 'from your servicer' : undefined} />
-              <DataRow label="Value as of"
-                value={f.homeValueAsOf
-                  ? f.homeValueAsOf.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                  : '—'} />
-              <DataRow label="Mortgage balance" value={f.mortgageBalance !== null ? money(f.mortgageBalance) : '—'} />
-              <DataRow label="HELOC drawn" value={f.helocDrawn !== null ? money(f.helocDrawn) : '—'} last />
-            </Disclosure>
-
-            {f.combinedLTV !== null && (
-              <Meter value={f.combinedLTV} tone={f.combinedLTV > 0.8 ? 'muted' : 'accent'} height={8} />
-            )}
-
-            <SourceNote>
-              Equity here is an estimate built on a value you provided, not an appraisal or
-              an automated valuation. Lenders will reach their own number.
-            </SourceNote>
-
-            <LinkRow
-              icon="home-outline"
-              label="Update home value"
+            <SetupRow
+              icon="pricetags-outline"
+              label="Home value"
+              value={homeValueLabel}
+              valueMuted={f.homeValue === null}
+              flag={homeSub}
               onPress={() => router.push('/modals/home-value' as never)}
             />
+            <SetupRow
+              icon="options-outline"
+              label="Plan assumptions"
+              value={`Surplus ${money(f.surplus)}/mo`}
+              valueMuted={f.surplus <= 0}
+              flag="Income, expenses, replenish threshold and rate stress"
+              onPress={() => router.push('/modals/assumptions' as never)}
+              last
+            />
           </Card>
 
-          {/* ── 5. ASSUMPTIONS ─────────────────────────────────────────── */}
-          <SectionLabel>ASSUMPTIONS</SectionLabel>
-          <Card>
-            <CardHead title="What the projection assumes" />
-
-            <DataRow label="Monthly income" value={money(f.income)}
-              onPress={() => router.push('/modals/assumptions' as never)} />
-            <DataRow label="Monthly expenses" value={money(f.expenses)}
-              onPress={() => router.push('/modals/assumptions' as never)} />
-            <DataRow label="Mortgage payment" value={money(f.payment)} />
-            <DataRow label="Monthly surplus" value={money(f.surplus)}
-              hint="Income minus expenses and your payment. Not derived from transactions." />
-            <DataRow label="Replenish threshold"
-              value={`${Math.round(f.replenishThreshold * 100)}%`}
-              hint="How far the line may be drawn before surplus goes back to it"
-              onPress={() => router.push('/modals/assumptions' as never)} last />
-
-            <Divider />
-
-            {/* Rate stress. Pure arithmetic, no external data, and the best
-                answer to "what if rates spike" — which is the first question a
-                skeptical spouse asks. It teaches the user to test the base case
-                rather than trust it. */}
-            <View style={styles.stressBlock}>
-              <Text style={styles.stressTitle}>If your HELOC rate rose</Text>
-              <View style={styles.stressRow}>
-                {RATE_STRESS_STEPS_BPS.map(bps => {
-                  const active = f.forwardRateDeltaBps === bps;
-                  return (
-                    <TouchableOpacity
-                      key={bps}
-                      style={[styles.stressChip, active && styles.stressChipActive]}
-                      onPress={() => {
-                        hapticLight();
-                        updateProfile({ forward_rate_delta_bps: bps });
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      accessibilityLabel={bps === 0 ? 'Today’s rate' : `Plus ${bps / 100} percent`}
-                    >
-                      <Text style={[styles.stressChipText, active && styles.stressChipTextActive]}>
-                        {bps === 0 ? 'today' : `+${bps / 100}%`}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={styles.stressResult}>
-                At {rate(f.helocRate + f.forwardRateDeltaBps / 10_000)} you would be
-                mortgage-free in {formatMonths(f.projection.acceleratedMonths)}, saving about
-                ${fmtK(f.projection.interestSaved)} in interest.
-              </Text>
-            </View>
-          </Card>
-
-          {/* ── 6. PLAN, DATA, PRIVACY ─────────────────────────────────── */}
-          <SectionLabel>PLAN, DATA AND PRIVACY</SectionLabel>
+          {/* ── PLAN, DATA, PRIVACY ────────────────────────────────────────── */}
+          <SectionLabel>PLAN, DATA & PRIVACY</SectionLabel>
           <Card>
             <DataRow
               label="Your plan"
@@ -563,6 +406,45 @@ export default function AccountsScreen() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * One entered-once fact, summarised.
+ *
+ * A single figure and a status, with the editor one tap away. The value is
+ * greyed when it is a prompt ("Add your mortgage") rather than a number, and a
+ * flag line carries the rare thing that genuinely needs attention before a
+ * projection is trusted.
+ */
+function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  valueMuted?: boolean;
+  flag?: string;
+  chip?: { label: string; tone: 'accent' | 'neutral'; icon?: keyof typeof Ionicons.glyphMap };
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.setupRow, !last && styles.setupRowBorder]}
+      onPress={() => { hapticLight(); onPress(); }}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
+    >
+      <View style={styles.setupIcon}>
+        <Ionicons name={icon} size={18} color={Colors.textSecondary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.setupLabel}>{label}</Text>
+        <Text style={[styles.setupValue, valueMuted && styles.setupValueMuted]}>{value}</Text>
+        {flag ? <Text style={styles.setupFlag}>{flag}</Text> : null}
+      </View>
+      {chip ? <Chip label={chip.label} tone={chip.tone} icon={chip.icon} /> : null}
+      <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+    </TouchableOpacity>
+  );
+}
 
 /**
  * One connected institution.
@@ -642,23 +524,6 @@ function ConnAction({ label, icon, onPress }: {
   );
 }
 
-/** A read-only mortgage row that says where its value came from. */
-function SourcedRow<T>({ label, v, fmtV, last }: {
-  label: string;
-  v: Sourced<T>;
-  fmtV: (value: T) => string;
-  last?: boolean;
-}) {
-  return (
-    <DataRow
-      label={label}
-      value={v.value !== null ? fmtV(v.value) : '—'}
-      hint={v.source === 'user' ? 'you entered this' : undefined}
-      last={last}
-    />
-  );
-}
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 /**
@@ -698,41 +563,19 @@ function connectionHealth(syncedAt: string | null): {
 function typeLabel(t: PlaidAccountType): string {
   return t === 'home equity' ? 'HELOC' : t === 'mortgage' ? 'Mortgage' : 'Savings';
 }
-function limitSourceHint(s: 'plaid_limit' | 'derived' | 'user' | 'unknown'): string | undefined {
-  return s === 'derived' ? 'drawn plus available, so it stays current'
-    : s === 'plaid_limit' ? 'reported by your bank'
-    : s === 'user' ? 'you entered this'
-    : undefined;
-}
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function money(n: number) { return `$${fmt(n)}`; }
-function fmtK(n: number) {
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000)     return `${Math.round(n / 1_000)}k`;
-  return fmt(n);
-}
 function rate(d: number) { return `${(d * 100).toFixed(2)}%`; }
-function months(m: number) {
-  return m % 12 === 0 ? `${m / 12} years` : `${m} months`;
-}
-function dateStr(s: string) {
-  // parseDate, not new Date: a bare YYYY-MM-DD is a calendar date, and reading
-  // it as UTC shows the previous day for most US users.
-  const d = parseDate(s);
-  return d === null ? '—'
-    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 function fmtMonthYear(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
-function titleCase(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 /**
  * Long form of the dashboard's relativeTime, for the connection cards.
  *
  * Was vaguer than this screen can afford — "less than an hour ago" covered
  * everything from a second to 59 minutes, on the card whose own comment says a
- * stale balance is how a wrong recommendation gets made. It also rendered
- * "1 hours ago". Future timestamps clamp rather than going negative.
+ * stale balance is how a wrong recommendation gets made. Future timestamps clamp
+ * rather than going negative.
  */
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -831,6 +674,22 @@ const styles = StyleSheet.create({
 
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
 
+  // Setup rows
+  setupRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
+    paddingVertical: Spacing[3], minHeight: 56,
+  },
+  setupRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
+  setupIcon: {
+    width: 34, height: 34, borderRadius: Radius.sm,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  setupLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  setupValue: { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 1 },
+  setupValueMuted: { color: Colors.textMuted },
+  setupFlag: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16, marginTop: 3 },
+
   connHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   connName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   connType: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 1 },
@@ -856,41 +715,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, backgroundColor: Colors.gray50,
   },
   connActionText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
-
-  warnBlock: {
-    flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start',
-    backgroundColor: Colors.gray50, borderRadius: Radius.md, padding: Spacing[4],
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  warnText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-
-  calcBlock: {
-    backgroundColor: Colors.mint50, borderRadius: Radius.lg,
-    padding: Spacing[4], gap: Spacing[1],
-    borderWidth: 1, borderColor: Colors.mint200,
-  },
-  calcLabel: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.semibold },
-  calcValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.mint700 },
-  calcExplainer: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
-
-  nudge: { backgroundColor: Colors.gray50, borderRadius: Radius.md, padding: Spacing[3] },
-  nudgeText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-
-  stressBlock: { gap: Spacing[3] },
-  stressTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  stressRow: { flexDirection: 'row', gap: Spacing[2], flexWrap: 'wrap' },
-  stressChip: {
-    minHeight: 40, minWidth: 60,
-    paddingHorizontal: Spacing[3],
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  stressChipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
-  stressChipText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textSecondary },
-  stressChipTextActive: { color: Colors.white },
-  stressResult: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
 
   disclaimer: {
     fontSize: Typography.xs, color: Colors.textMuted,

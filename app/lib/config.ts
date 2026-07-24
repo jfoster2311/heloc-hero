@@ -59,6 +59,16 @@ export const STALE_SYNC_HOURS = 36;
 /** How far ahead to warn about the draw period closing. */
 export const DRAW_LOOKAHEAD_MONTHS = 18;
 
+/**
+ * How often to nudge the user to confirm their HELOC terms.
+ *
+ * A HELOC rate is variable and drifts, and no provider reports it, so the figure
+ * powering every projection is only as fresh as the last statement the user
+ * checked. `termsAreStale` (lib/helocTerms.ts) still governs the visual "confirm"
+ * badge at a longer horizon; this is the cadence of the gentle monthly reminder.
+ */
+export const TERMS_REVIEW_DAYS = 30;
+
 /** How far ahead a mortgage payment counts as "due". */
 export const PAYMENT_DUE_LOOKAHEAD_DAYS = 7;
 

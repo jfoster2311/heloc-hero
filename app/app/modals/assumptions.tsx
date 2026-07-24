@@ -25,6 +25,7 @@ import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { formatMonths } from '../../lib/projections';
+import { RATE_STRESS_STEPS_BPS } from '../../lib/config';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 /** Thresholds offered, not a free-text percentage. A 63% cap helps nobody. */
@@ -318,6 +319,42 @@ export default function AssumptionsModal() {
         </TouchableOpacity>
       </Card>
 
+      {/* ── Rate stress ───────────────────────────────────────────────────
+          Pure arithmetic, no external data, and the best answer to "what if
+          rates spike" — the first question a skeptical spouse asks. It teaches
+          the user to test the base case rather than trust it. Lives here, beside
+          the other assumptions it shares, rather than on the daily Accounts view. */}
+      <Card>
+        <Text style={styles.sectionTitle}>If your HELOC rate rose</Text>
+        <Text style={styles.hint}>
+          A HELOC rate is variable. This does not change your terms — it re-runs the payoff
+          projection as if the rate were higher, so the plan is judged on more than today’s number.
+        </Text>
+        <View style={styles.stressRow}>
+          {RATE_STRESS_STEPS_BPS.map(bps => {
+            const active = f.forwardRateDeltaBps === bps;
+            return (
+              <TouchableOpacity
+                key={bps}
+                style={[styles.stressChip, active && styles.stressChipActive]}
+                onPress={() => { hapticLight(); updateProfile({ forward_rate_delta_bps: bps }); }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={bps === 0 ? 'Today’s rate' : `Plus ${bps / 100} percent`}
+              >
+                <Text style={[styles.stressText, active && styles.stressTextActive]}>
+                  {bps === 0 ? 'today' : `+${bps / 100}%`}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.stressResult}>
+          At {rate(f.helocRate + f.forwardRateDeltaBps / 10_000)} you would be mortgage-free in{' '}
+          {formatMonths(f.projection.acceleratedMonths)}, saving about ${fmtK(f.projection.interestSaved)} in interest.
+        </Text>
+      </Card>
+
       <Card>
         <Text style={styles.sectionTitle}>As it stands</Text>
         <Text style={styles.result}>
@@ -331,6 +368,12 @@ export default function AssumptionsModal() {
 }
 
 function money(n: number) { return `$${Math.round(n).toLocaleString('en-US')}`; }
+function rate(d: number) { return `${(d * 100).toFixed(2)}%`; }
+function fmtK(n: number) {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000)     return `${Math.round(n / 1_000)}k`;
+  return Math.round(n).toLocaleString('en-US');
+}
 
 const styles = StyleSheet.create({
   sectionTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
@@ -409,4 +452,18 @@ const styles = StyleSheet.create({
   toggleLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textPrimary, lineHeight: 20 },
 
   result: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+
+  stressRow: { flexDirection: 'row', gap: Spacing[2], flexWrap: 'wrap', marginTop: Spacing[3] },
+  stressChip: {
+    minHeight: 44, minWidth: 60,
+    paddingHorizontal: Spacing[3],
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: Radius.full,
+    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  stressChipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  stressText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textSecondary },
+  stressTextActive: { color: Colors.white },
+  stressResult: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: Spacing[3] },
 });

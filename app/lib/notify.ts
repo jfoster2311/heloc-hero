@@ -36,6 +36,7 @@ export const REMINDER_IDS = {
   dumpReady:   'heloc-hero.dump-ready',
   sweepDue:    'heloc-hero.sweep-due',
   termsStale:  'heloc-hero.terms-stale',
+  termsReview: 'heloc-hero.terms-review',
 } as const;
 
 export type ReminderId = typeof REMINDER_IDS[keyof typeof REMINDER_IDS];
@@ -211,6 +212,48 @@ export async function syncCycleReminders(
   }
 
   return scheduled;
+}
+
+// ─── Terms review ─────────────────────────────────────────────────────────────
+
+/**
+ * A monthly nudge to confirm the HELOC terms are still current.
+ *
+ * No provider reports a HELOC rate and the rate is variable, so the number
+ * powering every projection drifts silently. This books a light "still correct?"
+ * reminder `intervalDays` out from when the terms were last confirmed — one tap
+ * in the app re-confirms them and the reminder reschedules from there.
+ *
+ * Returns whether a reminder was actually scheduled, so the caller can be honest
+ * about it rather than implying an alert that permission or platform withheld.
+ */
+export async function scheduleTermsReview(
+  lastConfirmedAt: string | null | undefined,
+  intervalDays: number,
+  now = new Date(),
+): Promise<boolean> {
+  if (!notificationsAvailable()) return false;
+
+  // From the last confirmation if we have one, else a full interval from today.
+  const base = lastConfirmedAt ? new Date(lastConfirmedAt) : now;
+  const from = Number.isNaN(base.getTime()) ? now : base;
+  let when = new Date(from.getTime() + intervalDays * 86_400_000);
+  // Already overdue: don't fire on open — nudge tomorrow morning instead.
+  if (when.getTime() <= now.getTime()) {
+    when = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 10, 0, 0);
+  }
+
+  return schedule(
+    REMINDER_IDS.termsReview,
+    'Is your HELOC rate still current?',
+    'HELOC rates move, and no bank reports yours to us. Open HELOC Hero to confirm your terms — it takes a tap.',
+    when,
+  );
+}
+
+/** Drops the terms-review reminder, e.g. when the terms are cleared. */
+export async function cancelTermsReview(): Promise<void> {
+  await cancel(REMINDER_IDS.termsReview);
 }
 
 function round(n: number): string {

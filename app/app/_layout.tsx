@@ -124,6 +124,10 @@ export default function RootLayout() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
+          name="modals/confirm-terms"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
           name="modals/home-value"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />

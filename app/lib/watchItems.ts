@@ -230,7 +230,11 @@ export function buildWatchItems(i: WatchInputs): WatchItem[] {
         : 'Without your APR the payoff projection runs on an assumed rate.',
       icon: 'help-circle-outline',
       weight: 40,
-      action: { label: 'Confirm terms', route: '/modals/heloc-terms' },
+      // Existing-but-stale terms go to the one-tap review; never-entered terms
+      // need the full editor, since there is nothing to confirm yet.
+      action: i.helocTermsUpdatedAt
+        ? { label: 'Confirm terms', route: '/modals/confirm-terms' }
+        : { label: 'Add your rate', route: '/modals/heloc-terms' },
     });
   }
 

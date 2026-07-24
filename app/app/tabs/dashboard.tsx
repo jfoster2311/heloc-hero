@@ -25,6 +25,7 @@ import {
   Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow, NavTile,
 } from '../../components/ui/primitives';
 import { Skeleton, SkeletonGroup, SkeletonLines, SkeletonStatRow } from '../../components/ui/Skeleton';
+import WatchRow from '../../components/ui/WatchRow';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
 import InterestTicker from '../../components/InterestTicker';
@@ -41,7 +42,6 @@ import { MILESTONES } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Tracking, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
-import type { WatchItem } from '../../lib/watchItems';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -65,10 +65,13 @@ export default function DashboardScreen() {
   const remindersEnabled = isPaidTier(tier);
 
   useCycleReminders(profile?.id, {
-    helocDrawn:     f.helocDrawn ?? 0,
-    monthlySurplus: Math.max(0, f.surplus),
-    dumpAmount:     f.safeToMove.recommendedAmount ?? 0,
-    enabled:        remindersEnabled,
+    helocDrawn:          f.helocDrawn ?? 0,
+    monthlySurplus:      Math.max(0, f.surplus),
+    dumpAmount:          f.safeToMove.recommendedAmount ?? 0,
+    enabled:             remindersEnabled,
+    // A set (non-assumed) rate is the signal that terms exist to re-confirm.
+    hasHelocTerms:       !f.helocRateAssumed,
+    helocTermsUpdatedAt: f.profile?.heloc_terms_updated_at ?? null,
   });
 
   // Only ask for notification permission once there is a reminder to deliver.
@@ -501,31 +504,6 @@ export default function DashboardScreen() {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function WatchRow({ item, last, onPress }: {
-  item: WatchItem; last: boolean; onPress?: () => void;
-}) {
-  const body = (
-    <View style={[styles.watchRow, !last && styles.watchRowBorder]}>
-      <View style={styles.watchIcon}>
-        <Ionicons name={item.icon as never} size={16} color={Colors.textSecondary} />
-      </View>
-      <View style={{ flex: 1, gap: 3 }}>
-        <Text style={styles.watchTitle}>{item.title}</Text>
-        <Text style={styles.watchDetail}>{item.detail}</Text>
-        {item.action && <Text style={styles.watchAction}>{item.action.label} →</Text>}
-      </View>
-    </View>
-  );
-  if (!onPress) return body;
-  return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={item.title}>
-      {body}
-    </TouchableOpacity>
-  );
-}
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
@@ -687,20 +665,4 @@ const styles = StyleSheet.create({
 
   statRow: { flexDirection: 'row', gap: Spacing[4] },
 
-  watchRow: {
-    flexDirection: 'row',
-    gap: Spacing[3],
-    paddingVertical: Spacing[3],
-    alignItems: 'flex-start',
-  },
-  watchRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
-  watchIcon: {
-    width: 30, height: 30, borderRadius: Radius.sm,
-    backgroundColor: Colors.gray100,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: 1,
-  },
-  watchTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  watchDetail: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
-  watchAction: { fontSize: Typography.xs, color: Colors.mint600, fontWeight: Typography.semibold, marginTop: 2 },
 });

@@ -10,7 +10,11 @@
 import { useState, useEffect } from 'react';
 import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { syncCycleReminders, notificationsAvailable, hasPermission } from '../lib/notify';
+import {
+  syncCycleReminders, scheduleTermsReview, cancelTermsReview,
+  notificationsAvailable, hasPermission,
+} from '../lib/notify';
+import { TERMS_REVIEW_DAYS } from '../lib/config';
 import type { AutomationSettings } from '../lib/types';
 
 export interface UseCycleRemindersResult {
@@ -27,6 +31,10 @@ export interface CycleInputs {
   dumpAmount: number;
   /** Skip scheduling entirely when the user has no paid access. */
   enabled: boolean;
+  /** True once the user has entered HELOC terms worth re-confirming. */
+  hasHelocTerms?: boolean;
+  /** When those terms were last confirmed, so the nudge dates from there. */
+  helocTermsUpdatedAt?: string | null;
 }
 
 export function useCycleReminders(
@@ -92,6 +100,20 @@ export function useCycleReminders(
     cycle.enabled, cycle.helocDrawn, cycle.monthlySurplus, cycle.dumpAmount,
     sweepOn, dumpOn, loading, granted,
   ]);
+
+  // The monthly terms-confirm nudge rides on the same consent as the cycle
+  // reminders — a HELOC rate is variable and unreported, so the figure behind
+  // every projection needs a periodic human check. It carries no separate
+  // preference switch: it books only once notifications are granted and terms
+  // exist, and it clears itself when they do not.
+  useEffect(() => {
+    if (!cycle.enabled || !granted) return;
+    if (cycle.hasHelocTerms) {
+      scheduleTermsReview(cycle.helocTermsUpdatedAt ?? null, TERMS_REVIEW_DAYS);
+    } else {
+      cancelTermsReview();
+    }
+  }, [cycle.enabled, granted, cycle.hasHelocTerms, cycle.helocTermsUpdatedAt]);
 
   return {
     remindersOn: granted && (sweepOn || dumpOn),
