@@ -24,6 +24,7 @@ import {
   Card, CardHead, Chip, DataRow, Meter, SectionLabel, SourceNote,
   EmptyState, LinkRow, Divider, Disclosure,
 } from '../../components/ui/primitives';
+import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import EquityCurve from '../../components/EquityCurve';
 import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,7 +38,7 @@ import {
   RATE_STRESS_STEPS_BPS, STALE_SYNC_HOURS,
 } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
-import { hapticLight } from '../../lib/haptics';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { parseDate, type Sourced } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
@@ -86,6 +87,13 @@ export default function AccountsScreen() {
     );
   }
 
+  /** Same contract as the dashboard: the buzz reports what actually happened. */
+  async function handleRefresh() {
+    const ok = await f.refresh();
+    if (ok) hapticSuccess();
+    else hapticError();
+  }
+
   async function handleExport() {
     const rows = buildCsv(f);
     try {
@@ -122,7 +130,7 @@ export default function AccountsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={f.refreshing} onRefresh={f.refresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={Colors.mint600} />
         }
       >
         {/* ── HERO — the position, summarised ───────────────────────────── */}
@@ -145,14 +153,29 @@ export default function AccountsScreen() {
           }
         >
           <Text style={styles.heroEyebrow}>ESTIMATED HOME EQUITY</Text>
-          <HeroValue>
-            {f.equity !== null ? `$${fmt(f.equity)}` : '—'}
-          </HeroValue>
-          <HeroCaption>
-            {f.equity !== null && f.combinedLTV !== null
-              ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value on a home value you entered`
-              : 'Add your home value to see equity and combined LTV'}
-          </HeroCaption>
+
+          {/* Deferred while the linked balances land. Equity subtracts
+              `helocDrawn ?? 0`, so before they arrive it is overstated by the
+              entire drawn balance and the LTV beneath it is understated — the
+              headline figure of this screen, wrong in the flattering direction,
+              correcting itself a second later in front of the user. */}
+          {f.loading ? (
+            <SkeletonGroup label="Loading your home equity" style={styles.heroSkeleton}>
+              <Skeleton onDark width={190} height={40} radius={Radius.sm} />
+              <Skeleton onDark width={250} height={13} />
+            </SkeletonGroup>
+          ) : (
+            <>
+              <HeroValue>
+                {f.equity !== null ? `$${fmt(f.equity)}` : '—'}
+              </HeroValue>
+              <HeroCaption>
+                {f.equity !== null && f.combinedLTV !== null
+                  ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value on a home value you entered`
+                  : 'Add your home value to see equity and combined LTV'}
+              </HeroCaption>
+            </>
+          )}
 
           {/* Forward only. See components/EquityCurve for why there is no
               history here — the app stores two balance snapshots, not a series,
@@ -172,18 +195,72 @@ export default function AccountsScreen() {
           {/* ── 1. CONNECTED ACCOUNTS ──────────────────────────────────── */}
           <SectionLabel>CONNECTED ACCOUNTS</SectionLabel>
 
-          {f.accounts.length > 0 ? (
-            f.accounts.map(account => (
-              <ConnectionCard
-                key={account.id}
-                account={account}
-                busy={unlinking === account.account_type}
-                onRefresh={f.refresh}
-                onReconnect={() => router.push('/modals/link-account')}
-                onDisconnect={() => handleDisconnect(account)}
-              />
-            ))
-          ) : (
+          {/* Three states, not two. "Loading", "we could not check" and "you
+              genuinely have none" were all collapsed into the empty state, so a
+              Pro user with three linked banks was told "Nothing connected yet"
+              on every cold load — and told the same thing, permanently, if the
+              read failed. Announcing that someone's accounts are gone is not a
+              default worth having. */}
+          {f.loading && f.accounts.length === 0 ? (
+            <Card>
+              <SkeletonGroup label="Loading your connected accounts">
+                <View style={styles.skeletonConnection}>
+                  <Skeleton width={38} height={38} radius={Radius.md} />
+                  <View style={styles.skeletonConnectionText}>
+                    <Skeleton width="55%" height={14} />
+                    <Skeleton width="35%" height={11} />
+                  </View>
+                </View>
+                <Divider />
+                <View style={styles.skeletonConnection}>
+                  <Skeleton width={38} height={38} radius={Radius.md} />
+                  <View style={styles.skeletonConnectionText}>
+                    <Skeleton width="45%" height={14} />
+                    <Skeleton width="40%" height={11} />
+                  </View>
+                </View>
+              </SkeletonGroup>
+            </Card>
+          ) : f.error ? (
+            <Card>
+              <View style={styles.errorBlock}>
+                <Ionicons name="cloud-offline-outline" size={20} color={Colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.errorTitle}>Couldn't load your accounts</Text>
+                  <Text style={styles.errorBody}>
+                    {f.accounts.length > 0
+                      ? 'Showing the last balances we have. They may be out of date.'
+                      : 'This is a connection problem on our side of the glass, not a change ' +
+                        'to your accounts. Nothing has been disconnected.'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.errorRetry}
+                    onPress={() => { hapticLight(); f.refresh(); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Try loading accounts again"
+                  >
+                    <Text style={styles.errorRetryText}>Try again</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Card>
+          ) : null}
+
+          {/* Rendered whenever we have rows, including alongside the error card
+              above — stale balances beat a blank screen, provided they are
+              labelled as stale. */}
+          {f.accounts.map(account => (
+            <ConnectionCard
+              key={account.id}
+              account={account}
+              busy={unlinking === account.account_type}
+              onRefresh={f.refresh}
+              onReconnect={() => router.push('/modals/link-account')}
+              onDisconnect={() => handleDisconnect(account)}
+            />
+          ))}
+
+          {!f.loading && !f.error && f.accounts.length === 0 && (
             <Card>
               <EmptyState
                 icon="link-outline"
@@ -649,10 +726,28 @@ function fmtMonthYear(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 function titleCase(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+/**
+ * Long form of the dashboard's relativeTime, for the connection cards.
+ *
+ * Was vaguer than this screen can afford — "less than an hour ago" covered
+ * everything from a second to 59 minutes, on the card whose own comment says a
+ * stale balance is how a wrong recommendation gets made. It also rendered
+ * "1 hours ago". Future timestamps clamp rather than going negative.
+ */
 function relativeTime(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 3600)  return 'less than an hour ago';
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return 'at an unknown time';
+
+  const diff = Math.floor((Date.now() - then) / 1000);
+  if (diff < 90) return 'just now';
+  if (diff < 3600) {
+    const mins = Math.round(diff / 60);
+    return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  }
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
   const days = Math.floor(diff / 86400);
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
@@ -686,6 +781,34 @@ function str(n: number | null): string { return n === null ? '' : String(Math.ro
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
+  skeletonConnection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    paddingVertical: Spacing[2],
+  },
+  skeletonConnectionText: { flex: 1, gap: Spacing[2] },
+
+  errorBlock: { flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start' },
+  errorTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  errorBody: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  errorRetry: { minHeight: 44, justifyContent: 'center' },
+  errorRetryText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+  },
+
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

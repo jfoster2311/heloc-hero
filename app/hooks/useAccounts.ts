@@ -11,18 +11,41 @@ interface AccountsState {
   accounts: LinkedAccount[];
   loading: boolean;
   refreshing: boolean;
-  refresh: () => Promise<void>;
+  /** Resolves true when the read succeeded. */
+  refresh: () => Promise<boolean>;
+  /**
+   * Why the last read failed, or null.
+   *
+   * This exists because the alternative is worse than it sounds: the fetch used
+   * to discard its error and return [], which the UI then rendered as "Nothing
+   * connected yet". A user on a dropped connection was told their accounts were
+   * gone. In a finance app that is not a cosmetic bug — it is the screen
+   * claiming a fact about the user's money that it has no basis for.
+   */
+  error: string | null;
   hasAllAccounts: boolean;
   mortgageAccount: LinkedAccount | null;
   helocAccount: LinkedAccount | null;
   savingsAccount: LinkedAccount | null;
 }
 
+/**
+ * Shared across every mounted instance, unlike the per-instance ref it replaces.
+ *
+ * `useAccounts` is mounted by the dashboard, the accounts tab, cash flow and the
+ * move-money modal — each with its own state. A per-instance "already refreshed"
+ * flag therefore guarded nothing across them: two screens mounting before the
+ * first Plaid call returned would both see a stale accounts_updated_at and both
+ * call out. Liabilities bill per item per month, so a duplicated refresh is a
+ * real cost, not just a wasted round trip.
+ */
+const autoRefreshedUsers = new Set<string>();
+
 export function useAccounts(userId: string | null): AccountsState {
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const hasAutoRefreshed = useRef(false);
+  const [error, setError] = useState<string | null>(null);
   // A per-instance suffix so each mounted hook gets its OWN realtime topic.
   // Several screens use this hook, and a modal (move-money) opens on top of a
   // tab that is already subscribed — all with the same userId. A shared topic
@@ -31,13 +54,24 @@ export function useAccounts(userId: string | null): AccountsState {
   // callbacks after subscribe()". A unique topic per instance avoids the clash.
   const instanceId = useRef(Math.random().toString(36).slice(2)).current;
 
-  const fetchLocal = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
-    const { data } = await supabase
+  /**
+   * Returns the rows, or null when the read FAILED. Null and [] mean different
+   * things and callers must not collapse them: [] is "you have no linked
+   * accounts", null is "we do not know".
+   */
+  const fetchLocal = useCallback(async (): Promise<LinkedAccount[] | null> => {
+    if (!userId) { setLoading(false); return null; }
+    const { data, error: err } = await supabase
       .from('linked_accounts')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
+
+    if (err) {
+      setError(err.message);
+      return null;
+    }
+    setError(null);
     return (data as LinkedAccount[]) ?? [];
   }, [userId]);
 
@@ -54,27 +88,34 @@ export function useAccounts(userId: string | null): AccountsState {
     }
   }
 
-  const load = useCallback(async (isManualRefresh = false) => {
-    if (!userId) { setLoading(false); return; }
+  /** Resolves true when the read succeeded, so callers can report honestly. */
+  const load = useCallback(async (isManualRefresh = false): Promise<boolean> => {
+    if (!userId) { setLoading(false); return false; }
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
 
     const fresh = await fetchLocal();
+    // Only overwrite what is on screen when the read actually succeeded. A
+    // failed refresh should leave the last known balances visible next to the
+    // error, not blank the screen.
     if (fresh) setAccounts(fresh);
 
-    // Auto-refresh Plaid only on first mount if any account is stale (> 12h)
-    // Manual refresh always calls Plaid
+    // Auto-refresh Plaid only on first mount if any account is stale (> 12h).
+    // Manual refresh always calls Plaid.
     if (fresh && fresh.length > 0) {
       const now = Date.now();
+      const alreadyRefreshed = autoRefreshedUsers.has(userId);
       const toRefresh = fresh.filter(a => {
         if (isManualRefresh) return true;
-        if (hasAutoRefreshed.current) return false;
+        if (alreadyRefreshed) return false;
         if (!a.accounts_updated_at) return true;
         return (now - new Date(a.accounts_updated_at).getTime()) > REFRESH_THRESHOLD_MS;
       });
 
       if (toRefresh.length > 0) {
-        hasAutoRefreshed.current = true;
+        // Claimed BEFORE the await, so a second instance mounting while this
+        // call is in flight sees it taken rather than firing its own.
+        autoRefreshedUsers.add(userId);
         // One call refreshes every linked account for this user.
         await triggerPlaidRefresh(userId);
         // Re-fetch local after Plaid sync
@@ -85,6 +126,7 @@ export function useAccounts(userId: string | null): AccountsState {
 
     setLoading(false);
     setRefreshing(false);
+    return fresh !== null;
   }, [userId, fetchLocal]);
 
   useEffect(() => {
@@ -114,6 +156,7 @@ export function useAccounts(userId: string | null): AccountsState {
     accounts,
     loading,
     refreshing,
+    error,
     refresh: () => load(true),
     hasAllAccounts,
     mortgageAccount,

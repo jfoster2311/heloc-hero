@@ -24,6 +24,7 @@ import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
   Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow, NavTile,
 } from '../../components/ui/primitives';
+import { Skeleton, SkeletonGroup, SkeletonLines, SkeletonStatRow } from '../../components/ui/Skeleton';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
 import InterestTicker from '../../components/InterestTicker';
@@ -38,7 +39,7 @@ import { formatMonths } from '../../lib/projections';
 import { monthsBetween } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
-import { hapticLight } from '../../lib/haptics';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Tracking, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import type { WatchItem } from '../../lib/watchItems';
 
@@ -98,6 +99,17 @@ export default function DashboardScreen() {
       : null;
   const nextMs = pct !== null ? MILESTONES.find(m => pct < m) : undefined;
 
+  /**
+   * Pull-to-refresh, with feedback that tells the truth about the outcome.
+   * A success buzz on a failed refresh would be worse than silence — the whole
+   * point of the gesture is to answer "are these numbers current?".
+   */
+  async function handleRefresh() {
+    const ok = await f.refresh();
+    if (ok) hapticSuccess();
+    else hapticError();
+  }
+
   function handleDevTools() {
     if (!__DEV__) return;
     Alert.alert('DEV Tools', 'Onboarding flow', [
@@ -122,7 +134,7 @@ export default function DashboardScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={f.refreshing} onRefresh={f.refresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={Colors.mint600} />
         }
       >
         {/* ── HERO — the payoff clock ───────────────────────────────────── */}
@@ -191,16 +203,25 @@ export default function DashboardScreen() {
               users are a large early share and the screen has to be complete
               for them, not a nag with a number behind it. */}
           <View style={styles.asOfRow}>
-            <Chip
-              icon={f.isManual ? 'create-outline' : 'sync-outline'}
-              label={
-                f.isManual
-                  ? 'Your figures'
-                  : `Synced ${relativeTime(f.lastSyncedAt)}`
-              }
-              tone={f.isManual ? 'neutral' : 'accent'}
-            />
-            {f.balanceAsOfDate && (
+            {/* isManual is derived from accounts.length, which is 0 until the
+                read returns — so a linked user was told "Your figures" before
+                being told "Synced 3h ago". A provenance label that changes is
+                worse than none, since provenance is the thing it exists to
+                settle. */}
+            {f.loading ? (
+              <Skeleton width={116} height={26} radius={Radius.full} />
+            ) : (
+              <Chip
+                icon={f.isManual ? 'create-outline' : 'sync-outline'}
+                label={
+                  f.isManual
+                    ? 'Your figures'
+                    : `Synced ${relativeTime(f.lastSyncedAt)}`
+                }
+                tone={f.isManual ? 'neutral' : 'accent'}
+              />
+            )}
+            {!f.loading && f.balanceAsOfDate && (
               <Text style={styles.asOfText}>as of {fmtDayMonth(f.balanceAsOfDate)}</Text>
             )}
             <View style={{ flex: 1 }} />
@@ -213,6 +234,24 @@ export default function DashboardScreen() {
             />
           </View>
 
+          {/* A failed read used to be silent: the balances simply stayed at
+              their last values, or at nothing, with the screen still presenting
+              them as current. Every figure below is only as good as this. */}
+          {!f.loading && f.error && (
+            <TouchableOpacity
+              style={styles.staleBanner}
+              onPress={() => { hapticLight(); f.refresh(); }}
+              accessibilityRole="button"
+              accessibilityLabel="Balances may be out of date. Tap to retry."
+            >
+              <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.staleText}>
+                Couldn't reach your balances{f.hasLinkedAccounts ? ' — showing the last we have' : ''}.
+              </Text>
+              <Text style={styles.staleAction}>Retry</Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── Summary tiles — each one a door to the tab that explains it ──
               The dashboard ranks; it does not hold everything. These two carry
               the figures people check most often and hand off rather than
@@ -223,16 +262,31 @@ export default function DashboardScreen() {
               retirement, brokerage or anything else, so a tile labelled net
               worth would be a number the product cannot stand behind. */}
           <View style={styles.tileRow}>
-            <NavTile
-              eyebrow="HOME EQUITY"
-              icon="home-outline"
-              value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
-              sub={f.combinedLTV !== null
-                ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
-                : 'add your home value'}
-              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-              accessibilityHint="Opens the Accounts tab"
-            />
+            {/* Equity subtracts `helocDrawn ?? 0`, so while the balances load it
+                is overstated by the whole drawn amount — flattering, and wrong.
+                The surplus tile beside it comes off the profile and is right
+                immediately, so it is left alone rather than blanked for
+                symmetry's sake. */}
+            {f.loading ? (
+              <View style={styles.tileSkeleton}>
+                <SkeletonGroup label="Loading your home equity">
+                  <Skeleton width={70} height={10} />
+                  <Skeleton width={104} height={24} style={{ marginTop: Spacing[3] }} />
+                  <Skeleton width={88} height={11} style={{ marginTop: Spacing[2] }} />
+                </SkeletonGroup>
+              </View>
+            ) : (
+              <NavTile
+                eyebrow="HOME EQUITY"
+                icon="home-outline"
+                value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
+                sub={f.combinedLTV !== null
+                  ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
+                  : 'add your home value'}
+                onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+                accessibilityHint="Opens the Accounts tab"
+              />
+            )}
             <NavTile
               eyebrow={f.surplus >= 0 ? 'FREE EACH MONTH' : 'SHORT EACH MONTH'}
               icon="swap-vertical-outline"
@@ -247,6 +301,25 @@ export default function DashboardScreen() {
           </View>
 
           {/* ── CARD 1 — Safe to Move ──────────────────────────────────── */}
+          {/* The one card that must never speak early. Its inputs are the HELOC
+              balance and the savings balance, both of which arrive with the
+              linked accounts — so before they land, safeToMove reasons from a
+              line it believes is undrawn and cash it believes is zero. That
+              produced a confident CLEAR with a dollar figure, on the screen
+              whose entire output is a decision about a house. A recommendation
+              is not a thing to guess at and correct. */}
+          {f.loading ? (
+            <Card>
+              <SkeletonGroup label="Working out whether it is safe to move money">
+                <View style={styles.safeHead}>
+                  <Skeleton width={78} height={22} radius={Radius.full} />
+                  <Skeleton width={150} height={13} />
+                </View>
+                <SkeletonLines count={3} last="72%" />
+                <Skeleton height={44} radius={Radius.md} />
+              </SkeletonGroup>
+            </Card>
+          ) : (
           <Card>
             <View style={styles.safeHead}>
               <StatusPill
@@ -298,6 +371,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             )}
           </Card>
+          )}
 
           {/* ── CARD 2 — Interest ──────────────────────────────────────── */}
           <Card>
@@ -357,7 +431,17 @@ export default function DashboardScreen() {
               right={<Chip label={limitSourceLabel(f.helocLimitSource)} />}
             />
 
-            {f.helocLimit && f.helocLimit > 0 ? (
+            {/* Drawn and Available come from the linked line; the limit can come
+                from the profile. So during load this card would read "Drawn $0,
+                Available $100,000" at 0% utilization — a line the user has drawn
+                on, shown as untouched, with the meter to match. */}
+            {f.loading ? (
+              <SkeletonGroup label="Loading your line of credit">
+                <SkeletonStatRow count={3} />
+                <Skeleton height={10} radius={Radius.full} style={{ marginTop: Spacing[4] }} />
+                <SkeletonLines count={2} last="55%" />
+              </SkeletonGroup>
+            ) : f.helocLimit && f.helocLimit > 0 ? (
               <>
                 <View style={styles.statRow}>
                   <Stat label="Drawn"     value={`$${fmt(f.helocDrawn ?? 0)}`} />
@@ -457,12 +541,30 @@ function fmtMonthYear(d: Date) {
 function fmtDayMonth(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+/**
+ * How long ago, in words.
+ *
+ * The old version called anything under an hour "just now", so a balance synced
+ * 59 minutes ago claimed to be current — on the one screen whose stated purpose
+ * is that a stale balance is how a wrong recommendation gets made. Minutes are
+ * cheap to say and the difference between 2 and 50 of them is exactly the thing
+ * a user is trying to judge.
+ *
+ * A future timestamp means a clock disagreement, not a prediction, so it clamps
+ * to "just now" rather than rendering "-3h ago".
+ */
 function relativeTime(iso: string | null): string {
   if (!iso) return 'never';
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 3600)  return 'just now';
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return 'never';
+
+  const diff = Math.floor((Date.now() - then) / 1000);
+  if (diff < 90)      return 'just now';
+  if (diff < 3600)    return `${Math.round(diff / 60)}m ago`;
+  if (diff < 86400)   return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800)  return `${Math.floor(diff / 86400)}d ago`;
+  // Past a week, a date is more use than a count of days.
+  return `on ${fmtDayMonth(new Date(then))}`;
 }
 function limitSourceLabel(s: 'plaid_limit' | 'derived' | 'user' | 'unknown'): string {
   return s === 'plaid_limit' ? 'from your bank'
@@ -532,8 +634,30 @@ const styles = StyleSheet.create({
   },
 
   tileRow: { flexDirection: 'row', gap: Spacing[3] },
+  // Mirrors NavTile's own box so the row does not resize when the value lands.
+  tileSkeleton: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    padding: Spacing[4],
+  },
   asOfRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   asOfText: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  staleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    minHeight: 44,
+  },
+  staleText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
 
   safeHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap' },
   safeAmount: {

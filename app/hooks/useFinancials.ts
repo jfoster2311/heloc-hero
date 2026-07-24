@@ -33,7 +33,10 @@ export interface Financials {
   accounts: LinkedAccount[];
   loading: boolean;
   refreshing: boolean;
-  refresh: () => Promise<void>;
+  /** Resolves true when the read succeeded. */
+  refresh: () => Promise<boolean>;
+  /** Why the accounts read failed, or null. Distinct from "no accounts". */
+  error: string | null;
 
   hasLinkedAccounts: boolean;
   /** Most recent successful sync across all linked items. */
@@ -95,7 +98,7 @@ export interface Financials {
 export function useFinancials(): Financials {
   const { profile } = useAuth();
   const {
-    accounts, loading, refreshing, refresh,
+    accounts, loading, refreshing, error, refresh,
     mortgageAccount, helocAccount, savingsAccount,
   } = useAccounts(profile?.id ?? null);
 
@@ -106,11 +109,11 @@ export function useFinancials(): Financials {
   return useMemo(
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, refresh, derived, awaitingBackfill,
+      loading, refreshing, error, refresh, derived, awaitingBackfill,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, refresh, derived, awaitingBackfill,
+      loading, refreshing, error, refresh, derived, awaitingBackfill,
     ],
   );
 }
@@ -123,7 +126,8 @@ function derive(
   savingsAccount: LinkedAccount | null,
   loading: boolean,
   refreshing: boolean,
-  refresh: () => Promise<void>,
+  error: string | null,
+  refresh: () => Promise<boolean>,
   derivedCashflow: DerivedCashflow | null,
   awaitingTransactions: boolean,
 ): Financials {
@@ -250,7 +254,7 @@ function derive(
   });
 
   return {
-    profile, accounts, loading, refreshing, refresh,
+    profile, accounts, loading, refreshing, error, refresh,
     hasLinkedAccounts,
     lastSyncedAt,
     isManual: !hasLinkedAccounts,
