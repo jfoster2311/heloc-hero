@@ -46,6 +46,24 @@ function runBaseline(
   return { months, interest, series };
 }
 
+/** One month of the cycling simulation, for the transparency schedule. */
+export interface CyclingMonth {
+  /** 1-based month from today. */
+  month: number;
+  /** Principal dumped onto the mortgage this month. 0 on non-dump months. */
+  dump: number;
+  /** Mortgage balance after this month's P&I payment. */
+  mortgageBalance: number;
+  /** Mortgage interest charged this month. */
+  mortgageInterest: number;
+  /** HELOC balance still owed after this month's sweep. */
+  helocDrawn: number;
+  /** HELOC interest charged this month on the drawn balance. */
+  helocInterest: number;
+  /** Surplus applied to repay the HELOC this month (after its interest). */
+  sweep: number;
+}
+
 /**
  * One month-by-month run of the cycling strategy.
  *
@@ -53,6 +71,10 @@ function runBaseline(
  * home value minus BOTH. A curve drawn from the mortgage alone would show the
  * user gaining equity at the moment they drew against their house, which is the
  * one thing this strategy must never be allowed to imply.
+ *
+ * When collecting, it also emits a per-month `detail` row — the raw material for
+ * the calculator's transparency schedule. That path is gated on `collect`, so
+ * computeProjection (and the whole app, via useFinancials) pays nothing for it.
  */
 function runCycling(
   startBalance: number,
@@ -62,24 +84,35 @@ function runCycling(
   helocMonthlyRate: number,
   effectiveDump: number,
   collect: boolean,
-): { months: number; interest: number; mortgage: number[]; heloc: number[] } {
+): { months: number; interest: number; mortgage: number[]; heloc: number[]; detail: CyclingMonth[] } {
   let balance = startBalance;
   let helocDrawn = 0;
   let months = 0;
   let interest = 0;
   const mortgage: number[] = collect ? [balance] : [];
   const heloc: number[] = collect ? [0] : [];
+  const detail: CyclingMonth[] = [];
 
   while (balance > 0.01 && months < MAX_MONTHS) {
     // When HELOC is fully replenished, execute the next principal dump.
+    let dumpThisMonth = 0;
     if (helocDrawn <= 0 && effectiveDump > 0) {
       const dump = Math.min(effectiveDump, balance);
       balance -= dump;
       helocDrawn = dump;
+      dumpThisMonth = dump;
       if (balance <= 0.01) {
         // The dump cleared the mortgage. The line is still drawn, so record
         // that state rather than ending on a frame that shows neither debt.
-        if (collect) { mortgage.push(balance); heloc.push(helocDrawn); }
+        months++;
+        if (collect) {
+          mortgage.push(balance); heloc.push(helocDrawn);
+          detail.push({
+            month: months, dump: dumpThisMonth,
+            mortgageBalance: balance, mortgageInterest: 0,
+            helocDrawn, helocInterest: 0, sweep: 0,
+          });
+        }
         break;
       }
     }
@@ -97,9 +130,16 @@ function runCycling(
     helocDrawn = Math.max(0, helocDrawn - helocPayment);
 
     months++;
-    if (collect) { mortgage.push(balance); heloc.push(helocDrawn); }
+    if (collect) {
+      mortgage.push(balance); heloc.push(helocDrawn);
+      detail.push({
+        month: months, dump: dumpThisMonth,
+        mortgageBalance: balance, mortgageInterest,
+        helocDrawn, helocInterest, sweep: helocPayment,
+      });
+    }
   }
-  return { months, interest, mortgage, heloc };
+  return { months, interest, mortgage, heloc, detail };
 }
 
 /** Shared setup, so the projection and its series can never disagree. */
@@ -166,54 +206,57 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
   };
 }
 
-/** One year of the payoff comparison: mortgage balance under each plan. */
-export interface PayoffScheduleRow {
-  /** 1-based year from today. */
-  year: number;
-  /** Mortgage balance at year-end on the current schedule. */
-  baseline: number;
-  /** Mortgage balance at year-end with cycling. Reaches 0 years sooner. */
-  cycling: number;
+/** The cycling strategy, month by month, plus the totals worth stating. */
+export interface CyclingSummary {
+  /** Every month of the plan, in order. Empty when the loan never amortizes. */
+  months: CyclingMonth[];
+  /** How many principal dumps the plan makes. */
+  dumpCount: number;
+  /** Total HELOC interest paid across the plan — the cost of the strategy. */
+  totalHelocInterest: number;
+  /** Size of each dump: the HELOC amount, capped at 12× monthly surplus. */
+  dumpSize: number;
+  /** Months from today to the projected mortgage-free date. */
+  payoffMonths: number;
 }
 
 /**
- * A year-by-year payoff schedule, current plan against cycling.
+ * The cycling strategy laid out month by month, for the calculator's schedule.
  *
- * The saving is abstract until you can see it: this samples the two balance
- * runs annually and puts them side by side, so the cycling column visibly
- * outruns the baseline and hits zero years earlier — that gap IS the interest
- * saved, made concrete. Built from the same runBaseline/runCycling the headline
- * projection uses, so the schedule and the number above it can never disagree.
+ * This is not a second model — it runs the same runCycling the headline
+ * projection uses and surfaces its per-month detail, so the schedule and the
+ * payoff date above it can never disagree. It makes the mechanic legible: which
+ * month each dump lands, the HELOC interest charged while a balance is owed, and
+ * the surplus sweep pulling that balance back down.
  *
  * Empty when the payment cannot cover the interest (the loan never amortizes),
  * matching computeProjection's divergence guard.
  */
-export function computePayoffSchedule(inputs: CalculatorInputs): PayoffScheduleRow[] {
+export function computeCyclingSchedule(inputs: CalculatorInputs): CyclingSummary {
   const p = prepare(inputs);
-  if (p.diverges || p.mortgageBalance <= 0 || p.monthlyPayment <= 0) return [];
+  if (p.diverges || p.mortgageBalance <= 0 || p.monthlyPayment <= 0) {
+    return { months: [], dumpCount: 0, totalHelocInterest: 0, dumpSize: 0, payoffMonths: 0 };
+  }
 
-  const base = runBaseline(p.mortgageBalance, p.monthlyRate, p.monthlyPayment, true);
   const acc = runCycling(
     p.mortgageBalance, p.monthlyRate, p.monthlyPayment,
     p.monthlySurplus, p.helocMonthlyRate, p.effectiveDump, true,
   );
 
-  // Run to the longer of the two payoffs so the baseline column finishes on
-  // screen rather than being cut off at the cycling payoff.
-  const totalYears = Math.max(1, Math.ceil(base.months / 12));
-  const rows: PayoffScheduleRow[] = [];
-  for (let year = 1; year <= totalYears; year++) {
-    const month = year * 12;
-    const baseIdx = Math.min(month, base.series.length - 1);
-    const baseline = base.series[baseIdx] ?? 0;
-    // series[i] is the balance AFTER i payments; once cycling has paid off, its
-    // series has ended, so anything past acc.months is genuinely zero.
-    const cycling = month <= acc.months
-      ? acc.mortgage[Math.min(month, acc.mortgage.length - 1)] ?? 0
-      : 0;
-    rows.push({ year, baseline: Math.round(baseline), cycling: Math.round(cycling) });
+  let dumpCount = 0;
+  let totalHelocInterest = 0;
+  for (const m of acc.detail) {
+    if (m.dump > 0) dumpCount++;
+    totalHelocInterest += m.helocInterest;
   }
-  return rows;
+
+  return {
+    months: acc.detail,
+    dumpCount,
+    totalHelocInterest: Math.round(totalHelocInterest),
+    dumpSize: Math.round(p.effectiveDump),
+    payoffMonths: acc.months,
+  };
 }
 
 /** A point on the projected equity curve. `month` is months from today. */

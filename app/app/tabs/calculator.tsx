@@ -27,7 +27,7 @@ import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
-import { computeProjection, computePayoffSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
+import { computeProjection, computeCyclingSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
@@ -48,6 +48,28 @@ const DEFAULT_TERM_YEARS = 30;
 /** Shared by every field, so one bar serves the whole screen. iOS only. */
 const KEYPAD_ACCESSORY_ID = 'calculator-keypad';
 
+/**
+ * The model, stated plainly. Shown behind "How this is calculated" so the payoff
+ * number arrives with its assumptions, not without them — including the two most
+ * load-bearing: the 12×-surplus dump cap and the constant-rate assumption.
+ */
+const ASSUMPTIONS = [
+  'Each cycle: draw the HELOC, dump it straight onto your mortgage principal, then rebuild the line from your monthly surplus — and repeat.',
+  'The dump is your HELOC amount, capped at 12× your monthly surplus so the line can be repaid within about a year. A larger HELOC past that point does not speed things up.',
+  'HELOC interest is charged every month on the balance still owed, at the HELOC APR you entered.',
+  'Your whole monthly surplus goes to repaying the HELOC each month, after covering that month’s HELOC interest.',
+  'Your regular mortgage principal-and-interest payment continues every month alongside the cycling.',
+  'Home value, interest rates, income and spending are all held constant. Real life varies, so treat this as a projection.',
+  'Estimate only — not financial advice, and HELOC Hero is not a lender.',
+];
+
+/** Compact "when" label for the month schedule, e.g. month 14 → "Y2 M2". */
+function whenLabel(month: number): string {
+  const year = Math.ceil(month / 12);
+  const mo = ((month - 1) % 12) + 1;
+  return `Y${year} M${mo}`;
+}
+
 // Realistic defaults so the screen opens with a believable answer already on it.
 const GENERIC_DEFAULTS: CalculatorInputs = {
   mortgageBalance: 400000,
@@ -55,6 +77,7 @@ const GENERIC_DEFAULTS: CalculatorInputs = {
   monthlyPayment:  0,     // 0 = derive from balance + rate (see derivedPayment)
   monthlySurplus:  600,
   helocRate:       8.5,
+  helocLimit:      25000, // size of the line drawn each cycle (capped at 12× surplus)
 };
 
 function firstBalance(accounts: any[], type: string): number | null {
@@ -91,6 +114,7 @@ export default function CalculatorScreen() {
       monthlyPayment:  payment || 0,
       monthlySurplus:  Math.max(0, income - expenses - payment) || GENERIC_DEFAULTS.monthlySurplus,
       helocRate:       GENERIC_DEFAULTS.helocRate,
+      helocLimit:      profile?.heloc_credit_limit || GENERIC_DEFAULTS.helocLimit,
     };
   }, [canPrefill, accounts, profile]);
 
@@ -118,6 +142,7 @@ export default function CalculatorScreen() {
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showAssumptions, setShowAssumptions] = useState(false);
   // Set the moment the user edits anything. Until then the screen is still
   // showing OUR numbers and is free to improve them; afterwards it is showing
   // THEIRS and must not move under their hands.
@@ -152,6 +177,7 @@ export default function CalculatorScreen() {
     [inputs.mortgageBalance, inputs.mortgageRate, termYears],
   );
   const monthlyPayment = paymentTouched ? inputs.monthlyPayment : derivedPayment;
+  const helocLimit = inputs.helocLimit ?? 25000;
 
   // What the inputs can actually support, stated honestly rather than as a result.
   const monthlyRate = inputs.mortgageRate / 100 / 12;
@@ -184,12 +210,13 @@ export default function CalculatorScreen() {
     [projectionInputs, status],
   );
 
-  // The year-by-year schedule behind the reveal. Same inputs as the headline
-  // projection, so the year the cycling column hits $0 matches the hero.
+  // The month-by-month schedule behind the reveal. Same inputs as the headline
+  // projection — it surfaces the very simulation the payoff date comes from — so
+  // the month the mortgage clears here matches the hero.
   const schedule = useMemo(
     () => (status === 'ok' && projection && projection.monthsSaved > 0
-      ? computePayoffSchedule(projectionInputs)
-      : []),
+      ? computeCyclingSchedule(projectionInputs)
+      : null),
     [projectionInputs, status, projection],
   );
 
@@ -222,6 +249,12 @@ export default function CalculatorScreen() {
     hapticLight();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setShowSchedule(v => !v);
+  }
+
+  function toggleAssumptions() {
+    hapticLight();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowAssumptions(v => !v);
   }
 
   const hasGain = !!projection && projection.monthsSaved > 0;
@@ -340,7 +373,7 @@ export default function CalculatorScreen() {
               <View style={styles.advancedRight}>
                 {!showAdvanced && (
                   <Text style={styles.advancedSummary}>
-                    {money(monthlyPayment)}/mo · {inputs.helocRate}% HELOC
+                    {money(monthlyPayment)}/mo · {inputs.helocRate}% · {money(helocLimit)} line
                     {paymentTouched ? '' : ` · ${termYears}yr`}
                   </Text>
                 )}
@@ -371,6 +404,13 @@ export default function CalculatorScreen() {
                   decimals={2}
                   keyboardType="decimal-pad"
                   hint="Your HELOC's current APR"
+                />
+                <NumericField
+                  label="HELOC amount"
+                  prefix="$"
+                  value={helocLimit}
+                  onCommit={v => updateField('helocLimit', v)}
+                  hint="The size of the line you draw each cycle. Only what can be repaid within a year is used — up to 12× your monthly surplus."
                   isLast
                 />
               </View>
@@ -386,10 +426,22 @@ export default function CalculatorScreen() {
                 label="Swept to the HELOC each month"
                 value={money(inputs.monthlySurplus)}
               />
-              <BreakdownRow
-                label="Principal dump per cycle"
-                value={money(inputs.monthlySurplus * 12)}
-              />
+              {schedule && (
+                <>
+                  <BreakdownRow
+                    label="Principal dump per cycle"
+                    value={money(schedule.dumpSize)}
+                  />
+                  <BreakdownRow
+                    label="Dumps over the plan"
+                    value={String(schedule.dumpCount)}
+                  />
+                  <BreakdownRow
+                    label="HELOC interest paid (total)"
+                    value={money(schedule.totalHelocInterest)}
+                  />
+                </>
+              )}
               <BreakdownRow
                 label="Payoff date, current schedule"
                 value={projection.originalPayoffDate.toLocaleDateString('en-US', {
@@ -404,11 +456,38 @@ export default function CalculatorScreen() {
                 isLast
               />
 
-              {/* The schedule makes the saving concrete: two balance columns, and
-                  the cycling one reaches $0 years before the current plan. Behind
-                  a tap so the reveal stays clean for the reader who just wants the
-                  headline. */}
-              {schedule.length > 0 && (
+              {/* Tap to read the model, not just trust it. */}
+              <TouchableOpacity
+                style={styles.assumeToggle}
+                onPress={toggleAssumptions}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showAssumptions }}
+                accessibilityLabel={showAssumptions ? 'Hide how this is calculated' : 'How this is calculated'}
+              >
+                <Ionicons name="information-circle-outline" size={16} color={Colors.mint600} />
+                <Text style={styles.assumeToggleText}>How this is calculated</Text>
+                <Ionicons
+                  name={showAssumptions ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={Colors.mint600}
+                />
+              </TouchableOpacity>
+              {showAssumptions && (
+                <View style={styles.assumePanel}>
+                  {ASSUMPTIONS.map((line, i) => (
+                    <View key={i} style={styles.assumeItem}>
+                      <Text style={styles.assumeBullet}>•</Text>
+                      <Text style={styles.assumeText}>{line}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* The mechanic, month by month: when each dump lands, the HELOC
+                  interest charged while a balance is owed, and the surplus sweep
+                  pulling it back down. Behind a tap so the headline reveal stays
+                  clean for the reader who only wants the number. */}
+              {schedule && schedule.months.length > 0 && (
                 <>
                   <TouchableOpacity
                     style={styles.scheduleToggle}
@@ -416,11 +495,11 @@ export default function CalculatorScreen() {
                     accessibilityRole="button"
                     accessibilityState={{ expanded: showSchedule }}
                     accessibilityLabel={showSchedule
-                      ? 'Hide the year-by-year schedule'
-                      : 'Show the year-by-year schedule'}
+                      ? 'Hide the month-by-month schedule'
+                      : 'Show the month-by-month schedule'}
                   >
                     <Text style={styles.scheduleToggleText}>
-                      {showSchedule ? 'Hide the year-by-year schedule' : 'Show the year-by-year schedule'}
+                      {showSchedule ? 'Hide the month-by-month schedule' : 'Show the month-by-month schedule'}
                     </Text>
                     <Ionicons
                       name={showSchedule ? 'chevron-up' : 'chevron-down'}
@@ -430,29 +509,47 @@ export default function CalculatorScreen() {
                   </TouchableOpacity>
 
                   {showSchedule && (
-                    <View style={styles.scheduleTable}>
-                      <View style={styles.scheduleHead}>
-                        <Text style={[styles.scheduleHeadCell, styles.scheduleYearCol]}>Year</Text>
-                        <Text style={[styles.scheduleHeadCell, styles.scheduleNumCol]}>Current plan</Text>
-                        <Text style={[styles.scheduleHeadCell, styles.scheduleNumCol]}>With cycling</Text>
-                      </View>
-                      {schedule.map(row => (
-                        <View key={row.year} style={styles.scheduleRow}>
-                          <Text style={[styles.scheduleCell, styles.scheduleYearCol]}>{row.year}</Text>
-                          <Text style={[styles.scheduleCell, styles.scheduleNumCol]}>{money(row.baseline)}</Text>
-                          <Text
-                            style={[
-                              styles.scheduleCell,
-                              styles.scheduleNumCol,
-                              row.cycling === 0 && styles.schedulePaid,
-                            ]}
-                          >
-                            {row.cycling === 0 ? 'Paid off' : money(row.cycling)}
-                          </Text>
+                    <View style={styles.scheduleWrap}>
+                      <Text style={styles.scheduleSummary}>
+                        {schedule.dumpCount} dumps · {money(schedule.dumpSize)} each ·{' '}
+                        {money(schedule.totalHelocInterest)} HELOC interest over{' '}
+                        {formatMonths(schedule.payoffMonths)}
+                      </Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator
+                        style={styles.scheduleScroll}
+                      >
+                        <View>
+                          <View style={styles.mHead}>
+                            <Text style={[styles.mHeadCell, styles.colWhen]}>When</Text>
+                            <Text style={[styles.mHeadCell, styles.colNum]}>Dump</Text>
+                            <Text style={[styles.mHeadCell, styles.colNum]}>HELOC owed</Text>
+                            <Text style={[styles.mHeadCell, styles.colNum]}>HELOC int.</Text>
+                            <Text style={[styles.mHeadCell, styles.colNum]}>Mortgage</Text>
+                          </View>
+                          {schedule.months.map(m => {
+                            const isDump = m.dump > 0;
+                            return (
+                              <View key={m.month} style={[styles.mRow, isDump && styles.mRowDump]}>
+                                <Text style={[styles.mCell, styles.colWhen]}>{whenLabel(m.month)}</Text>
+                                <Text style={[styles.mCell, styles.colNum, isDump && styles.mDump]}>
+                                  {isDump ? `↓ ${money(m.dump)}` : '—'}
+                                </Text>
+                                <Text style={[styles.mCell, styles.colNum]}>
+                                  {m.helocDrawn > 0 ? money(m.helocDrawn) : '—'}
+                                </Text>
+                                <Text style={[styles.mCell, styles.colNum]}>
+                                  {m.helocInterest > 0 ? money(m.helocInterest) : '—'}
+                                </Text>
+                                <Text style={[styles.mCell, styles.colNum]}>{money(m.mortgageBalance)}</Text>
+                              </View>
+                            );
+                          })}
                         </View>
-                      ))}
+                      </ScrollView>
                       <Text style={styles.scheduleNote}>
-                        Mortgage balance at each year-end. Projected estimate, not a guarantee.
+                        Balances are month-end. Projected estimate, not a guarantee.
                       </Text>
                     </View>
                   )}
@@ -842,37 +939,74 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: Colors.mint600,
   },
-  scheduleTable: { marginTop: Spacing[1] },
-  scheduleHead: {
-    flexDirection: 'row',
-    paddingBottom: Spacing[2],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
+  scheduleWrap: { marginTop: Spacing[1] },
+  scheduleSummary: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginBottom: Spacing[3],
   },
-  scheduleHeadCell: {
+  scheduleScroll: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  mHead: {
+    flexDirection: 'row',
+    paddingVertical: Spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  mHeadCell: {
     fontSize: 11,
     fontWeight: Typography.bold,
     color: Colors.textMuted,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  scheduleRow: {
+  mRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing[2],
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray50,
   },
-  scheduleCell: { fontSize: Typography.sm, color: Colors.textSecondary },
-  scheduleYearCol: { width: 44 },
-  scheduleNumCol: { flex: 1, textAlign: 'right' },
-  schedulePaid: { color: Colors.mint600, fontWeight: Typography.semibold },
+  mRowDump: { backgroundColor: Colors.mint50 },
+  mCell: { fontSize: Typography.xs, color: Colors.textSecondary },
+  mDump: { color: Colors.mint700, fontWeight: Typography.semibold },
+  colWhen: { width: 60 },
+  colNum: { width: 96, textAlign: 'right', paddingLeft: Spacing[3] },
   scheduleNote: {
     fontSize: Typography.xs,
     color: Colors.textMuted,
     lineHeight: 16,
     marginTop: Spacing[3],
   },
+
+  // ── Assumptions panel ─────────────────────────────────────────────────────
+  assumeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[1],
+    minHeight: 44,
+    marginTop: Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  assumeToggleText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint600,
+  },
+  assumePanel: {
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.md,
+    padding: Spacing[4],
+    gap: Spacing[3],
+  },
+  assumeItem: { flexDirection: 'row', gap: Spacing[2] },
+  assumeBullet: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
+  assumeText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
 
   // ── CTA ───────────────────────────────────────────────────────────────────
   ctaBanner: {
