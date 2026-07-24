@@ -11,22 +11,28 @@
 //    locally on the device, which is what the copy now says.
 //  · "Most Popular", with no subscribers to base it on.
 //  · Three contradictory prices across the app for the same plan.
-//  · A "7-Day Free Trial" promised unconditionally. The trial claim is now
-//    gated on StoreKit actually returning an introductory offer, so it can
-//    never promise a trial the App Store will not honour.
+//  · A "7-Day Free Trial" promised unconditionally. The trial claim is gated on
+//    StoreKit, so it can never promise a trial the App Store will not honour.
+//    That gate was itself wrong until recently — it fired on any introductory
+//    offer, so a PAID one ("$4.99 for your first three months") would have been
+//    sold as free. A free trial is `introPrice.price === 0`; anything else is a
+//    discount and is now described as one.
 //
 // Prices come from StoreKit. When StoreKit is unavailable the purchase button
 // is disabled and US list pricing is shown, labelled as such — the price
-// displayed must be the price charged, in the buyer's own currency.
+// displayed must be the price charged, in the buyer's own currency. While the
+// store is still being asked, nothing stands in for the price at all: a
+// placeholder shown as though it were settled is the failure worth avoiding.
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import Hero, { HeroCaption } from '../../components/ui/Hero';
+import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import { useIsPro } from '../../hooks/useIsPro';
 import {
   getOfferings, purchasePackage, restorePurchases, purchasesAvailable,
@@ -35,7 +41,7 @@ import {
   US_LIST_PRICE, US_LIST_ANNUAL_PER_MONTH, ANNUAL_SAVING_PCT,
   PACKAGE_MATCH, PRO_FEATURES, FREE_FEATURES,
 } from '../../lib/pricing';
-import { hapticLight } from '../../lib/haptics';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows, OnDark } from '../../lib/theme';
 import type { BillingPeriod } from '../../lib/types';
 
@@ -45,6 +51,12 @@ export default function UpgradeModal() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [offerings, setOfferings] = useState<any>(null);
+  // Three states, not two: we have not asked yet, we asked and failed, we have
+  // an answer. Collapsing the first two is what let a failed fetch sit forever
+  // behind a price that was never real.
+  const [offerStatus, setOfferStatus] = useState<'loading' | 'ready' | 'failed'>(
+    () => (purchasesAvailable() ? 'loading' : 'ready'),
+  );
   const [period, setPeriod] = useState<BillingPeriod>('annual');
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -52,51 +64,104 @@ export default function UpgradeModal() {
 
   const rcAvailable = purchasesAvailable();
 
-  useEffect(() => {
-    if (rcAvailable) getOfferings().then(setOfferings);
+  const loadOfferings = useCallback(() => {
+    if (!rcAvailable) { setOfferStatus('ready'); return; }
+    setOfferStatus('loading');
+    getOfferings().then(result => {
+      // getOfferings swallows its own errors and returns null, so null is the
+      // only failure signal available here.
+      setOfferings(result);
+      setOfferStatus(result ? 'ready' : 'failed');
+    });
   }, [rcAvailable]);
 
-  /** The StoreKit package for the selected period, if the store returned one. */
-  const pkg = useMemo(() => {
+  useEffect(() => { loadOfferings(); }, [loadOfferings]);
+
+  /** Both packages, so the two plans can be compared in the buyer's currency. */
+  const packages = useMemo(() => {
     const all = offerings?.current?.availablePackages;
-    if (!Array.isArray(all)) return null;
+    if (!Array.isArray(all)) return { monthly: null, annual: null };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return all.find((p: any) =>
-      String(p?.identifier ?? '').toLowerCase().includes(PACKAGE_MATCH[period]),
+    const find = (needle: string) => all.find((p: any) =>
+      String(p?.identifier ?? '').toLowerCase().includes(needle),
     ) ?? null;
-  }, [offerings, period]);
+    return { monthly: find(PACKAGE_MATCH.monthly), annual: find(PACKAGE_MATCH.annual) };
+  }, [offerings]);
+
+  const pkg = packages[period];
 
   // Real price from the store, in the buyer's currency, or null.
   const storePrice: string | null = pkg?.product?.priceString ?? null;
-  // Only claim a trial when the store actually carries an introductory offer.
-  const introPeriod = pkg?.product?.introPrice?.periodNumberOfUnits ?? null;
-  const introUnit   = pkg?.product?.introPrice?.periodUnit ?? null;
-  const hasTrial    = introPeriod != null && Number(introPeriod) > 0;
+
+  // ── The introductory offer, described as what it actually is ──────────────
+  //
+  // The gate used to be `periodNumberOfUnits > 0`, which is true of ANY
+  // introductory offer — including a paid one. An App Store offer of "$4.99 for
+  // your first three months" would therefore have been sold on this screen as a
+  // free trial, with a CTA reading "Start free trial", and the user charged
+  // $4.99 on confirmation. A free trial is `price === 0`; anything else is a
+  // discount and has to say so.
+  const intro = pkg?.product?.introPrice ?? null;
+  const introUnits = intro?.periodNumberOfUnits ?? null;
+  const introUnit  = intro?.periodUnit ?? null;
+  const hasIntro   = intro != null && Number(introUnits) > 0;
+  const hasTrial   = hasIntro && Number(intro?.price) === 0;
+  const introLabel = hasIntro && introUnits != null
+    ? `${introUnits}-${String(introUnit ?? 'day').toLowerCase()}`
+    : null;
+
   const canPurchase = rcAvailable && !!pkg && !isPro;
+
+  /**
+   * What the annual plan actually saves, in this storefront.
+   *
+   * ANNUAL_SAVING_PCT is derived from US list prices, and was rendered on the
+   * badge for every buyer everywhere. Apple sets each storefront's price tiers
+   * independently, so the two plans do not keep a fixed ratio across
+   * currencies — the badge could overstate the discount for a buyer whose local
+   * pricing differs. When the store gives us both prices we compute it from
+   * those; otherwise we fall back to the US figure, which is at least the one
+   * the displayed US prices agree with.
+   */
+  const savingPct = useMemo(() => {
+    const m = Number(packages.monthly?.product?.price);
+    const a = Number(packages.annual?.product?.price);
+    if (!Number.isFinite(m) || !Number.isFinite(a) || m <= 0 || a <= 0) {
+      return ANNUAL_SAVING_PCT;
+    }
+    return Math.round((1 - a / (m * 12)) * 100);
+  }, [packages]);
 
   async function handlePurchase() {
     if (!pkg) return;
+    hapticLight();
     setPurchasing(true);
     setError('');
     try {
       const success = await purchasePackage(pkg);
       if (success) {
+        hapticSuccess();
         await refreshPro();
         router.back();
       }
+      // A false return is a user cancellation — purchasePackage swallows those
+      // deliberately. No error, no buzz; they meant to do that.
     } catch {
       setError('That purchase didn’t go through. You have not been charged.');
+      hapticError();
     } finally {
       setPurchasing(false);
     }
   }
 
   async function handleRestore() {
+    hapticLight();
     setRestoring(true);
     setError('');
     try {
       const restored = await restorePurchases();
       if (restored) {
+        hapticSuccess();
         await refreshPro();
         Alert.alert('Purchases restored', 'Your Pro access is active again.');
         router.back();
@@ -149,36 +214,80 @@ export default function UpgradeModal() {
           />
           <PeriodBtn
             label="Annual"
-            badge={ANNUAL_SAVING_PCT > 0 ? `Save ${ANNUAL_SAVING_PCT}%` : undefined}
+            badge={savingPct > 0 ? `Save ${savingPct}%` : undefined}
             active={period === 'annual'}
             onPress={() => { hapticLight(); setPeriod('annual'); }}
           />
         </View>
 
         <View style={styles.priceCard}>
-          <Text style={styles.price}>
-            {storePrice ?? US_LIST_PRICE[period]}
-            <Text style={styles.pricePer}>{period === 'monthly' ? ' / month' : ' / year'}</Text>
-          </Text>
+          {/* Nothing stands in for the price while we are still asking the
+              store for it. US list pricing used to render here immediately, so
+              a buyer in another storefront read "$19.99 / month · US pricing"
+              as the answer, next to a button that silently did nothing, before
+              both changed. Apple requires the price shown to be the price
+              charged; showing a placeholder as though it were settled is the
+              part worth avoiding, not the fallback itself. */}
+          {offerStatus === 'loading' ? (
+            <SkeletonGroup label="Checking the price with the App Store">
+              <Skeleton width={168} height={34} radius={Radius.sm} />
+              <Skeleton width={210} height={12} style={{ marginTop: Spacing[2] }} />
+            </SkeletonGroup>
+          ) : (
+            <>
+              <Text style={styles.price}>
+                {storePrice ?? US_LIST_PRICE[period]}
+                <Text style={styles.pricePer}>{period === 'monthly' ? ' / month' : ' / year'}</Text>
+              </Text>
 
-          {period === 'annual' && !storePrice && (
-            <Text style={styles.priceSub}>
-              Works out to about {US_LIST_ANNUAL_PER_MONTH} a month
-            </Text>
-          )}
+              {/* Kept when a real price is present too — RevenueCat formats
+                  pricePerMonthString in the buyer's own currency, so the annual
+                  plan no longer loses its per-month framing the moment the
+                  store answers. */}
+              {period === 'annual' && (
+                <Text style={styles.priceSub}>
+                  Works out to about{' '}
+                  {pkg?.product?.pricePerMonthString ?? US_LIST_ANNUAL_PER_MONTH} a month
+                </Text>
+              )}
 
-          {!storePrice && (
-            <Text style={styles.priceNote}>
-              US pricing. Your App Store shows the exact price in your own currency.
-            </Text>
+              {!storePrice && (
+                <Text style={styles.priceNote}>
+                  US pricing. Your App Store shows the exact price in your own currency.
+                </Text>
+              )}
+            </>
           )}
 
           {hasTrial && (
             <Text style={styles.trialNote}>
-              Includes a {introPeriod}-{String(introUnit ?? 'day').toLowerCase()} free trial.
+              Includes a {introLabel} free trial.
             </Text>
           )}
+          {hasIntro && !hasTrial && (
+            <Text style={styles.trialNote}>{introSentence(intro)}</Text>
+          )}
         </View>
+
+        {/* A failed fetch used to be indistinguishable from a slow one, for as
+            long as the screen stayed open: getOfferings swallows its error and
+            returns null, so the paywall sat on US list pricing with a dead
+            button and no way to try again. */}
+        {offerStatus === 'failed' && (
+          <TouchableOpacity
+            style={styles.retryBanner}
+            onPress={() => { hapticLight(); loadOfferings(); }}
+            accessibilityRole="button"
+            accessibilityLabel="Could not reach the App Store. Tap to try again."
+          >
+            <Ionicons name="cloud-offline-outline" size={18} color={Colors.textSecondary} />
+            <Text style={styles.retryText}>
+              We couldn&apos;t reach the App Store for current pricing. The figure above is
+              US list pricing, not your final price.
+            </Text>
+            <Text style={styles.retryAction}>Retry</Text>
+          </TouchableOpacity>
+        )}
 
         {error ? (
           <View style={styles.errorBanner}>
@@ -207,6 +316,7 @@ export default function UpgradeModal() {
           disabled={!canPurchase || purchasing}
           accessibilityLabel={hasTrial ? 'Start free trial' : 'Subscribe to Pro'}
         >
+          {/* Only a genuinely free intro offer earns the word "free" here. */}
           {purchasing
             ? <ActivityIndicator color={Colors.white} />
             : (
@@ -272,6 +382,26 @@ export default function UpgradeModal() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * A paid introductory offer, in a sentence.
+ *
+ * The total span is `periodNumberOfUnits × cycles` — an offer of one month
+ * repeated three times is three months, and saying "for your first 1 month, 3
+ * times" makes the reader do that multiplication themselves. When it repeats,
+ * the price is per period and says so.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function introSentence(intro: any): string {
+  const units  = Math.max(1, Number(intro?.periodNumberOfUnits) || 1);
+  const unit   = String(intro?.periodUnit ?? 'DAY').toLowerCase();
+  const cycles = Math.max(1, Number(intro?.cycles) || 1);
+  const total  = units * cycles;
+
+  const span = total === 1 ? `your first ${unit}` : `your first ${total} ${unit}s`;
+  const rate = cycles > 1 ? ` a ${unit}` : '';
+  return `${intro?.priceString}${rate} for ${span}, then the price above.`;
+}
 
 function PeriodBtn({ label, badge, active, onPress }: {
   label: string; badge?: string; active: boolean; onPress: () => void;
@@ -347,6 +477,19 @@ const styles = StyleSheet.create({
   priceSub: { fontSize: Typography.sm, color: Colors.textSecondary },
   priceNote: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing[1] },
   trialNote: { fontSize: Typography.sm, color: Colors.mint600, marginTop: Spacing[1] },
+
+  retryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.md,
+    padding: Spacing[4],
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.gray400,
+  },
+  retryText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  retryAction: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
 
   errorBanner: { backgroundColor: Colors.gray50, borderRadius: Radius.md, padding: Spacing[4] },
   errorText: { color: Colors.textSecondary, fontSize: Typography.sm },
