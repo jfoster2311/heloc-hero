@@ -325,13 +325,13 @@ export default function SettingsModal() {
             icon="document-text-outline"
             label="Terms of Service"
             value=""
-            onPress={() => Linking.openURL('https://helochair.com/terms')}
+            onPress={() => Linking.openURL('https://helochero.com/terms')}
           />
           <SettingRow
             icon="shield-checkmark-outline"
             label="Privacy Policy"
             value=""
-            onPress={() => Linking.openURL('https://helochair.com/privacy')}
+            onPress={() => Linking.openURL('https://helochero.com/privacy')}
             isLast
           />
         </View>

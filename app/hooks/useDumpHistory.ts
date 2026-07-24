@@ -1,8 +1,11 @@
 // hooks/useDumpHistory.ts — real cycle history from automation_log.
 //
-// This is the only genuine time-series the app has. There is no transactions
-// table and nothing persists Plaid transactions, so per-category spending and
-// income/expense trends cannot be computed — they must not be invented.
+// Every row here is a move the user made and recorded. That makes this the
+// record of the STRATEGY, and the only source for "how much have I actually
+// dumped" — distinct from `public.transactions`, which is bank activity synced
+// from Plaid and exists solely so `lib/cashflow.ts` can check the surplus
+// figure. Neither is a budgeting feed: per-category spending is still not
+// computed anywhere, deliberately, and must not be invented here.
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { AutomationLogEntry } from '../lib/types';
