@@ -166,6 +166,56 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
   };
 }
 
+/** One year of the payoff comparison: mortgage balance under each plan. */
+export interface PayoffScheduleRow {
+  /** 1-based year from today. */
+  year: number;
+  /** Mortgage balance at year-end on the current schedule. */
+  baseline: number;
+  /** Mortgage balance at year-end with cycling. Reaches 0 years sooner. */
+  cycling: number;
+}
+
+/**
+ * A year-by-year payoff schedule, current plan against cycling.
+ *
+ * The saving is abstract until you can see it: this samples the two balance
+ * runs annually and puts them side by side, so the cycling column visibly
+ * outruns the baseline and hits zero years earlier — that gap IS the interest
+ * saved, made concrete. Built from the same runBaseline/runCycling the headline
+ * projection uses, so the schedule and the number above it can never disagree.
+ *
+ * Empty when the payment cannot cover the interest (the loan never amortizes),
+ * matching computeProjection's divergence guard.
+ */
+export function computePayoffSchedule(inputs: CalculatorInputs): PayoffScheduleRow[] {
+  const p = prepare(inputs);
+  if (p.diverges || p.mortgageBalance <= 0 || p.monthlyPayment <= 0) return [];
+
+  const base = runBaseline(p.mortgageBalance, p.monthlyRate, p.monthlyPayment, true);
+  const acc = runCycling(
+    p.mortgageBalance, p.monthlyRate, p.monthlyPayment,
+    p.monthlySurplus, p.helocMonthlyRate, p.effectiveDump, true,
+  );
+
+  // Run to the longer of the two payoffs so the baseline column finishes on
+  // screen rather than being cut off at the cycling payoff.
+  const totalYears = Math.max(1, Math.ceil(base.months / 12));
+  const rows: PayoffScheduleRow[] = [];
+  for (let year = 1; year <= totalYears; year++) {
+    const month = year * 12;
+    const baseIdx = Math.min(month, base.series.length - 1);
+    const baseline = base.series[baseIdx] ?? 0;
+    // series[i] is the balance AFTER i payments; once cycling has paid off, its
+    // series has ended, so anything past acc.months is genuinely zero.
+    const cycling = month <= acc.months
+      ? acc.mortgage[Math.min(month, acc.mortgage.length - 1)] ?? 0
+      : 0;
+    rows.push({ year, baseline: Math.round(baseline), cycling: Math.round(cycling) });
+  }
+  return rows;
+}
+
 /** A point on the projected equity curve. `month` is months from today. */
 export interface EquityPoint {
   month: number;

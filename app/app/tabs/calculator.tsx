@@ -27,7 +27,7 @@ import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
-import { computeProjection, formatMonths, calcMonthlyPayment } from '../../lib/projections';
+import { computeProjection, computePayoffSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
@@ -117,6 +117,7 @@ export default function CalculatorScreen() {
     () => (initialInputs.monthlyPayment ?? 0) > 0,
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   // Set the moment the user edits anything. Until then the screen is still
   // showing OUR numbers and is free to improve them; afterwards it is showing
   // THEIRS and must not move under their hands.
@@ -171,15 +172,26 @@ export default function CalculatorScreen() {
     if (status === 'payment-too-low') setShowAdvanced(true);
   }, [status]);
 
-  const projection = useMemo(() => {
-    if (status !== 'ok') return null;
-    return computeProjection({
-      ...inputs,
-      monthlyPayment,
-      mortgageRate: inputs.mortgageRate / 100,
-      helocRate:    inputs.helocRate    / 100,
-    });
-  }, [inputs, monthlyPayment, status]);
+  const projectionInputs = useMemo(() => ({
+    ...inputs,
+    monthlyPayment,
+    mortgageRate: inputs.mortgageRate / 100,
+    helocRate:    inputs.helocRate    / 100,
+  }), [inputs, monthlyPayment]);
+
+  const projection = useMemo(
+    () => (status !== 'ok' ? null : computeProjection(projectionInputs)),
+    [projectionInputs, status],
+  );
+
+  // The year-by-year schedule behind the reveal. Same inputs as the headline
+  // projection, so the year the cycling column hits $0 matches the hero.
+  const schedule = useMemo(
+    () => (status === 'ok' && projection && projection.monthsSaved > 0
+      ? computePayoffSchedule(projectionInputs)
+      : []),
+    [projectionInputs, status, projection],
+  );
 
   function updateField(field: keyof CalculatorInputs, next: number) {
     setEdited(true);
@@ -204,6 +216,12 @@ export default function CalculatorScreen() {
     hapticLight();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setShowAdvanced(v => !v);
+  }
+
+  function toggleSchedule() {
+    hapticLight();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowSchedule(v => !v);
   }
 
   const hasGain = !!projection && projection.monthsSaved > 0;
@@ -385,6 +403,61 @@ export default function CalculatorScreen() {
                 })}
                 isLast
               />
+
+              {/* The schedule makes the saving concrete: two balance columns, and
+                  the cycling one reaches $0 years before the current plan. Behind
+                  a tap so the reveal stays clean for the reader who just wants the
+                  headline. */}
+              {schedule.length > 0 && (
+                <>
+                  <TouchableOpacity
+                    style={styles.scheduleToggle}
+                    onPress={toggleSchedule}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showSchedule }}
+                    accessibilityLabel={showSchedule
+                      ? 'Hide the year-by-year schedule'
+                      : 'Show the year-by-year schedule'}
+                  >
+                    <Text style={styles.scheduleToggleText}>
+                      {showSchedule ? 'Hide the year-by-year schedule' : 'Show the year-by-year schedule'}
+                    </Text>
+                    <Ionicons
+                      name={showSchedule ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={Colors.mint600}
+                    />
+                  </TouchableOpacity>
+
+                  {showSchedule && (
+                    <View style={styles.scheduleTable}>
+                      <View style={styles.scheduleHead}>
+                        <Text style={[styles.scheduleHeadCell, styles.scheduleYearCol]}>Year</Text>
+                        <Text style={[styles.scheduleHeadCell, styles.scheduleNumCol]}>Current plan</Text>
+                        <Text style={[styles.scheduleHeadCell, styles.scheduleNumCol]}>With cycling</Text>
+                      </View>
+                      {schedule.map(row => (
+                        <View key={row.year} style={styles.scheduleRow}>
+                          <Text style={[styles.scheduleCell, styles.scheduleYearCol]}>{row.year}</Text>
+                          <Text style={[styles.scheduleCell, styles.scheduleNumCol]}>{money(row.baseline)}</Text>
+                          <Text
+                            style={[
+                              styles.scheduleCell,
+                              styles.scheduleNumCol,
+                              row.cycling === 0 && styles.schedulePaid,
+                            ]}
+                          >
+                            {row.cycling === 0 ? 'Paid off' : money(row.cycling)}
+                          </Text>
+                        </View>
+                      ))}
+                      <Text style={styles.scheduleNote}>
+                        Mortgage balance at each year-end. Projected estimate, not a guarantee.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
             </Card>
           )}
 
@@ -457,10 +530,12 @@ export default function CalculatorScreen() {
 /**
  * Years left on the note.
  *
- * A chip row rather than a text field: the answer is almost always one of five
- * round numbers, and tapping "20" beats opening a keypad. The odd term that
- * isn't listed is still reachable — typing a real payment under Advanced
- * overrides this entirely, which is why the row greys out once they do.
+ * Five chips for the common round numbers — tapping "20" beats opening a keypad —
+ * plus a field for the term that isn't one of them: someone eleven years into a
+ * 27-year refinance should not have to round. The chips and the field drive the
+ * same value; typing a number no chip matches simply leaves none highlighted.
+ * The whole control greys out once a real payment is entered under Advanced,
+ * because then the term is implied by the number they gave us.
  */
 function TermPicker({ years, onChange, disabled, isLast }: {
   years: number;
@@ -468,13 +543,17 @@ function TermPicker({ years, onChange, disabled, isLast }: {
   disabled?: boolean;
   isLast?: boolean;
 }) {
+  // Raw keystrokes while focused; the parsed integer is what drives the math.
+  // Same reason as NumericField — formatting mid-entry eats characters.
+  const [draft, setDraft] = useState<string | null>(null);
+
   return (
     <View style={[inputStyles.group, isLast && inputStyles.groupLast]}>
       <Text style={inputStyles.label}>Years left on your mortgage</Text>
       <Text style={inputStyles.hint}>
         {disabled
           ? 'Not used — your payment below already implies a term.'
-          : 'Sets the monthly payment we calculate. Most people are part-way through.'}
+          : 'Sets the monthly payment we calculate. Tap a common term or type your own.'}
       </Text>
       <View style={termStyles.row}>
         {TERM_OPTIONS.map(y => {
@@ -487,7 +566,7 @@ function TermPicker({ years, onChange, disabled, isLast }: {
                 active && termStyles.chipActive,
                 disabled && termStyles.chipDisabled,
               ]}
-              onPress={() => onChange(y)}
+              onPress={() => { setDraft(null); onChange(y); }}
               disabled={disabled}
               accessibilityRole="button"
               accessibilityState={{ selected: active, disabled }}
@@ -499,7 +578,25 @@ function TermPicker({ years, onChange, disabled, isLast }: {
             </TouchableOpacity>
           );
         })}
-        <Text style={termStyles.unit}>yrs</Text>
+        <View style={[termStyles.customBox, disabled && termStyles.chipDisabled]}>
+          <TextInput
+            style={termStyles.customInput}
+            value={draft ?? String(years)}
+            onChangeText={(text) => {
+              setDraft(text);
+              const n = parsePositive(text);
+              if (n !== null && n >= 1 && n <= 40) onChange(Math.round(n));
+            }}
+            onBlur={() => setDraft(null)}
+            editable={!disabled}
+            keyboardType="number-pad"
+            maxLength={2}
+            inputAccessoryViewID={Platform.OS === 'ios' ? KEYPAD_ACCESSORY_ID : undefined}
+            selectTextOnFocus
+            accessibilityLabel="Years left on your mortgage"
+          />
+          <Text style={termStyles.unit}>yrs</Text>
+        </View>
       </View>
     </View>
   );
@@ -526,6 +623,25 @@ const termStyles = StyleSheet.create({
   },
   chipTextActive: { color: Colors.white },
   unit: { fontSize: Typography.xs, color: Colors.textMuted },
+  customBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    minHeight: 44,
+    paddingHorizontal: Spacing[2],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.gray50,
+  },
+  customInput: {
+    minWidth: 26,
+    textAlign: 'center',
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+    paddingVertical: Spacing[2],
+  },
 });
 
 /**
@@ -708,6 +824,54 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
     color: Colors.textPrimary,
+  },
+
+  // ── Year-by-year schedule ─────────────────────────────────────────────────
+  scheduleToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[1],
+    minHeight: 44,
+    marginTop: Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  scheduleToggleText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint600,
+  },
+  scheduleTable: { marginTop: Spacing[1] },
+  scheduleHead: {
+    flexDirection: 'row',
+    paddingBottom: Spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+  },
+  scheduleHeadCell: {
+    fontSize: 11,
+    fontWeight: Typography.bold,
+    color: Colors.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray50,
+  },
+  scheduleCell: { fontSize: Typography.sm, color: Colors.textSecondary },
+  scheduleYearCol: { width: 44 },
+  scheduleNumCol: { flex: 1, textAlign: 'right' },
+  schedulePaid: { color: Colors.mint600, fontWeight: Typography.semibold },
+  scheduleNote: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 16,
+    marginTop: Spacing[3],
   },
 
   // ── CTA ───────────────────────────────────────────────────────────────────

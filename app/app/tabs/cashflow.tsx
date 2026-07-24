@@ -26,7 +26,7 @@ import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
 import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
-import { Card, Meter } from '../../components/ui/primitives';
+import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
@@ -131,11 +131,6 @@ export default function CashFlowScreen() {
                     (surplus < 0 ? ' — there is nothing left to cycle' : '')
                   : 'Add your income and expenses to see what the strategy has to work with'}
               </HeroCaption>
-              {hasFigures && (
-                <View style={{ marginTop: Spacing[4] }}>
-                  <Meter value={committedPct / 100} tone="muted" onDark height={8} />
-                </View>
-              )}
             </>
           )}
         </Hero>
@@ -177,15 +172,6 @@ export default function CashFlowScreen() {
                 {helocInterest > 1
                   ? ` · HELOC interest ${'$'}${fmt(helocInterest)}${helocRateAssumed ? ' (assumed 8.5% APR)' : ''}`
                   : ''}
-              </Text>
-            </View>
-
-            <View style={styles.surplusRow}>
-              <Text style={styles.surplusLabel}>
-                {surplus >= 0 ? 'Left to cycle' : 'Short each month'}
-              </Text>
-              <Text style={[styles.surplusValue, surplus < 0 && styles.surplusNegative]}>
-                {surplus >= 0 ? '' : '−'}${fmt(Math.abs(surplus))}
               </Text>
             </View>
 
@@ -341,14 +327,12 @@ export default function CashFlowScreen() {
           )}
         </Card>
 
-        {/* ── What this screen deliberately does not show ─────────────────── */}
-        <View style={styles.noteCard}>
-          <Ionicons name="information-circle-outline" size={18} color={Colors.textMuted} />
-          <Text style={styles.noteText}>
-            No spending categories here on purpose. Your transactions are read for one figure
-            — what you have left each month — and nothing else.
-          </Text>
-        </View>
+        {/* Kept as a line, not a card: this screen reads your transactions for one
+            figure — what you have left each month — and shows no spending categories. */}
+        <Text style={styles.footnote}>
+          No spending categories here on purpose — your transactions are read for one figure,
+          what you have left each month, and nothing else.
+        </Text>
         </View>
       </ScrollView>
     </View>
@@ -480,29 +464,6 @@ const styles = StyleSheet.create({
   committedDetail: { marginBottom: Spacing[1] },
   committedText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
 
-  surplusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing[3],
-    paddingTop: Spacing[3],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-    marginBottom: Spacing[3],
-  },
-  surplusLabel: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-  },
-  surplusValue: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.mint600,
-  },
-  // Negative numbers use muted grey, never red.
-  surplusNegative: { color: Colors.gray400 },
-
   sourceNote: {
     fontSize: Typography.xs,
     color: Colors.textMuted,
@@ -546,15 +507,12 @@ const styles = StyleSheet.create({
   barLabel: { fontSize: 11, color: Colors.textMuted },
   chartNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[3] },
 
-  noteCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing[3],
-    backgroundColor: Colors.gray50,
-    borderRadius: Radius.lg,
-    padding: Spacing[4],
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+  footnote: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: Spacing[2],
+    paddingTop: Spacing[1],
   },
-  noteText: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
 });
