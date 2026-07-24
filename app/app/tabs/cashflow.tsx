@@ -25,34 +25,40 @@ import { useCallback, useMemo } from 'react';
 import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
 import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import { Card, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
-import { useAccounts } from '../../hooks/useAccounts';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
-import { hapticLight } from '../../lib/haptics';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
-import { resolveHelocRate } from '../../lib/helocTerms';
-import type { LinkedAccount } from '../../lib/types';
 
 export default function CashFlowScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
-  const { refreshing, refresh, helocAccount } = useAccounts(profile?.id ?? null);
   const f = useFinancials();
   const {
     buckets, totalDumped, count, lastDumpAt, loading: historyLoading,
     error: historyError, refresh: refreshHistory,
   } = useDumpHistory(profile?.id);
 
-  const helocBalance = firstBalance(helocAccount);
-
-  const income   = profile?.monthly_income   ?? 0;
-  const expenses = profile?.monthly_expenses ?? 0;
-  const payment  = profile?.monthly_payment  ?? 0;
-  const { rate: helocRate, isAssumed: helocRateAssumed } = resolveHelocRate(profile?.heloc_rate);
-  const helocInterest = (helocBalance ?? 0) * helocRate / 12;
+  // Everything below comes from useFinancials, which exists precisely so two
+  // screens cannot disagree about the same figure. This one was reading income,
+  // expenses, the payment and the HELOC rate straight off the profile instead —
+  // and the payment is the one that bites: useFinancials resolves it as
+  // `mortgage.nextPayment.value ?? profile.monthly_payment`, so a servicer
+  // reporting an escrow-adjusted payment made the dashboard and this screen
+  // print different surpluses from the same data. It also mounted its OWN
+  // useAccounts alongside the one inside useFinancials: two fetches, two
+  // realtime channels, two copies of the same rows that could differ mid-flight.
+  const income    = f.income;
+  const expenses  = f.expenses;
+  const payment   = f.payment;
+  const helocRate = f.helocRate;
+  const helocRateAssumed = f.helocRateAssumed;
+  const refreshing = f.refreshing;
+  const helocInterest = (f.helocDrawn ?? 0) * helocRate / 12;
 
   const hasFigures = income > 0;
   const committed  = expenses + payment + (helocInterest > 1 ? helocInterest : 0);
@@ -76,10 +82,15 @@ export default function CashFlowScreen() {
     [f.derivedCashflow, f.mortgage.nextPayment, f.mortgage.nextPaymentDueDate, payment],
   );
 
-  const onRefresh = useCallback(() => {
-    refresh();
-    refreshHistory();
-  }, [refresh, refreshHistory]);
+  // Awaited, and both halves. It used to fire the two calls without waiting, so
+  // RefreshControl — which only tracks the accounts half — stopped spinning
+  // while the dump history was still in flight, and the chart then changed
+  // under a screen that had just told the user it was done.
+  const onRefresh = useCallback(async () => {
+    const [ok] = await Promise.all([f.refresh(), refreshHistory()]);
+    if (ok) hapticSuccess();
+    else hapticError();
+  }, [f.refresh, refreshHistory]);
 
   const maxBucket = Math.max(...buckets.map(b => b.total), 0);
 
@@ -99,23 +110,54 @@ export default function CashFlowScreen() {
           <Text style={styles.heroEyebrow}>
             {surplus >= 0 ? 'AVAILABLE TO CYCLE EACH MONTH' : 'SHORT EACH MONTH'}
           </Text>
-          <HeroValue>
-            {hasFigures ? `${surplus < 0 ? '−' : ''}$${fmt(Math.abs(surplus))}` : '—'}
-          </HeroValue>
-          <HeroCaption>
-            {hasFigures
-              ? `${committedPct.toFixed(0)}% of your income is already committed` +
-                (surplus < 0 ? ' — there is nothing left to cycle' : '')
-              : 'Add your income and expenses to see what the strategy has to work with'}
-          </HeroCaption>
-          {hasFigures && (
-            <View style={{ marginTop: Spacing[4] }}>
-              <Meter value={committedPct / 100} tone="muted" onDark height={8} />
-            </View>
+
+          {/* Committed includes interest on the linked HELOC balance, so while
+              that balance is loading it is missing and the surplus above it
+              reads HIGH — the flattering direction again, on the figure the
+              whole strategy is sized from. */}
+          {f.loading ? (
+            <SkeletonGroup label="Working out what you have left each month" style={styles.heroSkeleton}>
+              <Skeleton onDark width={170} height={40} radius={Radius.sm} />
+              <Skeleton onDark width={230} height={13} />
+            </SkeletonGroup>
+          ) : (
+            <>
+              <HeroValue>
+                {hasFigures ? `${surplus < 0 ? '−' : ''}$${fmt(Math.abs(surplus))}` : '—'}
+              </HeroValue>
+              <HeroCaption>
+                {hasFigures
+                  ? `${committedPct.toFixed(0)}% of your income is already committed` +
+                    (surplus < 0 ? ' — there is nothing left to cycle' : '')
+                  : 'Add your income and expenses to see what the strategy has to work with'}
+              </HeroCaption>
+              {hasFigures && (
+                <View style={{ marginTop: Spacing[4] }}>
+                  <Meter value={committedPct / 100} tone="muted" onDark height={8} />
+                </View>
+              )}
+            </>
           )}
         </Hero>
 
         <View style={styles.content}>
+        {/* Same contract as the dashboard: a failed balance read is stated, not
+            absorbed. Everything on this screen is downstream of it. */}
+        {!f.loading && f.error && (
+          <TouchableOpacity
+            style={styles.staleBanner}
+            onPress={() => { hapticLight(); onRefresh(); }}
+            accessibilityRole="button"
+            accessibilityLabel="Balances may be out of date. Tap to retry."
+          >
+            <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
+            <Text style={styles.staleText}>
+              Couldn&apos;t reach your balances — HELOC interest below may be out of date.
+            </Text>
+            <Text style={styles.staleAction}>Retry</Text>
+          </TouchableOpacity>
+        )}
+
         {/* ── Monthly cash flow, from the user's own figures ──────────────── */}
         {hasFigures ? (
           <Card>
@@ -238,7 +280,21 @@ export default function CashFlowScreen() {
               </TouchableOpacity>
             </View>
           ) : historyLoading ? (
-            <Text style={styles.emptyBody}>Loading…</Text>
+            /* Was the bare string "Loading…", which is both the least
+               informative possible placeholder and a layout jump waiting to
+               happen — the card grows by ~110pt when the chart arrives. */
+            <SkeletonGroup label="Loading your dump history">
+              <View style={styles.chart}>
+                {[38, 64, 22, 80, 50, 70].map((h, i) => (
+                  <View key={i} style={styles.barGroup}>
+                    <View style={styles.barSlot}>
+                      <Skeleton width={18} height={h} radius={4} />
+                    </View>
+                    <Skeleton width={22} height={9} />
+                  </View>
+                ))}
+              </View>
+            </SkeletonGroup>
           ) : count === 0 ? (
             <View style={styles.stateBlock}>
               <Text style={styles.emptyBody}>
@@ -361,10 +417,6 @@ function FlowBar({ label, amount, max, tone }: {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function firstBalance(account: LinkedAccount | null): number | null {
-  if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.current;
-}
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -383,6 +435,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
+  heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
+
+  staleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    minHeight: 44,
+  },
+  staleText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
 
   cardHead: {
     flexDirection: 'row',

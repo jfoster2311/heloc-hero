@@ -17,17 +17,19 @@
 import {
   View, Text, StyleSheet, ScrollView,
   TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
+  InputAccessoryView, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
+import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import type { CalculatorInputs } from '../../lib/types';
 
@@ -42,6 +44,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // but it is now a stated assumption the user can correct in one tap.
 const TERM_OPTIONS = [10, 15, 20, 25, 30] as const;
 const DEFAULT_TERM_YEARS = 30;
+
+/** Shared by every field, so one bar serves the whole screen. iOS only. */
+const KEYPAD_ACCESSORY_ID = 'calculator-keypad';
 
 // Realistic defaults so the screen opens with a believable answer already on it.
 const GENERIC_DEFAULTS: CalculatorInputs = {
@@ -112,6 +117,27 @@ export default function CalculatorScreen() {
     () => (initialInputs.monthlyPayment ?? 0) > 0,
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Set the moment the user edits anything. Until then the screen is still
+  // showing OUR numbers and is free to improve them; afterwards it is showing
+  // THEIRS and must not move under their hands.
+  const [edited, setEdited] = useState(false);
+
+  // Adopt the prefill when it arrives.
+  //
+  // useState only reads its argument on the first render, and on that render
+  // `accounts` is still [] because the fetch has not returned — so the linked
+  // mortgage balance fell through to the generic $400,000 and stayed there
+  // forever. A Pro user with a connected mortgage ran every projection on a
+  // number that was not theirs, on the screen whose entire job is to be
+  // convincing. Everything else prefilled fine, which is what kept this hidden:
+  // rate, payment and surplus come off the profile, which is loaded before the
+  // tab mounts.
+  useEffect(() => {
+    if (edited) return;
+    setInputs(initialInputs);
+    setTermYears(initialTermYears);
+    setPaymentTouched((initialInputs.monthlyPayment ?? 0) > 0);
+  }, [initialInputs, initialTermYears, edited]);
 
   // Until the user edits it, the payment is a real amortization of the balance
   // and rate they can see, over the term they chose — not a fixed guess that
@@ -135,6 +161,16 @@ export default function CalculatorScreen() {
         ? 'payment-too-low'
         : 'ok';
 
+  // The payment-too-low state used to tell the user to "check the payment under
+  // Advanced" while Advanced was collapsed — an instruction pointing at a
+  // control that was not on screen. Open it for them; the fix lives inside.
+  // Keyed on `status` alone, so it fires on the TRANSITION into the bad state
+  // and not on every render — closing the panel while the payment is still too
+  // low therefore leaves it closed, rather than fighting the user.
+  useEffect(() => {
+    if (status === 'payment-too-low') setShowAdvanced(true);
+  }, [status]);
+
   const projection = useMemo(() => {
     if (status !== 'ok') return null;
     return computeProjection({
@@ -146,16 +182,26 @@ export default function CalculatorScreen() {
   }, [inputs, monthlyPayment, status]);
 
   function updateField(field: keyof CalculatorInputs, next: number) {
+    setEdited(true);
     setInputs(prev => ({ ...prev, [field]: next }));
   }
 
   function handleReset() {
+    hapticLight();
+    setEdited(false);
     setInputs(initialInputs);
     setTermYears(initialTermYears);
     setPaymentTouched((initialInputs.monthlyPayment ?? 0) > 0);
   }
 
+  function handleTermChange(years: number) {
+    hapticSelection();
+    setEdited(true);
+    setTermYears(years);
+  }
+
   function toggleAdvanced() {
+    hapticLight();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setShowAdvanced(v => !v);
   }
@@ -258,7 +304,7 @@ export default function CalculatorScreen() {
                 because then the term is implied by the number they gave us. */}
             <TermPicker
               years={termYears}
-              onChange={setTermYears}
+              onChange={handleTermChange}
               disabled={paymentTouched}
               isLast
             />
@@ -379,6 +425,29 @@ export default function CalculatorScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* The Done bar for the number pads. Rendered once for the screen and
+          referenced by every field. Android keypads have a system dismiss, so
+          this is iOS-only rather than a cross-platform component. */}
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={KEYPAD_ACCESSORY_ID}>
+          <View style={styles.keypadBar}>
+            <Text style={styles.keypadHint} numberOfLines={1}>
+              {status === 'ok' && projection && projection.monthsSaved > 0
+                ? `${formatMonths(projection.monthsSaved)} sooner`
+                : 'Results update as you type'}
+            </Text>
+            <TouchableOpacity
+              style={styles.keypadDone}
+              onPress={() => { hapticLight(); Keyboard.dismiss(); }}
+              accessibilityRole="button"
+              accessibilityLabel="Done editing"
+            >
+              <Text style={styles.keypadDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </View>
   );
 }
@@ -480,6 +549,11 @@ function NumericField({
   keyboardType?: 'numeric' | 'decimal-pad';
   isLast?: boolean;
 }) {
+  // Every field on this screen is a number pad, and iOS number pads have no
+  // return key — so there was no affordance for putting the keyboard away at
+  // all. Tapping the page worked, but only because keyboardShouldPersistTaps
+  // happens to allow it, which is not something a user can be expected to
+  // discover while half the results are hidden behind the keyboard.
   const [draft, setDraft] = useState<string | null>(null);
 
   const formatted = decimals > 0
@@ -502,6 +576,7 @@ function NumericField({
           }}
           onBlur={() => setDraft(null)}
           keyboardType={keyboardType ?? 'numeric'}
+          inputAccessoryViewID={Platform.OS === 'ios' ? KEYPAD_ACCESSORY_ID : undefined}
           placeholder="0"
           placeholderTextColor={Colors.textMuted}
           selectTextOnFocus
@@ -646,6 +721,30 @@ const styles = StyleSheet.create({
   },
   ctaTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint700 },
   ctaSub: { fontSize: Typography.xs, color: Colors.mint600, marginTop: 2, lineHeight: 16 },
+
+  // ── Keypad accessory ──────────────────────────────────────────────────────
+  keypadBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  keypadHint: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted },
+  keypadDone: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing[3],
+  },
+  keypadDoneText: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.mint600,
+  },
 
   resetBtn: { alignItems: 'center', paddingVertical: Spacing[3], minHeight: 44, justifyContent: 'center' },
   resetText: { color: Colors.textMuted, fontSize: Typography.sm },
