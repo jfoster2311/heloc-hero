@@ -121,6 +121,10 @@ export default function RootLayout() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
+          name="modals/alert-thresholds"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
           name="modals/assumptions"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />

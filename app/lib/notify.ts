@@ -40,15 +40,63 @@ export const REMINDER_IDS = {
 
 export type ReminderId = typeof REMINDER_IDS[keyof typeof REMINDER_IDS];
 
-export async function hasPermission(): Promise<boolean> {
+/**
+ * Four states, not two. A boolean cannot tell "hasn't been asked" apart from
+ * "asked and said no", and those need opposite treatment: the first is a prompt
+ * worth showing, the second is a trip to iOS Settings. Conflating them is how a
+ * settings screen ends up displaying an ON switch that delivers nothing.
+ */
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unavailable';
+
+/**
+ * Reads expo's PermissionResponse. `granted` is the convenience boolean and the
+ * only reliable signal for "will deliver"; iOS maps ONLY UNAuthorizationStatus
+ * .authorized to granted and .denied to denied, leaving provisional and
+ * ephemeral as undetermined — which is the right answer for us anyway, since
+ * both can still be upgraded by asking. `canAskAgain` is what separates a real
+ * denial from a state we may still prompt out of.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalize(res: any): PermissionStatus {
+  if (!res) return 'unavailable';
+  if (res.granted) return 'granted';
+  if (res.status === 'undetermined' || res.canAskAgain === true) return 'undetermined';
+  return 'denied';
+}
+
+export async function permissionStatus(): Promise<PermissionStatus> {
   const mod = loadModule();
-  if (!mod) return false;
+  if (!mod) return 'unavailable';
   try {
-    const { status } = await mod.getPermissionsAsync();
-    return status === 'granted';
+    return normalize(await mod.getPermissionsAsync());
   } catch {
-    return false;
+    return 'unavailable';
   }
+}
+
+/**
+ * Asks, and reports what the answer actually is.
+ *
+ * iOS presents the system prompt ONCE per install. Calling request again after
+ * a denial resolves immediately with the stored answer and shows the user
+ * nothing — so a caller that treats this as "the prompt appeared" will leave
+ * someone tapping a dead button forever. Hence the pre-check: already-answered
+ * returns that answer without pretending to have asked.
+ */
+export async function requestPermission(): Promise<PermissionStatus> {
+  const mod = loadModule();
+  if (!mod) return 'unavailable';
+  try {
+    const existing = normalize(await mod.getPermissionsAsync());
+    if (existing !== 'undetermined') return existing;
+    return normalize(await mod.requestPermissionsAsync());
+  } catch {
+    return 'unavailable';
+  }
+}
+
+export async function hasPermission(): Promise<boolean> {
+  return (await permissionStatus()) === 'granted';
 }
 
 /** Cancels a previously scheduled reminder. Safe when none exists. */

@@ -4,13 +4,17 @@ import {
   TouchableOpacity, Switch, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase, invokeFunction } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
 import { isPaidTier } from '../../lib/pricing';
+import {
+  permissionStatus, requestPermission,
+  type PermissionStatus,
+} from '../../lib/notify';
 import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
 } from '../../lib/appLock';
@@ -39,7 +43,10 @@ export default function SettingsModal() {
     DEFAULT_AUTOMATION_SETTINGS,
   );
   const [savingAutomation, setSavingAutomation] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [automationError, setAutomationError] = useState<string | null>(null);
+  // null until the first check resolves. Seeding it with a real status would
+  // flash a notice about a state we have not actually confirmed yet.
+  const [notifStatus, setNotifStatus] = useState<PermissionStatus | null>(null);
   const [autoLock, setAutoLock] = useState(false);
   const [lockSupported, setLockSupported] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -69,26 +76,71 @@ export default function SettingsModal() {
     }
   }
 
-  useEffect(() => {
+  // maybeSingle, not single: a user who has never touched these settings has no
+  // row, and `single` treats that as an error and leaves the defaults unread.
+  const loadAutomation = useCallback(() => {
     if (!profile?.id) return;
     supabase
       .from('automation_settings')
       .select('*')
       .eq('user_id', profile.id)
-      .single()
+      .maybeSingle()
       .then(({ data }) => { if (data) setAutomation(data); });
   }, [profile?.id]);
 
+  // Both re-run on focus, not just on mount: the thresholds sheet writes the
+  // same row, and "Open Settings" leaves the app entirely — the answer the user
+  // gives over in iOS has to land back here on return.
+  useFocusEffect(useCallback(() => {
+    loadAutomation();
+    permissionStatus().then(setNotifStatus);
+  }, [loadAutomation]));
+
   async function saveAutomation(patch: Partial<AutomationSettings>) {
     if (!profile?.id) return;
-    const updated = { ...automation, ...patch };
+    const previous = automation;
+    const updated  = { ...automation, ...patch };
     setAutomation(updated);
     setSavingAutomation(true);
-    await supabase.from('automation_settings').upsert({
-      user_id: profile.id,
-      ...updated,
-    });
+    setAutomationError(null);
+
+    // Columns listed explicitly, and user_id taken from the session rather than
+    // from `updated`. Spreading the whole object put DEFAULT_AUTOMATION_SETTINGS'
+    // placeholder user_id ('') into the payload for anyone who had no row yet,
+    // so the very first toggle a new user flipped upserted an empty uuid, failed,
+    // and — before the rollback above — stayed on regardless.
+    const { error } = await supabase.from('automation_settings').upsert(
+      {
+        user_id:                 profile.id,
+        safe_sweep_enabled:      !!updated.safe_sweep_enabled,
+        safe_dump_enabled:       !!updated.safe_dump_enabled,
+        buffer_target:           updated.buffer_target ?? DEFAULT_AUTOMATION_SETTINGS.buffer_target,
+        upcoming_bills_estimate: updated.upcoming_bills_estimate ?? DEFAULT_AUTOMATION_SETTINGS.upcoming_bills_estimate,
+        min_dump_amount:         updated.min_dump_amount ?? DEFAULT_AUTOMATION_SETTINGS.min_dump_amount,
+      },
+      { onConflict: 'user_id' },
+    );
     setSavingAutomation(false);
+
+    // A switch that flips, fails to persist and stays flipped is a lie the user
+    // only discovers when the reminder never arrives. Put it back.
+    if (error) {
+      setAutomation(previous);
+      setAutomationError(error.message);
+    }
+  }
+
+  /**
+   * Turning a reminder on is also the moment to ask for permission — iOS grants
+   * exactly one prompt, and this is the point where the user has said what they
+   * want it for. A denial does not block the preference from being saved; the
+   * banner below states plainly that nothing will be delivered.
+   */
+  async function handleReminderToggle(patch: Partial<AutomationSettings>, on: boolean) {
+    if (on && notifStatus === 'undetermined') {
+      setNotifStatus(await requestPermission());
+    }
+    await saveAutomation(patch);
   }
 
   function handleDeleteAccount() {
@@ -139,6 +191,8 @@ export default function SettingsModal() {
     ]);
   }
 
+  const anyReminderOn = !!automation.safe_sweep_enabled || !!automation.safe_dump_enabled;
+
   const tierLabels: Record<string, string> = {
     free:   'Free Plan',
     pro:    'Pro',
@@ -171,56 +225,92 @@ export default function SettingsModal() {
           />
         </View>
 
-        {/* Action alerts. These decide when the user is PROMPTED — the app
-            never moves money, so there is nothing here to automate. */}
-        {isPaidTier(tier) && (
-          <>
-            <SectionHeader
-              title="Action alerts"
-              subtitle={savingAutomation ? 'Saving…' : 'Reminders to act. You make every transfer.'}
-            />
-            <View style={styles.card}>
-              <ToggleRow
-                icon="repeat-outline"
-                label="Sweep reminder"
-                subtitle="Tell me when my surplus is ready to move to the HELOC"
-                value={!!automation.safe_sweep_enabled}
-                onChange={v => saveAutomation({ safe_sweep_enabled: v })}
+        {/* Alerts. One section, not two — the old split put a decorative
+            "Balance alerts" switch beside the real reminder preferences, and
+            the decorative one was the only control a free user could see.
+            These decide when the user is PROMPTED; the app never moves money,
+            so there is nothing here to automate. */}
+        <SectionHeader
+          title="Alerts"
+          subtitle={
+            savingAutomation ? 'Saving…' : 'Reminders to act. You make every transfer.'
+          }
+        />
+        {isPaidTier(tier) ? (
+          <View style={styles.card}>
+            {/* Delivery reality first, so the switches below are read in its
+                light rather than taken as a promise. */}
+            {notifStatus === 'denied' && (
+              <NoticeRow
+                icon="notifications-off-outline"
+                label="Notifications are off for HELOC Hero"
+                subtitle="iOS asks only once. Turn them on in Settings and reminders resume."
+                actionLabel="Open Settings"
+                onPress={() => Linking.openSettings()}
               />
-              <ToggleRow
-                icon="flash-outline"
-                label="Dump reminder"
-                subtitle="Tell me when the HELOC is replenished enough to dump"
-                value={!!automation.safe_dump_enabled}
-                onChange={v => saveAutomation({ safe_dump_enabled: v })}
+            )}
+            {notifStatus === 'undetermined' && anyReminderOn && (
+              /* Reachable after a reinstall: the preference lives on the server
+                 and survives, iOS permission does not. Without this the user
+                 sees two switches set to ON that can deliver nothing. */
+              <NoticeRow
+                icon="notifications-outline"
+                label="Allow notifications to receive these"
+                subtitle="Your preferences are saved, but nothing can be delivered until iOS allows it."
+                actionLabel="Allow"
+                onPress={async () => setNotifStatus(await requestPermission())}
               />
-              <SettingRow
-                icon="shield-outline"
-                label="Cash Buffer"
-                value={`$${(automation.buffer_target ?? 2000).toLocaleString()}`}
+            )}
+            {notifStatus === 'unavailable' && (
+              <NoticeRow
+                icon="phone-portrait-outline"
+                label="Reminders need the full app"
+                subtitle="Notification scheduling is unavailable in this build. Your preferences are still saved."
               />
-              <SettingRow
-                icon="calendar-outline"
-                label="Upcoming Bills"
-                value={`$${(automation.upcoming_bills_estimate ?? 500).toLocaleString()}`}
-                isLast
-              />
-            </View>
-          </>
-        )}
+            )}
 
-        {/* Notifications */}
-        <SectionHeader title="Notifications" />
-        <View style={styles.card}>
-          <ToggleRow
-            icon="notifications-outline"
-            label="Balance alerts"
-            subtitle="Reminders scheduled on this device"
-            value={notificationsEnabled}
-            onChange={setNotificationsEnabled}
-            isLast
-          />
-        </View>
+            <ToggleRow
+              icon="repeat-outline"
+              label="Sweep reminder"
+              subtitle="Tell me when my surplus is ready to move to the HELOC"
+              value={!!automation.safe_sweep_enabled}
+              onChange={v => handleReminderToggle({ safe_sweep_enabled: v }, v)}
+            />
+            <ToggleRow
+              icon="flash-outline"
+              label="Dump reminder"
+              subtitle="Tell me when the HELOC is replenished enough to dump"
+              value={!!automation.safe_dump_enabled}
+              onChange={v => handleReminderToggle({ safe_dump_enabled: v }, v)}
+            />
+            <SettingRow
+              icon="shield-outline"
+              label="What to leave behind"
+              value={
+                `$${Number(automation.buffer_target ?? DEFAULT_AUTOMATION_SETTINGS.buffer_target)
+                  .toLocaleString()} + ` +
+                `$${Number(automation.upcoming_bills_estimate ?? DEFAULT_AUTOMATION_SETTINGS.upcoming_bills_estimate)
+                  .toLocaleString()}`
+              }
+              onPress={() => router.push('/modals/alert-thresholds')}
+              isLast
+            />
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <SettingRow
+              icon="notifications-outline"
+              label="Reminders come with Pro"
+              value=""
+              onPress={() => { router.back(); router.push('/modals/upgrade'); }}
+              actionLabel="See Pro →"
+              isLast
+            />
+          </View>
+        )}
+        {automationError && (
+          <Text style={styles.inlineError}>Not saved: {automationError}</Text>
+        )}
 
         {/* Support */}
         <SectionHeader title="Support" />
@@ -365,6 +455,35 @@ function SettingRow({
   );
 }
 
+/**
+ * A statement of fact, optionally with a way out of it. Not a control — it
+ * never renders a switch, because the thing it describes is not ours to set.
+ */
+function NoticeRow({
+  icon, label, subtitle, actionLabel, onPress,
+}: {
+  icon: string; label: string; subtitle: string;
+  actionLabel?: string; onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      disabled={!onPress}
+      activeOpacity={onPress ? 0.6 : 1}
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={`${label}. ${subtitle}`}
+    >
+      <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
+      <View style={styles.toggleText}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.toggleSubtitle}>{subtitle}</Text>
+      </View>
+      {actionLabel && <Text style={styles.rowAction}>{actionLabel}</Text>}
+    </TouchableOpacity>
+  );
+}
+
 function ToggleRow({
   icon, label, subtitle, value, onChange, isLast,
 }: {
@@ -444,6 +563,12 @@ const styles = StyleSheet.create({
   },
   toggleText: { flex: 1 },
   securityText: { flex: 1 },
+  inlineError: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    paddingHorizontal: Spacing[2],
+    paddingTop: Spacing[2],
+  },
   toggleSubtitle: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
   dangerRow: { borderBottomWidth: 0 },
   dangerText: {

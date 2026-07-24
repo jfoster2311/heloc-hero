@@ -8,6 +8,7 @@
 // Reminders are local, not push. There is no delivery pipeline deployed, so
 // nothing here or in the UI claims a server-sent alert.
 import { useState, useEffect } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { syncCycleReminders, notificationsAvailable, hasPermission } from '../lib/notify';
 import type { AutomationSettings } from '../lib/types';
@@ -57,11 +58,21 @@ export function useCycleReminders(
 
   // Permission state — a preference switched on but denied at the OS level is
   // not an alert, and must not be reported as one.
+  //
+  // Re-checked whenever the app returns to the foreground, because every way of
+  // granting permission leaves this screen first: the primer's system prompt,
+  // the Settings sheet, and the round trip out to iOS Settings. Checking once on
+  // mount meant a user could grant permission and still have nothing scheduled
+  // until the next cold start.
   useEffect(() => {
     let cancelled = false;
     if (!notificationsAvailable()) { setGranted(false); return; }
-    hasPermission().then(ok => { if (!cancelled) setGranted(ok); });
-    return () => { cancelled = true; };
+
+    const check = () => { hasPermission().then(ok => { if (!cancelled) setGranted(ok); }); };
+    check();
+
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') check(); });
+    return () => { cancelled = true; sub.remove(); };
   }, []);
 
   const sweepOn = !!settings?.safe_sweep_enabled;

@@ -19,7 +19,7 @@ Recommended: **"Pay Off Your Mortgage Sooner"**
 
 **Short description (first 255 chars — shown before "more"):**
 
-HELOC Hero helps homeowners use the HELOC cycling strategy to pay off their mortgage years sooner. See your projected payoff date, track surplus, and automate the strategy that financial educators call the "velocity banking method."
+HELOC Hero helps homeowners use the HELOC cycling strategy to pay off their mortgage years sooner. See your projected payoff date, track your surplus, and know exactly when to make each move in the strategy financial educators call the "velocity banking method."
 
 **Full description:**
 
@@ -39,7 +39,9 @@ HELOC Hero is built around one strategy: use a Home Equity Line of Credit (HELOC
 
 • LINKED ACCOUNTS (Pro) — Connect bank accounts via Plaid to track live balances without manual entry.
 
-• SAFE SWEEP™ & SAFE DUMP™ (Pro Autopilot) — Automated rules that move surplus to your HELOC and trigger principal dumps when conditions are met.
+• SAFE SWEEP™ & SAFE DUMP™ (Pro) — The two calculations the strategy turns on: how much of your cash is genuinely spare to move to your HELOC, and how large a principal dump your line can support. HELOC Hero does not move money and is not connected to any payment rail — you make every transfer at your own bank, and the app records it and updates your projection.
+
+• REMINDERS (Pro) — Scheduled on your device from your own figures, so you hear from us when your surplus is ready to move or your line is clear again, and not otherwise.
 
 **Important disclosures:**
 This app provides financial education and projection tools. Nothing in HELOC Hero is financial advice, a guarantee of savings, or a lending recommendation. Consult a licensed financial professional before changing your mortgage strategy. HELOC Hero is not a lender.
@@ -81,12 +83,12 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 
 | # | Screen | Caption (30 words max) |
 |---|--------|------------------------|
-| 1 | Welcome / Hero gradient | "See your projected mortgage-free date. The HELOC cycling strategy, automated for you." |
+| 1 | Welcome / Hero gradient | "See your projected mortgage-free date. The HELOC cycling strategy, one clear decision at a time." |
 | 2 | Payoff calculator results | "Enter your numbers. Instantly see your estimated payoff date and projected interest saved." |
 | 3 | Dashboard — milestone card + projection bar | "Track every cycle. Watch your projected payoff date move closer with each dump." |
 | 4 | Cash Flow tab | "Know your monthly surplus. That's the engine of the whole strategy." |
 | 5 | Accounts tab (linked via Plaid) | "Link accounts with Plaid. See live balances without spreadsheets. Pro feature." |
-| 6 | Upgrade / Pro screen | "Automate the strategy. Safe Sweep™ and Safe Dump™ work while you sleep." |
+| 6 | Upgrade / Pro screen | "Know when to move and how much. Reminders on your device — you make every transfer." |
 
 ---
 
@@ -153,7 +155,7 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 - [ ] RevenueCat purchase + restore tested on physical device with StoreKit sandbox account
 - [ ] Account deletion tested end-to-end (data removed from Supabase)
 - [ ] Deep link to App Store subscriptions (`Manage Subscription`) tested
-- [ ] Push notification permission prompt tested (fires after first dashboard load, once only)
+- [ ] Notification permission prompt tested. It is deliberately withheld until the user is on Pro AND has a surplus or a drawn balance, so a free account will correctly never see it. Verify the denied path too: deny once, then confirm Settings → Alerts shows "Notifications are off" with a working Open Settings link, since iOS will not present the prompt a second time.
 
 ### Demo Account
 - [ ] Demo account `demo@helochwero.com` created in Supabase

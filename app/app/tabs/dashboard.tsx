@@ -61,12 +61,23 @@ export default function DashboardScreen() {
     helocLimit:      f.helocLimit ?? 0,
   });
 
+  const remindersEnabled = isPaidTier(tier);
+
   useCycleReminders(profile?.id, {
     helocDrawn:     f.helocDrawn ?? 0,
     monthlySurplus: Math.max(0, f.surplus),
     dumpAmount:     f.safeToMove.recommendedAmount ?? 0,
-    enabled:        isPaidTier(tier),
+    enabled:        remindersEnabled,
   });
+
+  // Only ask for notification permission once there is a reminder to deliver.
+  // syncCycleReminders schedules nothing without a surplus to sweep or a
+  // balance to clear, so asking earlier spends the one iOS prompt on silence.
+  const canPrimeNotifications =
+    !!profile?.id &&
+    remindersEnabled &&
+    !f.loading &&
+    (f.surplus > 0 || (f.helocDrawn ?? 0) > 0);
 
   // ── The two dates the hero compares ──────────────────────────────────────
   // Baseline comes from the note's own terms when the servicer reports them, so
@@ -105,7 +116,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={CommonStyles.screenContainer}>
-      <NotificationPrimer triggerKey={profile?.id ?? null} />
+      <NotificationPrimer eligible={canPrimeNotifications} userId={profile?.id ?? null} />
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}

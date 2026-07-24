@@ -35,7 +35,7 @@ heloc-hero/
 │   ├── types.ts                 # All TypeScript types
 │   ├── helocScore.ts            # HELOC Hero Score™ algorithm
 │   ├── projections.ts           # Payoff projection engine
-│   ├── automation.ts            # Safe Sweep™ / Safe Dump™
+│   ├── automation.ts            # Safe Sweep™ / Safe Dump™ sizing (advisory only)
 │   └── theme.ts                 # Colors, typography, spacing
 ├── hooks/
 │   ├── useAuth.ts               # Auth + user profile
@@ -52,8 +52,7 @@ heloc-hero/
 │       ├── plaid-create-link-token/
 │       ├── plaid-exchange-token/
 │       ├── plaid-get-accounts/
-│       ├── heloc-score/         # Server-side score (Medium+)
-│       ├── safe-sweep/          # Automation (Full tier)
+│       ├── heloc-score/         # Server-side score (Pro)
 │       ├── stripe-checkout/     # Subscription checkout
 │       └── send-notification/   # Push notifications
 ├── app.json
@@ -104,7 +103,6 @@ supabase functions deploy plaid-create-link-token
 supabase functions deploy plaid-exchange-token
 supabase functions deploy plaid-get-accounts
 supabase functions deploy heloc-score
-supabase functions deploy safe-sweep
 supabase functions deploy stripe-checkout
 supabase functions deploy send-notification
 ```
@@ -145,27 +143,36 @@ eas submit --platform ios
 - **Credit Score (20%)**: Normalized 580–800 range
 - **MTE Modifier (±10%)**: Mortgage-to-equity ratio bonus/penalty
 
-### Safe Sweep™
+### Safe Sweep™ / Safe Dump™
+
+Both are SIZING CALCULATIONS, not actions. HELOC Hero has no payment rail and
+moves no money: it works out the amount, the user makes the transfer at their
+own bank, and the app records it. Any copy, function or feature that implies
+otherwise is a bug — see THE HONESTY RULE in CLAUDE.md.
+
 ```
 sweepAmount = availableSavings - bufferTarget - upcomingBills
+dumpAmount  = accumulated >= minDump ? min(accumulated, helocAvailableCredit) : 0
 ```
 
-### Safe Dump™
-```
-dumpAmount = accumulated >= minDump ? min(accumulated, helocAvailableCredit) : 0
-```
+`bufferTarget` and `upcomingBills` are user-editable in Settings → Alerts →
+What to leave behind, because they define what the app is willing to call spare.
 
 ---
 
 ## Tier Features
 
-| Feature | Free | Medium ($14.99) | Full ($50) |
-|---|---|---|---|
-| Calculator | ✅ | ✅ | ✅ |
-| Plaid linking | ❌ | ✅ | ✅ |
-| HELOC Hero Score™ | Generic | Personalized | Personalized |
-| Projections | Generic | Real data | Real data |
-| Safe Sweep™ | ❌ | ❌ | ✅ |
-| Safe Dump™ | ❌ | ❌ | ✅ |
-| Realtime sync | ❌ | ❌ | ✅ |
-| Push alerts | ❌ | ❌ | ✅ |
+Two tiers, Free and Pro, sold through Apple IAP via RevenueCat. The Medium/Full
+split below was a Stripe-era design and is gone; `isPaidTier` still maps the
+legacy `medium`/`full` values onto Pro so old rows keep working.
+
+| Feature | Free | Pro |
+|---|---|---|
+| Calculator, manual entry, cycle tracking, learn | ✅ | ✅ |
+| Projections | Generic | Your own figures |
+| HELOC Hero Score™ | Generic | Personalized |
+| Plaid linking + live balances | ❌ | ✅ |
+| Servicer-reported mortgage terms | ❌ | ✅ |
+| Transaction-derived cash flow | ❌ | ✅ |
+| Safe Sweep™ / Safe Dump™ sizing | ❌ | ✅ |
+| Cycle reminders (local, on-device) | ❌ | ✅ |
