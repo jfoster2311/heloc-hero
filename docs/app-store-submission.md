@@ -96,10 +96,21 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 
 **Reviewer instructions:**
 
-1. **Demo account** (to be created before submission):
+1. **Demo account** (created and verified 2026-07-24):
    - Email: `demo@helochero.com`
    - Password: `HeroDemo2026!`
-   - Account is pre-seeded with sample mortgage data and one completed cycle.
+   - Email is already confirmed, so the reviewer signs straight in with no verification step.
+   - Seeded to the mid-strategy scenario in `app/lib/seedDemo.ts`: Alex Rivera,
+     $620,000 home, $387,400 mortgage at 6.85%, $2,540/mo payment, $9,500 income
+     against $5,200 expenses, plus a $100,000 interest-only HELOC so the cycling
+     screens have terms to reason from. Onboarding is marked complete, so the
+     reviewer lands on the dashboard rather than the welcome flow.
+   - Four monthly $6,500 dumps are logged, so cycle history, the streak and the
+     realized-savings figures all render with real content instead of empty states.
+   - The account is on the FREE tier by design. Pro is resolved from the RevenueCat
+     entitlement, not from a database column, so it cannot be granted server-side —
+     the reviewer reaches it through the sandbox purchase in step 3, which is the
+     same path a real customer takes.
 
 2. **Plaid sandbox credentials** (for linking accounts in review):
    - Username: `user_good`
@@ -158,8 +169,9 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 - [ ] Notification permission prompt tested. It is deliberately withheld until the user is on Pro AND has a surplus or a drawn balance, so a free account will correctly never see it. Verify the denied path too: deny once, then confirm Settings → Alerts shows "Notifications are off" with a working Open Settings link, since iOS will not present the prompt a second time.
 
 ### Demo Account
-- [ ] Demo account `demo@helochero.com` created in Supabase
-- [ ] Seeded with believable mid-strategy data (seed script at app/lib/seedDemo.ts)
+- [x] Demo account `demo@helochero.com` created in Supabase (2026-07-24, email pre-confirmed)
+- [x] Seeded with believable mid-strategy data (mirrors app/lib/seedDemo.ts, plus HELOC terms)
+- [x] Sign-in and RLS reads verified end-to-end with the documented password
 - [ ] Demo credentials confirmed in App Review notes field
 
 ### Content
