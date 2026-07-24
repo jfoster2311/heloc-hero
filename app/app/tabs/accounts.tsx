@@ -25,6 +25,7 @@ import {
   EmptyState, LinkRow, Divider, Disclosure,
 } from '../../components/ui/primitives';
 import EquityCurve from '../../components/EquityCurve';
+import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -504,14 +505,11 @@ function ConnectionCard({ account, busy, onRefresh, onReconnect, onDisconnect }:
   return (
     <Card>
       <View style={styles.connHead}>
-        <View style={styles.connIcon}>
-          <Ionicons
-            name={account.account_type === 'mortgage' ? 'home-outline'
-              : account.account_type === 'home equity' ? 'card-outline' : 'wallet-outline'}
-            size={18}
-            color={Colors.mint600}
-          />
-        </View>
+        <InstitutionAvatar
+          name={account.institution_name}
+          accountType={account.account_type}
+          size={40}
+        />
         <View style={{ flex: 1 }}>
           <Text style={styles.connName}>
             {account.institution_name ?? typeLabel(account.account_type)}
@@ -711,11 +709,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
 
   connHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
-  connIcon: {
-    width: 38, height: 38, borderRadius: Radius.md,
-    backgroundColor: Colors.mint50,
-    alignItems: 'center', justifyContent: 'center',
-  },
   connName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   connType: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 1 },
 
