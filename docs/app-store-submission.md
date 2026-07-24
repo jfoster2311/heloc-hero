@@ -107,10 +107,24 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
      reviewer lands on the dashboard rather than the welcome flow.
    - Four monthly $6,500 dumps are logged, so cycle history, the streak and the
      realized-savings figures all render with real content instead of empty states.
+   - Three accounts are pre-populated on the Accounts tab as SAMPLE DATA, not a live
+     bank connection: a $387,400 mortgage with Pinnacle Home Loans (carrying
+     servicer-reported terms — 6.85% fixed, $2,540 due 1 Aug, 30-year, originated
+     2019, $3,180 escrow, no PMI, no prepayment penalty), an $18,500 draw on a
+     $100,000 HELOC with Cascade Credit Union, and $12,400 in savings. No Plaid
+     access token is stored against them, so nothing here calls Plaid or incurs
+     per-item cost. Figures are deliberately consistent with the profile above:
+     18.5% utilization, $214,100 equity, 65.5% combined LTV, $1,760 monthly surplus.
    - The account is on the FREE tier by design. Pro is resolved from the RevenueCat
      entitlement, not from a database column, so it cannot be granted server-side —
      the reviewer reaches it through the sandbox purchase in step 3, which is the
      same path a real customer takes.
+   - Not seeded: `transactions`. The Cash Flow tab therefore shows the entered
+     income and expense figures and the upcoming-payment section, but not the
+     transaction-derived trailing chart, which only appears once a real Plaid link
+     has synced. Step 2 produces it.
+   - `accounts_updated_at` was set at seed time, so the "last synced" label ages.
+     Re-run the seed shortly before submission if the wording matters in review.
 
 2. **Plaid sandbox credentials** (for linking accounts in review):
    - Username: `user_good`
@@ -171,7 +185,9 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 ### Demo Account
 - [x] Demo account `demo@helochero.com` created in Supabase (2026-07-24, email pre-confirmed)
 - [x] Seeded with believable mid-strategy data (mirrors app/lib/seedDemo.ts, plus HELOC terms)
+- [x] Three sample linked accounts seeded (mortgage + HELOC + savings, no Plaid token stored)
 - [x] Sign-in and RLS reads verified end-to-end with the documented password
+- [ ] Re-run the seed near submission so "last synced" reads recent (see reviewer note 1)
 - [ ] Demo credentials confirmed in App Review notes field
 
 ### Content
