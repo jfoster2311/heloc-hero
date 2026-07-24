@@ -15,6 +15,7 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hapticSelection } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
 
 export default function TabsLayout() {
@@ -50,6 +51,14 @@ export default function TabsLayout() {
           fontWeight: Typography.semibold,
           marginTop: -2,
         },
+      }}
+      screenListeners={{
+        // Selection feedback on every tab change. The bar floats over the
+        // content with no chrome edge to press against, so touch is the only
+        // confirmation the tap registered — worth more here than on a docked
+        // bar. Fires on tabPress rather than on focus so it lands with the
+        // finger, and so re-tapping the current tab still responds.
+        tabPress: () => hapticSelection(),
       }}
     >
       <Tabs.Screen

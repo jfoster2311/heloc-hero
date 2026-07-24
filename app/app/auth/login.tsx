@@ -1,97 +1,187 @@
-// app/auth/login.tsx
+// app/auth/login.tsx — sign in.
+//
+// Rebuilt because this screen predated the design system and was the least
+// considered surface in the app, at the moment of highest trust. What was
+// wrong, and why each mattered:
+//
+//  · A LinearGradient "HELOC / HERO" wordmark, when every other screen opens on
+//    the aurora. Arriving here from the welcome screen meant the brand changed
+//    shape between two consecutive taps.
+//  · `paddingTop: 80`, no safe area. Correct on no device in particular.
+//  · No `textContentType`, so iOS never offered the saved password. Users with
+//    a password manager — which is most people with a bank account — had to
+//    type a password they do not know by heart.
+//  · No keyboard chaining: email had no return key action, so the flow was
+//    type, dismiss keyboard, tap password, type, dismiss, tap button.
+//  · Every failure read "Invalid email or password", including a dropped
+//    connection. See lib/authErrors — this is the screen that mistake hurt.
+//  · The spinner had no exit on success: it relied on the auth listener
+//    unmounting the screen, so any hitch left a button spinning forever.
+import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AuroraBackground from '../../components/Aurora';
+import Logo from '../../components/ui/Logo';
+import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
-import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../lib/theme';
+import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
+import { hapticLight, hapticError } from '../../lib/haptics';
+import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+
+/**
+ * If the auth listener has not navigated within this window, something is
+ * wrong. Releasing the button is better than a spinner with no end: the user
+ * can retry, and the session may well have succeeded anyway.
+ */
+const NAVIGATE_TIMEOUT_MS = 12_000;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
+  const passwordRef = useRef<TextInput>(null);
+  const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [problem, setProblem]           = useState<AuthErrorInfo | null>(null);
+
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
 
   async function handleSignIn() {
-    if (!email || !password) {
-      setError('Please enter your email and password.');
-      return;
-    }
+    if (!canSubmit) return;
+    hapticLight();
     setLoading(true);
-    setError('');
+    setProblem(null);
 
-    const { error: signInError } = await auth.signIn(email.trim(), password);
+    // Supabase throws on transport failure rather than returning an error, so
+    // the network case only reaches describeAuthError if we catch it.
+    let signInError: unknown = null;
+    try {
+      const { error } = await auth.signIn(email.trim().toLowerCase(), password);
+      signInError = error;
+    } catch (err) {
+      signInError = err;
+    }
 
     if (signInError) {
-      setError('Invalid email or password. Please try again.');
+      const info = describeAuthError(signInError);
+      setProblem(info);
       setLoading(false);
+      hapticError();
+      // Put the cursor where the fix is. Only the password is ever refocused —
+      // sending someone back to the email field they typed correctly is noise.
+      if (info.field === 'password') {
+        setPassword('');
+        passwordRef.current?.focus();
+      }
+      return;
     }
-    // useAuth listener in _layout.tsx handles navigation on success
+
+    // Success: the useAuth listener in _layout redirects. Guard against it not
+    // happening rather than trusting an unmount we do not control.
+    timeoutRef.current = setTimeout(() => setLoading(false), NAVIGATE_TIMEOUT_MS);
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.root}>
+      <StatusBar style="light" />
+
+      {/* The same field the welcome screen uses, so arriving here is a content
+          change rather than a change of app. */}
+      <AuroraBackground style={styles.header} intensity={0.75}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerBar}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/onboarding/welcome'))}
+              style={styles.back}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.9)" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerBody}>
+            <Logo size={34} variant="inline" />
+            <Text style={styles.headline} accessibilityRole="header">Welcome back</Text>
+          </View>
+        </SafeAreaView>
+      </AuroraBackground>
+
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <LinearGradient colors={Gradients.primary} style={styles.header}>
-          <Text style={styles.logoText}>HELOC</Text>
-          <Text style={styles.logoSubText}>HERO</Text>
-          <Text style={styles.tagline}>Welcome back.</Text>
-        </LinearGradient>
-
-        <View style={styles.card}>
-          <Text style={styles.title}>Sign in to your account</Text>
-
-          {!!error && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{error}</Text>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          {problem && (
+            <View style={styles.problem} accessibilityLiveRegion="assertive">
+              <Ionicons
+                name={problem.retryable ? 'cloud-offline-outline' : 'alert-circle-outline'}
+                size={18}
+                color={Colors.textSecondary}
+                style={styles.problemIcon}
+              />
+              <View style={styles.flex}>
+                <Text style={styles.problemTitle}>{problem.title}</Text>
+                <Text style={styles.problemText}>{problem.message}</Text>
+              </View>
             </View>
           )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              placeholder="you@example.com"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
+          <FormField
+            label="Email"
+            value={email}
+            onChangeText={t => { setEmail(t); if (problem) setProblem(null); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            // textContentType is what makes iOS offer the saved credential.
+            textContentType="username"
+            autoComplete="email"
+            placeholder="you@example.com"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            submitBehavior="submit"
+            invalid={problem?.field === 'email'}
+            accessibilityLabel="Email address"
+          />
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="current-password"
-                placeholder="Your password"
-                placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={handleSignIn}
-                returnKeyType="go"
-              />
+          <FormField
+            ref={passwordRef}
+            label="Password"
+            value={password}
+            onChangeText={t => { setPassword(t); if (problem) setProblem(null); }}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
+            autoComplete="current-password"
+            placeholder="Your password"
+            returnKeyType="go"
+            onSubmitEditing={handleSignIn}
+            invalid={problem?.field === 'password'}
+            accessibilityLabel="Password"
+            accessory={
               <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowPassword(v => !v)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => { hapticLight(); setShowPassword(v => !v); }}
+                style={styles.eye}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
               >
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -99,150 +189,120 @@ export default function LoginScreen() {
                   color={Colors.textMuted}
                 />
               </TouchableOpacity>
-            </View>
-          </View>
+            }
+          />
 
-          <Link href="/auth/forgot-password" style={styles.forgotLink}>
-            <Text style={styles.forgotText}>Forgot password?</Text>
+          <Link href="/auth/forgot-password" asChild>
+            <TouchableOpacity
+              style={styles.forgot}
+              accessibilityRole="link"
+              accessibilityLabel="Forgot your password"
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
           </Link>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.submit, !canSubmit && styles.submitDisabled]}
             onPress={handleSignIn}
-            disabled={loading}
+            disabled={!canSubmit}
+            activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+            accessibilityState={{ disabled: !canSubmit, busy: loading }}
           >
             {loading
               ? <ActivityIndicator color={Colors.white} />
-              : <Text style={styles.buttonText}>Sign In</Text>
-            }
+              : <Text style={styles.submitText}>Sign in</Text>}
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <Link href="/auth/signup">
-              <Text style={styles.linkText}>Sign up free</Text>
+            <Text style={styles.footerText}>New to HELOC Hero? </Text>
+            <Link href="/auth/signup" asChild>
+              <TouchableOpacity accessibilityRole="link" accessibilityLabel="Create an account">
+                <Text style={styles.footerLink}>Create an account</Text>
+              </TouchableOpacity>
             </Link>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: Colors.background },
-  header: {
-    alignItems: 'center',
-    paddingTop: 80,
-    paddingBottom: 48,
-  },
-  logoText: {
-    fontSize: 44,
+  root: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
+
+  header: { paddingBottom: Spacing[6], backgroundColor: Aurora.deepest },
+  headerBar: { height: 44, justifyContent: 'center', paddingHorizontal: Spacing[2] },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerBody: { paddingHorizontal: Spacing[5], gap: Spacing[4] },
+  headline: {
+    fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.white,
-    letterSpacing: 4,
+    color: '#ffffff',
+    letterSpacing: -0.6,
   },
-  logoSubText: {
-    fontSize: 22,
-    fontWeight: Typography.bold,
-    color: Colors.mint200,
-    letterSpacing: 8,
-    marginTop: -6,
-  },
-  tagline: {
-    fontSize: Typography.sm,
-    color: Colors.mint100,
-    marginTop: Spacing[3],
-  },
-  card: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: Spacing[6],
-    marginTop: -Spacing[4],
-    ...Shadows.modal,
-  },
-  title: {
-    fontSize: Typography['2xl'],
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing[5],
-  },
-  errorBanner: {
+
+  content: { padding: Spacing[5], paddingTop: Spacing[6], paddingBottom: Spacing[10] },
+
+  problem: {
+    flexDirection: 'row',
+    gap: Spacing[3],
     backgroundColor: Colors.gray100,
     borderRadius: Radius.md,
-    padding: Spacing[3],
-    marginBottom: Spacing[4],
+    padding: Spacing[4],
+    marginBottom: Spacing[5],
     borderLeftWidth: 3,
     borderLeftColor: Colors.gray400,
   },
-  errorText: { color: Colors.gray400, fontSize: Typography.sm },
-  inputGroup: { marginBottom: Spacing[4] },
-  label: {
+  problemIcon: { marginTop: 1 },
+  problemTitle: {
     fontSize: Typography.sm,
-    fontWeight: Typography.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing[2],
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    padding: Spacing[4],
-    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
     color: Colors.textPrimary,
-    backgroundColor: Colors.gray50,
   },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  problemText: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 2,
   },
-  passwordInput: {
-    flex: 1,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-    borderRightWidth: 0,
-  },
-  eyeBtn: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderLeftWidth: 0,
-    borderTopRightRadius: Radius.md,
-    borderBottomRightRadius: Radius.md,
-    backgroundColor: Colors.gray50,
-    paddingHorizontal: Spacing[3],
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  forgotLink: {
-    alignSelf: 'flex-end',
-    marginBottom: Spacing[4],
-    marginTop: -Spacing[2],
-  },
-  forgotText: { color: Colors.mint600, fontSize: Typography.sm },
-  button: {
+
+  // Laid out inside the field by FormField, so no absolute offsets to keep in
+  // sync with the label's height.
+  eye: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
+
+  forgot: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing[1] },
+  forgotText: { color: Colors.mint700, fontSize: Typography.sm, fontWeight: Typography.medium },
+
+  submit: {
     backgroundColor: Colors.mint600,
     borderRadius: Radius.md,
-    padding: Spacing[4],
+    minHeight: 54,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing[4],
     ...Shadows.glow,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: {
+  submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  submitText: {
     color: Colors.white,
     fontSize: Typography.base,
-    fontWeight: Typography.semibold,
+    fontWeight: Typography.bold,
   },
+
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
     marginTop: Spacing[6],
+    minHeight: 44,
   },
   footerText: { color: Colors.textSecondary, fontSize: Typography.sm },
-  linkText: {
-    color: Colors.mint600,
+  footerLink: {
+    color: Colors.mint700,
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
   },

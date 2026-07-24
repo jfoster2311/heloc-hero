@@ -84,7 +84,8 @@ export default function CreditScoreStep() {
 
 const styles = StyleSheet.create({
   errorBanner: {
-    backgroundColor: '#fef2f2',
+    // Grey, not the pink this used to be — the palette has no red in it.
+    backgroundColor: Colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     marginBottom: Spacing[4],

@@ -1,8 +1,16 @@
 // components/ui/FormField.tsx
+// components/ui/FormField.tsx — one labelled input, with its own focus and
+// error states.
+//
+// Forwards its ref to the underlying TextInput so a form can chain fields:
+// returnKeyType="next" on one, .focus() on the next. Without that, every
+// multi-field screen makes the user dismiss the keyboard and tap the next box,
+// which is the difference between a form that feels considered and one that
+// feels like a web page from 2011.
 import {
   View, Text, TextInput, StyleSheet, TextInputProps,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
 interface FormFieldProps extends TextInputProps {
@@ -11,13 +19,26 @@ interface FormFieldProps extends TextInputProps {
   suffix?: string;
   hint?: string;
   error?: string;
+  /**
+   * Style the field as rejected WITHOUT printing a message under it. For when
+   * the explanation already lives somewhere better — a form-level banner that
+   * names the problem once, rather than the same sentence twice on one screen.
+   */
+  invalid?: boolean;
+  /**
+   * Interactive element pinned inside the field, right-aligned — a show/hide
+   * password toggle, a clear button. Laid out INSIDE the input wrapper rather
+   * than absolutely positioned over it by the caller, which is how a password
+   * eye ends up misaligned the moment the label wraps to two lines.
+   */
+  accessory?: React.ReactNode;
 }
 
-export default function FormField({
-  label, prefix, suffix, hint, error, style, onFocus, onBlur, ...rest
-}: FormFieldProps) {
+const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
+  label, prefix, suffix, hint, error, invalid, accessory, style, onFocus, onBlur, ...rest
+}, ref) {
   const [focused, setFocused] = useState(false);
-  const hasError = !!error;
+  const hasError = !!error || !!invalid;
 
   return (
     <View style={styles.container}>
@@ -35,6 +56,7 @@ export default function FormField({
       ]}>
         {prefix ? <Text style={[styles.adornment, focused && styles.adornmentFocused]}>{prefix}</Text> : null}
         <TextInput
+          ref={ref}
           style={[styles.input, style]}
           placeholderTextColor={Colors.textMuted}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
@@ -42,12 +64,17 @@ export default function FormField({
           {...rest}
         />
         {suffix ? <Text style={[styles.adornment, focused && styles.adornmentFocused]}>{suffix}</Text> : null}
+        {accessory}
       </View>
       {hint && !error ? <Text style={styles.hint}>{hint}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>
+      ) : null}
     </View>
   );
-}
+});
+
+export default FormField;
 
 const styles = StyleSheet.create({
   container: { marginBottom: Spacing[4] },
@@ -77,15 +104,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  // Grey, not pink. This was '#fef2f2' — a red tint under a grey border and
+  // grey message, which is both visually incoherent and against the palette
+  // rule that negative states are muted grey and never red.
   inputWrapperError: {
     borderColor: Colors.error,
-    backgroundColor: '#fef2f2',
+    backgroundColor: Colors.gray50,
   },
   input: {
     flex: 1,
     fontSize: Typography.base,
     color: Colors.textPrimary,
     paddingVertical: Spacing[4],
+    minHeight: 48,
   },
   adornment: {
     fontSize: Typography.base,

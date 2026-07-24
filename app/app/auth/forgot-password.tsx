@@ -1,164 +1,261 @@
-// app/auth/forgot-password.tsx
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+// app/auth/forgot-password.tsx — request a reset link.
+//
+// Rebuilt with login and signup so the three screens are one flow rather than
+// three eras of the codebase. Beyond the shared fixes (aurora header, safe
+// areas, FormField, honest errors, haptics), one change specific to this
+// screen:
+//
+// The old success copy read "reset link sent to {email}". That confirms whether
+// an address has an account here, to anyone holding the phone. Supabase's
+// resetPasswordForEmail deliberately succeeds either way for exactly that
+// reason, so the UI was leaking a distinction the API was careful not to make.
+// The copy is now conditional — "if an account exists" — which is both safer
+// and, unlike the old line, true.
 import { useState } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AuroraBackground from '../../components/Aurora';
+import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
+import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
+import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [email, setEmail]     = useState('');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
+  const [sent, setSent]       = useState('');
+  const [problem, setProblem] = useState<AuthErrorInfo | null>(null);
+
+  const canSubmit = email.trim().length > 0 && !loading;
 
   async function handleReset() {
-    if (!email) { setError('Please enter your email.'); return; }
+    if (!canSubmit) return;
+    hapticLight();
     setLoading(true);
-    setError('');
-    const { error: resetError } = await auth.resetPassword(email.trim());
+    setProblem(null);
+
+    const address = email.trim().toLowerCase();
+    let resetError: unknown = null;
+    try {
+      const { error } = await auth.resetPassword(address);
+      resetError = error;
+    } catch (err) {
+      resetError = err;
+    }
     setLoading(false);
-    if (resetError) { setError(resetError.message); return; }
-    setSent(true);
+
+    if (resetError) {
+      setProblem(describeAuthError(resetError));
+      hapticError();
+      return;
+    }
+    hapticSuccess();
+    setSent(address);
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-      </TouchableOpacity>
+    <View style={styles.root}>
+      <StatusBar style="light" />
 
-      <View style={styles.inner}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
-          We'll send a reset link to your email address.
-        </Text>
-
-        {sent ? (
-          <View style={styles.successBanner}>
-            <Ionicons name="checkmark-circle" size={24} color={Colors.mint600} />
-            <Text style={styles.successText}>
-              Check your inbox — reset link sent to {email}
+      <AuroraBackground style={styles.header} intensity={0.75}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerBar}>
+            <TouchableOpacity
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/auth/login'))}
+              style={styles.back}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.9)" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerBody}>
+            <Text style={styles.headline} accessibilityRole="header">Reset your password</Text>
+            <Text style={styles.subhead}>
+              We'll email you a link to set a new one.
             </Text>
           </View>
-        ) : (
-          <>
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error}</Text>
+        </SafeAreaView>
+      </AuroraBackground>
+
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          {sent ? (
+            <>
+              <View style={styles.sent} accessibilityLiveRegion="polite">
+                <Ionicons name="mail-outline" size={20} color={Colors.mint600} style={styles.sentIcon} />
+                <View style={styles.flex}>
+                  <Text style={styles.sentTitle}>Check your inbox</Text>
+                  <Text style={styles.sentText}>
+                    If an account exists for {sent}, a reset link is on its way. It
+                    expires in an hour.
+                  </Text>
+                </View>
               </View>
-            ) : null}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
+              <TouchableOpacity
+                style={styles.submit}
+                onPress={() => router.replace('/auth/login')}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel="Back to sign in"
+              >
+                <Text style={styles.submitText}>Back to sign in</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondary}
+                onPress={() => { setSent(''); setProblem(null); }}
+                accessibilityRole="button"
+                accessibilityLabel="Use a different email address"
+              >
+                <Text style={styles.secondaryText}>Use a different email</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {problem && (
+                <View style={styles.problem} accessibilityLiveRegion="assertive">
+                  <Ionicons
+                    name={problem.retryable ? 'cloud-offline-outline' : 'alert-circle-outline'}
+                    size={18}
+                    color={Colors.textSecondary}
+                    style={styles.problemIcon}
+                  />
+                  <View style={styles.flex}>
+                    <Text style={styles.problemTitle}>{problem.title}</Text>
+                    <Text style={styles.problemText}>{problem.message}</Text>
+                  </View>
+                </View>
+              )}
+
+              <FormField
+                label="Email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={t => { setEmail(t); if (problem) setProblem(null); }}
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
                 keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
                 placeholder="you@example.com"
-                placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={handleReset}
                 returnKeyType="send"
+                onSubmitEditing={handleReset}
+                invalid={problem?.field === 'email'}
+                accessibilityLabel="Email address"
               />
-            </View>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleReset}
-              disabled={loading}
-            >
-              {loading
-                ? <ActivityIndicator color={Colors.white} />
-                : <Text style={styles.buttonText}>Send Reset Link</Text>
-              }
-            </TouchableOpacity>
-          </>
-        )}
+              <TouchableOpacity
+                style={[styles.submit, !canSubmit && styles.submitDisabled]}
+                onPress={handleReset}
+                disabled={!canSubmit}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel="Send reset link"
+                accessibilityState={{ disabled: !canSubmit, busy: loading }}
+              >
+                {loading
+                  ? <ActivityIndicator color={Colors.white} />
+                  : <Text style={styles.submitText}>Send reset link</Text>}
+              </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.replace('/auth/login')}>
-          <Text style={styles.backToLogin}>Back to Sign In</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+              <TouchableOpacity
+                style={styles.secondary}
+                onPress={() => router.replace('/auth/login')}
+                accessibilityRole="button"
+                accessibilityLabel="Back to sign in"
+              >
+                <Text style={styles.secondaryText}>Back to sign in</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
-  back: { padding: Spacing[5], paddingTop: 56 },
-  inner: { paddingHorizontal: Spacing[6], flex: 1 },
-  title: {
+  root: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
+
+  header: { paddingBottom: Spacing[6], backgroundColor: Aurora.deepest },
+  headerBar: { height: 44, justifyContent: 'center', paddingHorizontal: Spacing[2] },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerBody: { paddingHorizontal: Spacing[5], gap: Spacing[2] },
+  headline: {
     fontSize: Typography['2xl'],
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing[2],
+    fontWeight: Typography.extrabold,
+    color: '#ffffff',
+    letterSpacing: -0.4,
   },
-  subtitle: {
-    fontSize: Typography.base,
-    color: Colors.textSecondary,
-    marginBottom: Spacing[6],
-    lineHeight: 22,
-  },
-  successBanner: {
+  subhead: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.62)', lineHeight: 20 },
+
+  content: { padding: Spacing[5], paddingTop: Spacing[6], paddingBottom: Spacing[10] },
+
+  problem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.gray100,
+    borderRadius: Radius.md,
+    padding: Spacing[4],
+    marginBottom: Spacing[5],
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.gray400,
+  },
+  problemIcon: { marginTop: 1 },
+  problemTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  problemText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
+
+  sent: {
+    flexDirection: 'row',
     gap: Spacing[3],
     backgroundColor: Colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[4],
+    marginBottom: Spacing[5],
     borderLeftWidth: 3,
     borderLeftColor: Colors.mint600,
-    marginBottom: Spacing[5],
   },
-  successText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700, lineHeight: 20 },
-  errorBanner: {
-    backgroundColor: Colors.gray100,
-    borderRadius: Radius.md,
-    padding: Spacing[3],
-    marginBottom: Spacing[4],
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
-  },
-  errorText: { color: Colors.gray400, fontSize: Typography.sm },
-  inputGroup: { marginBottom: Spacing[5] },
-  label: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing[2],
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    padding: Spacing[4],
-    fontSize: Typography.base,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.gray50,
-  },
-  button: {
+  sentIcon: { marginTop: 1 },
+  sentTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  sentText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
+
+  submit: {
     backgroundColor: Colors.mint600,
     borderRadius: Radius.md,
-    padding: Spacing[4],
+    minHeight: 54,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing[2],
     ...Shadows.glow,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
-  backToLogin: {
-    color: Colors.mint600,
-    fontSize: Typography.sm,
-    fontWeight: Typography.medium,
-    textAlign: 'center',
-    marginTop: Spacing[5],
+  submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  submitText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+
+  secondary: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing[3],
   },
+  secondaryText: { color: Colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
 });

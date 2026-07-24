@@ -7,6 +7,7 @@ import { initPurchases, identifyPurchaser } from '../lib/purchases';
 import { DEV_AUTH_BYPASS } from '../lib/devFlags';
 import { loadDevProMode } from '../lib/devPro';
 import LockGate from '../components/LockGate';
+import BootSplash from '../components/ui/BootSplash';
 
 export default function RootLayout() {
   const { profile, loading } = useAuth();
@@ -78,7 +79,17 @@ export default function RootLayout() {
     }
   }, [profile, loading, segments]);
 
-  if (loading) return null;
+  // Never a blank frame. Resolving the session lands the user on either the dark
+  // aurora of /onboarding/welcome or the dark hero of /tabs/dashboard, so the
+  // hold uses that same field and the handoff is a content change, not a flash.
+  if (loading) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <BootSplash />
+      </>
+    );
+  }
 
   return (
     <LockGate>

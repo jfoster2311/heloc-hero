@@ -28,11 +28,17 @@ const { width: SW } = Dimensions.get('window');
 const DISPLAY_SIZE = Math.min(38, SW * 0.092);
 const DISPLAY_LEAD = DISPLAY_SIZE * 1.04;
 
+// Each of these has to be something the app actually does. "Runs on autopilot
+// once it is set up" used to sit in this list — the same false automation claim
+// that was removed from the paywall, the App Store listing and the edge
+// functions, still running on the FIRST screen a new user ever sees. HELOC Hero
+// has no payment rail. What it really does between dumps is tell you when to
+// act, which is what the replacement says.
 const VALUE_PROPS = [
   { icon: 'trending-down-outline' as const, text: 'Cut years off your payoff — projected' },
   { icon: 'cash-outline'          as const, text: 'Keep more of your own interest' },
   { icon: 'calendar-outline'      as const, text: 'Watch your payoff date move closer' },
-  { icon: 'flash-outline'         as const, text: 'Runs on autopilot once it is set up' },
+  { icon: 'notifications-outline' as const, text: 'Know exactly when to make your next move' },
 ];
 
 const PROP_INTERVAL = 3200;
