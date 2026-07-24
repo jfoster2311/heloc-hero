@@ -26,6 +26,7 @@ import {
 } from '../../components/ui/primitives';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
+import InterestTicker from '../../components/InterestTicker';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -303,6 +304,15 @@ export default function DashboardScreen() {
                   : 'No moves logged yet — this fills in from what you actually do'}
               </Text>
             </View>
+
+            {/* The live one. Between dumps this is the only figure on the
+                screen that changes, which is the whole reason it is here. */}
+            <InterestTicker
+              totalMoved={realized.totalMoved}
+              mortgageRate={f.mortgage.rate.value ?? 0.065}
+              helocDrawn={f.helocDrawn ?? 0}
+              helocRate={f.helocRate}
+            />
 
             <View style={styles.statRow}>
               <Stat

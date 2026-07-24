@@ -48,6 +48,30 @@ export interface MonthlyFlow {
   surplus: number;
 }
 
+/**
+ * An inflow that behaves like a wage, with enough history to say when the next
+ * one is due.
+ *
+ * This is the ONLY forward-looking thing this module produces, and it is a
+ * pattern extended, not a prediction of intent — the user's employer may stop
+ * paying them tomorrow. Everything rendered from it must be labelled expected,
+ * never scheduled.
+ */
+export interface RecurringStream {
+  /** Payer as it appears on the statement. */
+  name: string;
+  /** Median amount, positive. */
+  typicalAmount: number;
+  /** Median gap between deposits, in days. */
+  cadenceDays: number;
+  /** Most recent occurrence. */
+  lastSeen: string;
+  /** lastSeen + cadence. Null when the cadence is too erratic to project. */
+  nextExpected: string | null;
+  /** How many deposits the estimate rests on. Fewer than 4 is thin. */
+  observations: number;
+}
+
 export interface DerivedCashflow {
   /** Null until there is enough history to say anything. */
   monthlyIncome: number | null;
@@ -67,6 +91,8 @@ export interface DerivedCashflow {
    * because counting them inflates surplus.
    */
   unclassifiedInflow: number;
+  /** Wage-like inflows with a projectable next date. Empty when unknowable. */
+  recurringIncome: RecurringStream[];
   /** False when coverage is too thin to offer the figure at all. */
   usable: boolean;
   /**
@@ -133,6 +159,7 @@ export function deriveCashflow(
 
   const transferIds = findTransfers(inWindow);
   const recurring = findRecurringInflows(inWindow, transferIds);
+  const recurringIncome = buildRecurringStreams(inWindow, recurring);
 
   const buckets = new Map<string, MonthlyFlow>();
   let excludedCount = 0;
@@ -192,6 +219,7 @@ export function deriveCashflow(
       monthlyIncome: null, monthlyExpenses: null, monthlySurplus: null,
       medianExpenses: null, months, coverageMonths,
       excludedCount, excludedTotal, unclassifiedInflow,
+      recurringIncome,
       usable: false, incomeConfident: false,
     };
   }
@@ -216,6 +244,7 @@ export function deriveCashflow(
     monthlyIncome,
     monthlyExpenses,
     monthlySurplus: monthlyIncome - monthlyExpenses,
+    recurringIncome,
     medianExpenses: median(months.map(m => m.expenses)),
     months,
     coverageMonths,
@@ -268,6 +297,66 @@ function dropTruncatedOldestMonth(
  * frequency — appearing in at least half the observed months — because that is
  * what separates a salary from a one-off refund.
  */
+/**
+ * Turns the recurring-inflow set into dated streams with a next-expected date.
+ *
+ * Cadence is the MEDIAN gap, not the mean: one missed or early deposit would
+ * drag a mean far enough to put the next payday on the wrong week. A stream
+ * whose gaps are wildly inconsistent gets a null nextExpected rather than a
+ * confident-looking guess — better to show nothing than a date someone might
+ * plan a mortgage payment around.
+ */
+function buildRecurringStreams(
+  txns: TransactionRow[],
+  recurringIds: Set<string>,
+): RecurringStream[] {
+  const groups = new Map<string, TransactionRow[]>();
+  for (const t of txns) {
+    if (!recurringIds.has(t.transaction_id)) continue;
+    const key = (t.merchant_name ?? t.name ?? '').toLowerCase().replace(/\d+/g, '').trim();
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(t);
+  }
+
+  const streams: RecurringStream[] = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const sorted = [...group].sort((a, b) => a.date.localeCompare(b.date));
+
+    const gaps: number[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      gaps.push(daysBetween(sorted[i - 1].date, sorted[i].date));
+    }
+    const cadenceDays = Math.round(median(gaps));
+
+    // Anything outside roughly weekly-to-monthly is not a wage pattern, and a
+    // cadence that swings by more than half its own length is not a pattern.
+    const spread = Math.max(...gaps) - Math.min(...gaps);
+    const projectable =
+      cadenceDays >= 5 && cadenceDays <= 40 && spread <= Math.max(4, cadenceDays * 0.5);
+
+    const last = sorted[sorted.length - 1];
+    streams.push({
+      name: last.merchant_name ?? last.name ?? 'Recurring deposit',
+      typicalAmount: median(sorted.map(t => Math.abs(t.amount))),
+      cadenceDays,
+      lastSeen: last.date,
+      nextExpected: projectable ? addDays(last.date, cadenceDays) : null,
+      observations: sorted.length,
+    });
+  }
+
+  return streams.sort((a, b) => b.typicalAmount - a.typicalAmount);
+}
+
+/** Local-time day arithmetic, matching `iso` so no timezone can shift a date. */
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return iso(d);
+}
+
 function findRecurringInflows(txns: TransactionRow[], transferIds: Set<string>): Set<string> {
   const inflows = txns.filter(t => t.amount < 0 && !transferIds.has(t.transaction_id));
   const monthsObserved = new Set(txns.map(t => t.date.slice(0, 7))).size;

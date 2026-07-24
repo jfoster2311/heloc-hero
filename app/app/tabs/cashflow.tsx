@@ -21,7 +21,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
+import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
@@ -56,6 +58,23 @@ export default function CashFlowScreen() {
   const committed  = expenses + payment + (helocInterest > 1 ? helocInterest : 0);
   const surplus    = income - committed;
   const committedPct = income > 0 ? Math.min((committed / income) * 100, 100) : 0;
+
+  // Recurring income is a pattern extended; the mortgage date is reported.
+  // buildUpcoming keeps the two labelled apart. Recomputed on the minute-ish
+  // rather than memoised on a Date, which would never invalidate.
+  const upcoming = useMemo(
+    () => buildUpcoming(
+      f.derivedCashflow?.recurringIncome ?? [],
+      {
+        amount:   f.mortgage.nextPayment.value ?? payment,
+        dueDate:  f.mortgage.nextPaymentDueDate.value
+          ? parseDate(f.mortgage.nextPaymentDueDate.value)
+          : null,
+        reported: f.mortgage.nextPaymentDueDate.source === 'liability',
+      },
+    ),
+    [f.derivedCashflow, f.mortgage.nextPayment, f.mortgage.nextPaymentDueDate, payment],
+  );
 
   const onRefresh = useCallback(() => {
     refresh();
@@ -102,17 +121,22 @@ export default function CashFlowScreen() {
           <Card>
             <Text style={styles.cardTitle}>Every month</Text>
 
-            <Line label="Income" amount={income} />
-            <Line label="Mortgage payment" amount={-payment} />
-            <Line label="Living expenses" amount={-expenses} />
-            {helocInterest > 1 && (
-              <Line
-                label={helocRateAssumed
-                  ? 'HELOC interest (assumed 8.5% APR)'
-                  : `HELOC interest (${(helocRate * 100).toFixed(2)}% APR)`}
-                amount={-helocInterest}
-              />
-            )}
+            {/* Bars, not a ledger. Two lengths side by side answer "how much
+                of what I earn is already spoken for" at a glance; four
+                right-aligned numbers make the reader do the subtraction. The
+                committed bar is drawn to the same scale as income, so the gap
+                between them IS the surplus. */}
+            <FlowBar label="Income" amount={income} max={income} tone="accent" />
+            <FlowBar label="Committed" amount={committed} max={income} tone="muted" />
+
+            <View style={styles.committedDetail}>
+              <Text style={styles.committedText}>
+                Mortgage ${fmt(payment)} · living ${fmt(expenses)}
+                {helocInterest > 1
+                  ? ` · HELOC interest ${'$'}${fmt(helocInterest)}${helocRateAssumed ? ' (assumed 8.5% APR)' : ''}`
+                  : ''}
+              </Text>
+            </View>
 
             <View style={styles.surplusRow}>
               <Text style={styles.surplusLabel}>
@@ -151,6 +175,21 @@ export default function CashFlowScreen() {
             >
               <Text style={styles.emptyBtnText}>Add your figures</Text>
             </TouchableOpacity>
+          </Card>
+        )}
+
+        {/* ── The next two weeks ──────────────────────────────────────────
+            Answers the question that actually precedes a dump: is there room
+            this month, or is payday still a week out with the mortgage due
+            first? Only rendered when at least one dated thing exists — an
+            empty calendar filled with plausible-looking rows would be the
+            dishonest version of this feature. */}
+        {upcoming.length > 0 && (
+          <Card>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>Next 14 days</Text>
+            </View>
+            <UpcomingMoney items={upcoming} />
           </Card>
         )}
 
@@ -293,14 +332,29 @@ function SurplusChart({ months }: { months: { key: string; label: string; surplu
   );
 }
 
-function Line({ label, amount }: { label: string; amount: number }) {
-  const negative = amount < 0;
+/** A labelled bar drawn against a shared maximum, so two can be compared. */
+function FlowBar({ label, amount, max, tone }: {
+  label: string;
+  amount: number;
+  max: number;
+  tone: 'accent' | 'muted';
+}) {
+  const pct = max > 0 ? Math.min(100, (amount / max) * 100) : 0;
   return (
-    <View style={styles.line}>
-      <Text style={styles.lineLabel}>{label}</Text>
-      <Text style={styles.lineAmount}>
-        {negative ? '−' : ''}${fmt(Math.abs(amount))}
-      </Text>
+    <View style={styles.flowBar}>
+      <View style={styles.flowHead}>
+        <Text style={styles.flowLabel}>{label}</Text>
+        <Text style={styles.flowAmount}>${fmt(amount)}</Text>
+      </View>
+      <View style={styles.flowTrack}>
+        <View
+          style={[
+            styles.flowFill,
+            { width: `${pct}%` },
+            tone === 'muted' && styles.flowFillMuted,
+          ]}
+        />
+      </View>
     </View>
   );
 }
@@ -344,14 +398,21 @@ const styles = StyleSheet.create({
   },
   cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
 
-  line: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing[2],
+  flowBar: { gap: Spacing[2], marginBottom: Spacing[3] },
+  flowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  flowLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
+  flowAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  flowTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.gray100,
+    overflow: 'hidden',
   },
-  lineLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
-  lineAmount: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
+  flowFill: { height: 10, borderRadius: 5, backgroundColor: Colors.mint600 },
+  flowFillMuted: { backgroundColor: Colors.gray300 },
+
+  committedDetail: { marginBottom: Spacing[1] },
+  committedText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
 
   surplusRow: {
     flexDirection: 'row',
