@@ -61,7 +61,7 @@ Commit each sub-step.
 - npx tsc --noEmit clean. Remove leftover emojis app-wide. Verify no off-palette colors. Push to origin. Then fresh EAS build to test IAP + Plaid + auto-lock + icon on device.
 
 ## Ops checklist (human — not code)
-- [ ] Live legal URLs: helochwero.com/privacy, /terms, /help, status.helochwero.com
+- [ ] Live legal URLs: helochero.com/privacy, /terms, /help, status.helochero.com
 - [ ] App Store Connect: heloc_pro_monthly ($19.99) + heloc_pro_annual ($179) + 7-day intro offer
 - [ ] RevenueCat: iOS app (com.jfoster2311.helochwero), entitlement pro, offering default, copy iOS key (appl_...) into EXPO_PUBLIC_REVENUECAT_IOS_KEY (EAS prod env)
 - [ ] Deploy delete-account via Supabase dashboard

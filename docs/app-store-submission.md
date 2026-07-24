@@ -97,7 +97,7 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 **Reviewer instructions:**
 
 1. **Demo account** (to be created before submission):
-   - Email: `demo@helochwero.com`
+   - Email: `demo@helochero.com`
    - Password: `HeroDemo2026!`
    - Account is pre-seeded with sample mortgage data and one completed cycle.
 
@@ -127,8 +127,8 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 - [ ] "Not financial advice, not a lender" footer in calculator and onboarding
 - [ ] No SOC 2 or audit certifications claimed (none have been performed)
 - [ ] No "HELOC Hero LLC" claimed until entity is formed
-- [ ] Privacy policy URL live: helochwero.com/privacy
-- [ ] Terms of Service URL live: helochwero.com/terms
+- [ ] Privacy policy URL live: helochero.com/privacy
+- [ ] Terms of Service URL live: helochero.com/terms
 - [ ] HELOC referral disclosures reviewed by attorney before any live lender links
 
 ### App Store Connect
@@ -139,7 +139,7 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 - [ ] App preview video (optional but recommended)
 - [ ] Age rating: 4+ (no objectionable content)
 - [ ] Category: Finance (primary), Utilities (secondary)
-- [ ] Support URL: helochwero.com/help (or status page)
+- [ ] Support URL: helochero.com/help (or status page)
 
 ### RevenueCat
 - [ ] iOS app created with bundle ID `com.jfoster2311.helochwero`
@@ -158,7 +158,7 @@ All screenshots use real app UI. No fabricated numbers that imply guaranteed out
 - [ ] Notification permission prompt tested. It is deliberately withheld until the user is on Pro AND has a surplus or a drawn balance, so a free account will correctly never see it. Verify the denied path too: deny once, then confirm Settings → Alerts shows "Notifications are off" with a working Open Settings link, since iOS will not present the prompt a second time.
 
 ### Demo Account
-- [ ] Demo account `demo@helochwero.com` created in Supabase
+- [ ] Demo account `demo@helochero.com` created in Supabase
 - [ ] Seeded with believable mid-strategy data (seed script at app/lib/seedDemo.ts)
 - [ ] Demo credentials confirmed in App Review notes field
 
