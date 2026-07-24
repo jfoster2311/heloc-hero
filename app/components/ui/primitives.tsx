@@ -3,8 +3,9 @@
 // Having these in one place is what makes the app feel like one product rather
 // than five screens that were each styled once. If a screen needs a card, a
 // label, a meter or a status, it comes from here.
+import { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform,
   type ViewStyle, type StyleProp, type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -335,6 +336,53 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
   );
 }
 
+/**
+ * Detail that stays on the screen without leading it.
+ *
+ * The Accounts tab renders every figure the app holds, with its provenance, and
+ * that is the right amount of detail for the one day someone doubts a number —
+ * and far too much for the other three hundred. Nothing is deleted; the rows
+ * that answer "where did this come from" simply sit one tap down from the rows
+ * that answer "what is it".
+ *
+ * The label counts what is hidden. "Show more" is a shrug; "Show 8 more details"
+ * tells someone whether the tap is worth it.
+ */
+export function Disclosure({ count, children, label = 'details' }: {
+  count: number;
+  children: React.ReactNode;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (count <= 0) return null;
+  return (
+    <>
+      {open ? children : null}
+      <TouchableOpacity
+        style={styles.disclosure}
+        onPress={() => {
+          if (Platform.OS === 'ios') {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          }
+          setOpen(o => !o);
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? `Hide ${label}` : `Show ${count} more ${label}`}
+      >
+        <Text style={styles.disclosureText}>
+          {open ? 'Show less' : `Show ${count} more ${label}`}
+        </Text>
+        <Ionicons
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={15}
+          color={Colors.mint600}
+        />
+      </TouchableOpacity>
+    </>
+  );
+}
+
 /** Empty state that says what is missing and offers the one way to fix it. */
 export function EmptyState({ icon, title, body, action }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -545,6 +593,19 @@ const styles = StyleSheet.create({
   linkLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
   linkLabelDanger: { color: Colors.gray500 },
   linkSub:   { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+
+  disclosure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    minHeight: 44,
+  },
+  disclosureText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint600,
+  },
 
   empty: { alignItems: 'center', paddingVertical: Spacing[10], gap: Spacing[2] },
   emptyRing: {

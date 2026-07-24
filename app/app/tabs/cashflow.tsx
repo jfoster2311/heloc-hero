@@ -250,10 +250,8 @@ export default function CashFlowScreen() {
         <View style={styles.noteCard}>
           <Ionicons name="information-circle-outline" size={18} color={Colors.textMuted} />
           <Text style={styles.noteText}>
-            Spending by category isn&apos;t shown. HELOC Hero reads your transactions only to
-            work out what you earn and spend each month — the one figure the whole strategy
-            rests on — and stops there. For category budgeting, a dedicated budgeting app will
-            serve you better.
+            No spending categories here on purpose. Your transactions are read for one figure
+            — what you have left each month — and nothing else.
           </Text>
         </View>
         </View>

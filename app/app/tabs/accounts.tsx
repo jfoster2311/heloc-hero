@@ -11,7 +11,7 @@
 // before acting on a recommendation. So every value carries where it came
 // from, and freshness is displayed as a feature rather than as debug detail —
 // a stale balance is how a wrong recommendation gets made.
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, Alert, Share, ActivityIndicator,
@@ -22,13 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
   Card, CardHead, Chip, DataRow, Meter, SectionLabel, SourceNote,
-  EmptyState, LinkRow, Divider,
+  EmptyState, LinkRow, Divider, Disclosure,
 } from '../../components/ui/primitives';
+import EquityCurve from '../../components/EquityCurve';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
 import { invokeFunction } from '../../lib/supabase';
-import { formatMonths } from '../../lib/projections';
+import { formatMonths, computeEquitySeries } from '../../lib/projections';
 import { daysSinceVerified } from '../../lib/helocTerms';
 import {
   INTEREST_CALC_LABEL, INTEREST_CALC_EXPLAINER, HOME_VALUE_SOURCE_LABEL,
@@ -93,6 +94,23 @@ export default function AccountsScreen() {
     }
   }
 
+  // Same model as the payoff projection, so the curve and the date beneath it
+  // can never tell different stories.
+  const equitySeries = useMemo(() => {
+    if (f.homeValue === null || f.mortgageBalance === null || f.mortgageBalance <= 0) return null;
+    return computeEquitySeries(
+      {
+        mortgageBalance: f.mortgageBalance,
+        mortgageRate:    f.mortgage.rate.value ?? 0.065,
+        monthlyPayment:  f.payment,
+        monthlySurplus:  Math.max(0, f.surplus),
+        helocRate:       f.helocRate,
+        helocLimit:      f.helocLimit ?? undefined,
+      },
+      f.homeValue,
+    );
+  }, [f.homeValue, f.mortgageBalance, f.mortgage.rate.value, f.payment, f.surplus, f.helocRate, f.helocLimit]);
+
   const drawEnd = parseDate(profile?.heloc_draw_end_date);
   const drawEndLabel = drawEnd ? fmtMonthYear(drawEnd) : null;
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
@@ -134,6 +152,19 @@ export default function AccountsScreen() {
               ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value on a home value you entered`
               : 'Add your home value to see equity and combined LTV'}
           </HeroCaption>
+
+          {/* Forward only. See components/EquityCurve for why there is no
+              history here — the app stores two balance snapshots, not a series,
+              and a chart of the past would be a chart of nothing. */}
+          {equitySeries && (
+            <View style={{ marginTop: Spacing[5] }}>
+              <EquityCurve
+                series={equitySeries}
+                payoffDate={f.projection.acceleratedPayoffDate}
+                hasRealData={f.hasRealData}
+              />
+            </View>
+          )}
         </Hero>
 
         <View style={styles.content}>
@@ -194,18 +225,22 @@ export default function AccountsScreen() {
               </View>
             )}
 
-            <SourcedRow label="Balance"            v={f.mortgage.balance}            fmtV={money} />
-            <SourcedRow label="Interest rate"      v={f.mortgage.rate}               fmtV={rate} />
-            <SourcedRow label="Rate type"          v={f.mortgage.rateType}           fmtV={titleCase} />
-            <SourcedRow label="Term"               v={f.mortgage.termMonths}         fmtV={months} />
-            <SourcedRow label="Maturity"           v={f.mortgage.maturityDate}       fmtV={dateStr} />
-            <SourcedRow label="Next payment"       v={f.mortgage.nextPayment}        fmtV={money} />
-            <SourcedRow label="Next due"           v={f.mortgage.nextPaymentDueDate} fmtV={dateStr} />
-            <SourcedRow label="Escrow balance"     v={f.mortgage.escrowBalance}      fmtV={money} />
-            <SourcedRow label="Interest paid YTD"  v={f.mortgage.ytdInterestPaid}    fmtV={money} />
-            <SourcedRow label="Principal paid YTD" v={f.mortgage.ytdPrincipalPaid}   fmtV={money} />
-            <SourcedRow label="Originated"         v={f.mortgage.originationDate}    fmtV={dateStr} />
-            <SourcedRow label="Original principal" v={f.mortgage.originationPrincipal} fmtV={money} last />
+            {/* The four a person actually came here to check. */}
+            <SourcedRow label="Balance"           v={f.mortgage.balance}         fmtV={money} />
+            <SourcedRow label="Interest rate"     v={f.mortgage.rate}            fmtV={rate} />
+            <SourcedRow label="Next payment"      v={f.mortgage.nextPayment}     fmtV={money} />
+            <SourcedRow label="Interest paid YTD" v={f.mortgage.ytdInterestPaid} fmtV={money} last />
+
+            <Disclosure count={8}>
+              <SourcedRow label="Rate type"          v={f.mortgage.rateType}           fmtV={titleCase} />
+              <SourcedRow label="Term"               v={f.mortgage.termMonths}         fmtV={months} />
+              <SourcedRow label="Maturity"           v={f.mortgage.maturityDate}       fmtV={dateStr} />
+              <SourcedRow label="Next due"           v={f.mortgage.nextPaymentDueDate} fmtV={dateStr} />
+              <SourcedRow label="Escrow balance"     v={f.mortgage.escrowBalance}      fmtV={money} />
+              <SourcedRow label="Principal paid YTD" v={f.mortgage.ytdPrincipalPaid}   fmtV={money} />
+              <SourcedRow label="Originated"         v={f.mortgage.originationDate}    fmtV={dateStr} />
+              <SourcedRow label="Original principal" v={f.mortgage.originationPrincipal} fmtV={money} last />
+            </Disclosure>
 
             {!f.mortgage.isLive && (
               <SourceNote>
@@ -242,27 +277,32 @@ export default function AccountsScreen() {
               checked.
             </SourceNote>
 
+            {/* The four terms that decide whether cycling works at all. The
+                fees matter, but they are a question someone asks once. */}
             <DataRow label="Credit limit" value={f.helocLimit !== null ? money(f.helocLimit) : '—'}
               hint={limitSourceHint(f.helocLimitSource)} />
             <DataRow label="Current APR" value={f.helocRateAssumed ? 'not set' : rate(f.helocRate)}
               hint={f.helocRateAssumed ? 'Projections assume 8.5% until you set it' : undefined} />
-            <DataRow label="Rate index" value={profile?.heloc_rate_index || '—'} />
-            <DataRow label="Margin over index"
-              value={profile?.heloc_margin != null ? rate(profile.heloc_margin) : '—'} />
             <DataRow label="Payments"
               value={profile?.heloc_payment_type === 'interest_only' ? 'Interest-only'
                 : profile?.heloc_payment_type === 'amortizing' ? 'Amortizing' : '—'}
               hint={profile?.heloc_payment_type === 'amortizing'
                 ? 'Cycling does not work on an amortizing line'
                 : undefined} />
-            <DataRow label="Draw period ends" value={drawEndLabel ?? '—'} />
-            <DataRow label="Draw fee"
-              value={profile?.heloc_draw_fee != null ? money(profile.heloc_draw_fee) : '—'} />
-            <DataRow label="Annual fee"
-              value={profile?.heloc_annual_fee != null ? money(profile.heloc_annual_fee) : '—'} />
-            <DataRow label="Early closure fee"
-              value={profile?.heloc_early_closure_fee != null ? money(profile.heloc_early_closure_fee) : '—'}
-              last />
+            <DataRow label="Draw period ends" value={drawEndLabel ?? '—'} last />
+
+            <Disclosure count={5} label="terms and fees">
+              <DataRow label="Rate index" value={profile?.heloc_rate_index || '—'} />
+              <DataRow label="Margin over index"
+                value={profile?.heloc_margin != null ? rate(profile.heloc_margin) : '—'} />
+              <DataRow label="Draw fee"
+                value={profile?.heloc_draw_fee != null ? money(profile.heloc_draw_fee) : '—'} />
+              <DataRow label="Annual fee"
+                value={profile?.heloc_annual_fee != null ? money(profile.heloc_annual_fee) : '—'} />
+              <DataRow label="Early closure fee"
+                value={profile?.heloc_early_closure_fee != null ? money(profile.heloc_early_closure_fee) : '—'}
+                last />
+            </Disclosure>
 
             {/* The one term that decides whether the strategy works at all, so
                 it gets its own block and an explainer rather than a row. */}
@@ -306,23 +346,26 @@ export default function AccountsScreen() {
           <Card>
             <CardHead title="What the home is worth" />
 
-            <DataRow label="Property"
-              value={f.mortgage.propertyAddress.value ?? '—'}
-              hint={f.mortgage.propertyAddress.source === 'liability' ? 'from your servicer' : undefined} />
             <DataRow label="Estimated value"
               value={f.homeValue !== null ? money(f.homeValue) : '—'}
               hint={profile?.home_value_source
                 ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
                 : 'you entered this'} />
-            <DataRow label="Value as of"
-              value={f.homeValueAsOf
-                ? f.homeValueAsOf.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                : '—'} />
-            <DataRow label="Mortgage balance" value={f.mortgageBalance !== null ? money(f.mortgageBalance) : '—'} />
-            <DataRow label="HELOC drawn" value={f.helocDrawn !== null ? money(f.helocDrawn) : '—'} />
             <DataRow label="Estimated equity" value={f.equity !== null ? money(f.equity) : '—'} />
             <DataRow label="Combined LTV"
               value={f.combinedLTV !== null ? `${Math.round(f.combinedLTV * 100)}%` : '—'} last />
+
+            <Disclosure count={4} label="details">
+              <DataRow label="Property"
+                value={f.mortgage.propertyAddress.value ?? '—'}
+                hint={f.mortgage.propertyAddress.source === 'liability' ? 'from your servicer' : undefined} />
+              <DataRow label="Value as of"
+                value={f.homeValueAsOf
+                  ? f.homeValueAsOf.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                  : '—'} />
+              <DataRow label="Mortgage balance" value={f.mortgageBalance !== null ? money(f.mortgageBalance) : '—'} />
+              <DataRow label="HELOC drawn" value={f.helocDrawn !== null ? money(f.helocDrawn) : '—'} last />
+            </Disclosure>
 
             {f.combinedLTV !== null && (
               <Meter value={f.combinedLTV} tone={f.combinedLTV > 0.8 ? 'muted' : 'accent'} height={8} />

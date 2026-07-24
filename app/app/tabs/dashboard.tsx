@@ -25,6 +25,7 @@ import {
   Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow,
 } from '../../components/ui/primitives';
 import NotificationPrimer from '../../components/NotificationPrimer';
+import FreedomBoard from '../../components/FreedomBoard';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -147,28 +148,25 @@ export default function DashboardScreen() {
               : 'On your current schedule — no acceleration projected yet'}
           </HeroCaption>
 
-          {/* Progress carries a milestone marker, not just fill. Goal-gradient
-              motivation is weak in year two of twelve. */}
-          {pct !== null && (
-            <View style={styles.progressBlock}>
-              <Meter
-                value={pct / 100}
-                marks={MILESTONES.map(m => ({ at: m / 100 }))}
-                onDark
-                height={8}
-              />
-              <View style={styles.progressLabels}>
-                <Text style={styles.progressText}>
-                  {f.baseline.percentComplete !== null
-                    ? `${pct.toFixed(0)}% of the original loan retired`
-                    : `You own ${pct.toFixed(0)}% of your home`}
-                </Text>
-                {nextMs !== undefined && (
-                  <Text style={styles.progressGoal}>next milestone: {nextMs}%</Text>
-                )}
-              </View>
-            </View>
-          )}
+          {/* The board. This replaced a progress meter with milestone marks —
+              two rows of chrome that said "42%, next stop 50%". The board says
+              the same thing in the product's own terms (years, not percent) and
+              is the one object on this screen no competitor can draw. */}
+          <View style={styles.boardBlock}>
+            <FreedomBoard
+              originalMonths={f.projection.originalMonths}
+              acceleratedMonths={f.projection.acceleratedMonths}
+              hasRealData={f.hasRealData}
+            />
+            {pct !== null && (
+              <Text style={styles.progressText}>
+                {f.baseline.percentComplete !== null
+                  ? `${pct.toFixed(0)}% of the original loan retired`
+                  : `You own ${pct.toFixed(0)}% of your home`}
+                {nextMs !== undefined ? ` · next milestone ${nextMs}%` : ''}
+              </Text>
+            )}
+          </View>
 
           <Text style={styles.heroDisclaimer}>
             Projected estimate, not a guarantee.
@@ -469,10 +467,8 @@ const styles = StyleSheet.create({
     color: OnDark.muted,
     letterSpacing: Tracking.eyebrow,
   },
-  progressBlock: { marginTop: Spacing[4], gap: Spacing[2] },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing[3] },
-  progressText: { fontSize: Typography.xs, color: OnDark.secondary, flex: 1 },
-  progressGoal: { fontSize: Typography.xs, color: OnDark.muted },
+  boardBlock: { marginTop: Spacing[5], gap: Spacing[3] },
+  progressText: { fontSize: Typography.xs, color: OnDark.secondary },
   heroDisclaimer: { fontSize: Typography.xs, color: OnDark.faint, marginTop: Spacing[3] },
 
   content: {

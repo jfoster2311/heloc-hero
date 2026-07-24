@@ -14,13 +14,18 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuroraBackground from '../../components/Aurora';
+import Logo from '../../components/ui/Logo';
 import { Typography, Spacing, Radius, Aurora } from '../../lib/theme';
 
 const { width: SW } = Dimensions.get('window');
 
 // Display type sits above the token scale (which tops out at 36) and needs
 // negative tracking to hold together at size.
-const DISPLAY_SIZE = Math.min(42, SW * 0.108);
+//
+// Sized off the longest line ("OFF IN 10 YEARS", 15 characters). The previous
+// 0.108 was set for a shorter headline and overflows this one on every device
+// narrower than an iPhone Pro Max.
+const DISPLAY_SIZE = Math.min(38, SW * 0.092);
 const DISPLAY_LEAD = DISPLAY_SIZE * 1.04;
 
 const VALUE_PROPS = [
@@ -111,16 +116,23 @@ export default function WelcomeScreen() {
 
         {/* ── Mark ─────────────────────────────────────────────────────── */}
         <Animated.View style={[s.markBlock, { opacity: markOpacity }]}>
-          <Text style={s.markKicker}>HELOC</Text>
-          <Text style={s.markWord}>HERO</Text>
+          <Logo size={38} variant="inline" />
         </Animated.View>
 
         <View style={s.spacer} />
 
-        {/* ── Headline ─────────────────────────────────────────────────── */}
+        {/* ── Headline ─────────────────────────────────────────────────────
+            "Owned IT in 10 years" left the noun dangling — the reader has to
+            guess what "it" is on the one screen where nothing else on the page
+            can tell them. Naming the home is the whole job of this sentence.
+
+            Still a question, deliberately. A flat "your home, paid off in 10
+            years" is a performance claim made before the app has seen a single
+            figure of the user's, which is exactly the sort of thing the honesty
+            rule exists to stop. */}
         <Animated.View style={[s.headBlock, { opacity: headOpacity, transform: [{ translateY: headY }] }]}>
           <Text style={s.headline} accessibilityRole="header">
-            WHAT IF YOU{'\n'}OWNED IT IN{'\n'}10 YEARS —{'\n'}NOT 30?
+            WHAT IF YOUR{'\n'}HOME WAS PAID{'\n'}OFF IN 10 YEARS{'\n'}— NOT 30?
           </Text>
           <Text style={s.subcopy}>
             Run your numbers and see your projected payoff date. Takes about two minutes.
@@ -170,19 +182,6 @@ const s = StyleSheet.create({
 
   // ── Mark ──────────────────────────────────────────────────────────────
   markBlock: { paddingTop: Spacing[4] },
-  markKicker: {
-    fontSize:      10,
-    fontWeight:    Typography.extrabold,
-    color:         'rgba(255,255,255,0.42)',
-    letterSpacing: 7,
-  },
-  markWord: {
-    fontSize:      22,
-    fontWeight:    Typography.extrabold,
-    color:         '#ffffff',
-    letterSpacing: 2,
-    marginTop:     1,
-  },
 
   spacer: { flex: 1 },
 
