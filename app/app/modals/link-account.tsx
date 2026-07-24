@@ -7,12 +7,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { create, open } from 'react-native-plaid-link-sdk';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { invokeFunction } from '../../lib/supabase';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { PlaidAccountType } from '../../lib/types';
+
+// react-native-plaid-link-sdk is a NATIVE module: it exists in dev and prod
+// builds and not in Expo Go. It used to be a static top-level import, which is
+// the one form that cannot be recovered from — the failure happens while the
+// module graph is being built, so the screen cannot render a message about it,
+// and depending on the bundler it takes its importers down too. Every other
+// native dependency here (purchases, notify, appLock, haptics) is loaded
+// through a guarded require for exactly this reason; this one had been missed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PlaidLink = { create: (o: any) => void; open: (o: any) => void } | null;
+
+let plaidModule: PlaidLink = null;
+let plaidLoaded = false;
+
+function loadPlaid(): PlaidLink {
+  if (plaidLoaded) return plaidModule;
+  plaidLoaded = true;
+  try {
+    // Checked both ways: interop can put named exports on the namespace or
+    // behind .default depending on how the package ships. Verifying `create` is
+    // actually callable is what makes this a real guard rather than a
+    // try/catch that hands back an object with no methods on it.
+    const mod = require('react-native-plaid-link-sdk');
+    const candidate = typeof mod?.create === 'function' ? mod : mod?.default;
+    plaidModule =
+      typeof candidate?.create === 'function' && typeof candidate?.open === 'function'
+        ? candidate
+        : null;
+  } catch {
+    plaidModule = null;
+  }
+  return plaidModule;
+}
 
 const ACCOUNT_TYPES: { type: PlaidAccountType; label: string; desc: string; icon: string }[] = [
   {
@@ -35,6 +68,24 @@ const ACCOUNT_TYPES: { type: PlaidAccountType; label: string; desc: string; icon
   },
 ];
 
+/**
+ * A sentence the user can act on, with the raw detail kept only when it is not
+ * already meaningless to them.
+ *
+ * Every failure here used to surface `err.message` directly, so a dropped
+ * connection during the token exchange read as a fetch error — on the screen
+ * where someone has just handed over their bank credentials and most wants to
+ * know whether it worked.
+ */
+function describeLinkError(err: unknown, lead: string): string {
+  const raw = err instanceof Error ? err.message : '';
+  const offline = /network|fetch|timeout|connection/i.test(raw);
+  if (offline) {
+    return `${lead} Check your internet connection and try again — nothing was changed.`;
+  }
+  return `${lead} Please try again in a moment.`;
+}
+
 export default function LinkAccountModal() {
   const router = useRouter();
   const { user } = useAuth();
@@ -45,6 +96,18 @@ export default function LinkAccountModal() {
 
   async function handleLink() {
     if (!selectedType || !user) return;
+
+    const plaid = loadPlaid();
+    if (!plaid) {
+      setError(
+        'Bank linking needs the full app. This build does not include the Plaid ' +
+        'component — everything else still works from figures you enter.',
+      );
+      hapticError();
+      return;
+    }
+
+    hapticLight();
     setLoading(true);
     setError('');
 
@@ -54,8 +117,8 @@ export default function LinkAccountModal() {
         { userId: user.id },
       );
 
-      create({ token: link_token });
-      open({
+      plaid.create({ token: link_token });
+      plaid.open({
         onSuccess: async (success: { publicToken: string }) => {
           try {
             await invokeFunction('plaid-exchange-token', {
@@ -63,20 +126,30 @@ export default function LinkAccountModal() {
               accountType: selectedType,
               userId: user.id,
             });
+            hapticSuccess();
             router.back();
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to link account');
+            // The Item exists at Plaid but we failed to store it, which is the
+            // one outcome the user cannot see and must not be left guessing at.
+            setError(describeLinkError(err, 'We connected to your bank but could not finish saving it.'));
             setLoading(false);
+            hapticError();
           }
         },
         onExit: (exit: { error?: { displayMessage?: string } | null }) => {
-          if (exit.error) setError(exit.error.displayMessage ?? 'Something went wrong');
+          // No error means they simply backed out. Saying nothing is correct;
+          // an error banner for a deliberate cancel is noise.
+          if (exit.error) {
+            setError(exit.error.displayMessage ?? 'Your bank ended the session. You can try again.');
+            hapticError();
+          }
           setLoading(false);
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start Plaid Link');
+      setError(describeLinkError(err, 'We could not start the secure bank connection.'));
       setLoading(false);
+      hapticError();
     }
   }
 
@@ -96,6 +169,7 @@ export default function LinkAccountModal() {
       });
       router.back();
     } catch (err) {
+      // Dev-only path, so the raw message is the useful one here.
       setError(err instanceof Error ? err.message : 'Failed to connect account');
     } finally {
       setLoading(false);

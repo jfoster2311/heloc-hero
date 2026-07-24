@@ -17,6 +17,26 @@ export interface MonthBucket {
   total: number;
 }
 
+/**
+ * Everyone currently rendering dump history.
+ *
+ * The hook loads once per userId and had no invalidation at all, so recording a
+ * move — the single most important thing a user does in this app — left the
+ * dashboard's totals, the streak and the realized-interest figure exactly as
+ * they were. The action looked like it had done nothing, which is the fastest
+ * way to teach someone not to bother doing it.
+ *
+ * A module-level notification rather than Realtime on `automation_log`: the
+ * writer is this device, the readers are already mounted, and it needs no
+ * publication config to be correct.
+ */
+const listeners = new Set<() => void>();
+
+/** Call after inserting a dump so every mounted history view re-reads. */
+export function notifyDumpLogged(): void {
+  listeners.forEach(fn => fn());
+}
+
 export interface UseDumpHistoryResult {
   entries: AutomationLogEntry[];
   /** Last `months` calendar months, oldest first. Empty months included. */
@@ -60,6 +80,15 @@ export function useDumpHistory(
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Re-read when any screen records a dump, including this one's own siblings:
+  // the dashboard and cash flow both render history, and the modal that writes
+  // it is presented over the top of them.
+  useEffect(() => {
+    const listener = () => { load(); };
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, [load]);
 
   const buckets = bucketByMonth(entries, months);
   const totalDumped = entries.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);

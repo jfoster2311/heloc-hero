@@ -18,16 +18,19 @@
 // HONESTY: HELOC Hero has no payment rail. It cannot move money, so nothing
 // here claims to. The action records a transfer the user makes at their own
 // bank, and is labelled as exactly that.
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  InputAccessoryView, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
+import { notifyDumpLogged } from '../../hooks/useDumpHistory';
+import { SkeletonGroup, SkeletonLines } from '../../components/ui/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
 import { analyzeMove, suggestedMove, CAUTION_UTILIZATION } from '../../lib/moveDecision';
@@ -39,10 +42,14 @@ import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { LinkedAccount } from '../../lib/types';
 
+const AMOUNT_ACCESSORY_ID = 'move-money-amount';
+
 export default function MoveMoneyModal() {
   const router = useRouter();
   const { profile } = useAuth();
-  const { mortgageAccount, helocAccount, savingsAccount } = useAccounts(profile?.id ?? null);
+  const {
+    mortgageAccount, helocAccount, savingsAccount, loading: accountsLoading,
+  } = useAccounts(profile?.id ?? null);
 
   const helocBalance = firstBalance(helocAccount);
   const helocLimit   = deriveCreditLimit(
@@ -70,6 +77,21 @@ export default function MoveMoneyModal() {
   const [amount, setAmount] = useState<number>(suggested);
   const [draft, setDraft]   = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
+  /** Set on the first keystroke or tap. Until then the amount is ours to fix. */
+  const [amountEdited, setAmountEdited] = useState(false);
+
+  // Adopt the suggestion once the balances are in.
+  //
+  // `useState(suggested)` reads its argument on the first render only, and on
+  // that render `helocAccount` is still null because the fetch has not
+  // returned — so `drawn` was 0 and suggestedMove sized the move as though the
+  // line were completely untouched. On the screen where someone records moving
+  // real money against their house, the prefilled figure was the one you would
+  // get if you owed nothing on the HELOC, and it never corrected.
+  useEffect(() => {
+    if (amountEdited || accountsLoading) return;
+    setAmount(suggested);
+  }, [suggested, amountEdited, accountsLoading]);
 
   const analysis = useMemo(() => analyzeMove({
     helocLimit: limit,
@@ -82,7 +104,11 @@ export default function MoveMoneyModal() {
     monthlyPayment: payment || 2_000,
   }), [limit, drawn, amount, surplus, helocRate, mortgageBal, profile?.mortgage_rate, payment]);
 
-  const canLog = amount > 0 && !analysis.exceedsLimit;
+  // Held while the balances load: `analysis.exceedsLimit` is the only guard on
+  // this button, and it is computed from a limit and a draw we do not have yet.
+  // Someone tapping straight through would record a move validated against an
+  // empty line.
+  const canLog = amount > 0 && !analysis.exceedsLimit && !accountsLoading;
 
   // Liquidity, before and after. Available credit counts because on a HELOC it
   // IS the emergency fund — which is the whole reason drawing it down has a
@@ -107,6 +133,9 @@ export default function MoveMoneyModal() {
       Alert.alert('Could not record it', `${error.message}\n\nNothing was saved. Please try again.`);
       return;
     }
+    // Tell every mounted history view to re-read before we navigate, so the
+    // dashboard the user lands back on already reflects what they just did.
+    notifyDumpLogged();
     hapticSuccess();
     router.back();
   }
@@ -142,12 +171,17 @@ export default function MoveMoneyModal() {
                 style={styles.amountInput}
                 value={draft ?? (amount > 0 ? amount.toLocaleString('en-US') : '')}
                 onChangeText={(t) => {
+                  setAmountEdited(true);
                   setDraft(t);
                   const n = parsePositive(t);
                   if (n !== null) setAmount(Math.round(n));
                 }}
                 onBlur={() => setDraft(null)}
                 keyboardType="numeric"
+                // Number pads have no return key on iOS, so without this there
+                // is no way to put the keyboard away — and it covers the ledger
+                // and every caution on the screen.
+                inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
                 placeholder="0"
                 placeholderTextColor={Colors.textMuted}
                 selectTextOnFocus
@@ -156,7 +190,12 @@ export default function MoveMoneyModal() {
             </View>
             {suggested > 0 && amount !== suggested && (
               <TouchableOpacity
-                onPress={() => { hapticLight(); setDraft(null); setAmount(suggested); }}
+                onPress={() => {
+                  hapticLight();
+                  setAmountEdited(true);
+                  setDraft(null);
+                  setAmount(suggested);
+                }}
                 style={styles.suggestBtn}
                 accessibilityLabel={`Use suggested amount of ${suggested} dollars`}
               >
@@ -172,6 +211,19 @@ export default function MoveMoneyModal() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>What this is based on</Text>
 
+            {/* Held back until the balances land. Every sentence below names a
+                figure — "your HELOC is at 0%, $0 drawn of a $100,000 limit" —
+                and each one is confidently wrong while the fetch is in flight.
+                Stating the reasoning is this screen's whole purpose, so stating
+                it from data we do not have yet is the one thing it must not do. */}
+            {accountsLoading && (
+              <SkeletonGroup label="Loading the balances this decision rests on">
+                <SkeletonLines count={3} last="70%" />
+              </SkeletonGroup>
+            )}
+
+            {!accountsLoading && (
+            <>
             <Reason
               text={hasLimit
                 ? `Your HELOC is at ${fmtPct(analysis.utilBefore)} — $${fmt(drawn)} drawn of a $${fmt(limit)} limit.`
@@ -209,6 +261,8 @@ export default function MoveMoneyModal() {
                   add yours for accurate costs.
                 </Text>
               </TouchableOpacity>
+            )}
+            </>
             )}
           </View>
 
@@ -317,6 +371,28 @@ export default function MoveMoneyModal() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={AMOUNT_ACCESSORY_ID}>
+          <View style={styles.keypadBar}>
+            <Text style={styles.keypadHint} numberOfLines={1}>
+              {analysis.exceedsLimit
+                ? 'More than your remaining credit'
+                : amount > 0 && hasLimit
+                  ? `Puts you at ${fmtPct(analysis.utilAfter)} utilization`
+                  : 'Enter the amount you moved'}
+            </Text>
+            <TouchableOpacity
+              style={styles.keypadDone}
+              onPress={() => { hapticLight(); Keyboard.dismiss(); }}
+              accessibilityRole="button"
+              accessibilityLabel="Done editing amount"
+            >
+              <Text style={styles.keypadDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </SafeAreaView>
   );
 }
@@ -503,6 +579,25 @@ const styles = StyleSheet.create({
     color: Colors.mint700,
   },
   choiceDisabled: { opacity: 0.5 },
+
+  keypadBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  keypadHint: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted },
+  keypadDone: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing[3] },
+  keypadDoneText: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.mint600,
+  },
 
   footnote: {
     fontSize: Typography.xs,
