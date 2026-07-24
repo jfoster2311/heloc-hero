@@ -35,7 +35,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const STANDARD_TERM_MONTHS = 360;
+// Years LEFT on the note, not the original term. Most people running this
+// calculator are part-way through a mortgage, and assuming a fresh 30-year
+// schedule overstates the remaining term — and therefore the saving — for every
+// one of them. 30 stays the default because it is the common case on day one,
+// but it is now a stated assumption the user can correct in one tap.
+const TERM_OPTIONS = [10, 15, 20, 25, 30] as const;
+const DEFAULT_TERM_YEARS = 30;
 
 // Realistic defaults so the screen opens with a believable answer already on it.
 const GENERIC_DEFAULTS: CalculatorInputs = {
@@ -83,21 +89,40 @@ export default function CalculatorScreen() {
     };
   }, [canPrefill, accounts, profile]);
 
+  // Years left, from the note's own terms when we have them: origination plus
+  // term, minus what has already elapsed. Rounded up, because eleven months of
+  // mortgage is a year you are still paying.
+  const initialTermYears = useMemo(() => {
+    if (!canPrefill) return DEFAULT_TERM_YEARS;
+    const termMonths = profile?.mortgage_term_months ?? null;
+    const originated = profile?.mortgage_origination_date ?? null;
+    if (!termMonths || !originated) return DEFAULT_TERM_YEARS;
+    const start = new Date(originated);
+    if (Number.isNaN(start.getTime())) return DEFAULT_TERM_YEARS;
+    const elapsed =
+      (new Date().getFullYear() - start.getFullYear()) * 12 +
+      (new Date().getMonth() - start.getMonth());
+    const remaining = Math.ceil((termMonths - elapsed) / 12);
+    return remaining > 0 && remaining <= 40 ? remaining : DEFAULT_TERM_YEARS;
+  }, [canPrefill, profile]);
+
   const [inputs, setInputs] = useState<CalculatorInputs>(initialInputs);
+  const [termYears, setTermYears] = useState(initialTermYears);
   const [paymentTouched, setPaymentTouched] = useState(
     () => (initialInputs.monthlyPayment ?? 0) > 0,
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Until the user edits it, the payment is a real amortization of the balance
-  // and rate they can see — not a fixed guess that silently contradicts them.
+  // and rate they can see, over the term they chose — not a fixed guess that
+  // silently contradicts them.
   const derivedPayment = useMemo(
     () => calcMonthlyPayment(
       inputs.mortgageBalance,
       inputs.mortgageRate / 100,
-      STANDARD_TERM_MONTHS,
+      termYears * 12,
     ),
-    [inputs.mortgageBalance, inputs.mortgageRate],
+    [inputs.mortgageBalance, inputs.mortgageRate, termYears],
   );
   const monthlyPayment = paymentTouched ? inputs.monthlyPayment : derivedPayment;
 
@@ -126,6 +151,7 @@ export default function CalculatorScreen() {
 
   function handleReset() {
     setInputs(initialInputs);
+    setTermYears(initialTermYears);
     setPaymentTouched((initialInputs.monthlyPayment ?? 0) > 0);
   }
 
@@ -191,13 +217,11 @@ export default function CalculatorScreen() {
               </>
             )}
 
-            {/* The derived payment assumes a fresh 30-year schedule, which
-                overstates the remaining term — and so the saving — for anyone
-                part-way through a mortgage. Say so where the number is read,
-                not only in the Advanced hint. */}
+            {/* The assumption is stated where the number is read, not only in
+                a hint further down the page. */}
             <Text style={styles.heroDisclaimer}>
               {status === 'ok' && !paymentTouched
-                ? 'Assumes a 30-year schedule. Enter your actual monthly payment under Advanced for a figure based on your real term.'
+                ? `Assumes ${termYears} years left at the payment we calculated. Change the term below, or enter your actual payment under Advanced.`
                 : 'Projected estimate from the numbers below. Not a guarantee.'}
             </Text>
           </Hero>
@@ -225,6 +249,17 @@ export default function CalculatorScreen() {
               value={inputs.monthlySurplus}
               onCommit={v => updateField('monthlySurplus', v)}
               hint="What's left over each month after all expenses, including your mortgage payment"
+            />
+
+            {/* Promoted out of Advanced. Someone twelve years into a 30-year
+                note is the normal case, not an edge case, and leaving this
+                assumed produced a payment — and a saving — built on a term
+                they do not have. Disabled once they type a real payment,
+                because then the term is implied by the number they gave us. */}
+            <TermPicker
+              years={termYears}
+              onChange={setTermYears}
+              disabled={paymentTouched}
               isLast
             />
           </Card>
@@ -242,6 +277,7 @@ export default function CalculatorScreen() {
                 {!showAdvanced && (
                   <Text style={styles.advancedSummary}>
                     {money(monthlyPayment)}/mo · {inputs.helocRate}% HELOC
+                    {paymentTouched ? '' : ` · ${termYears}yr`}
                   </Text>
                 )}
                 <Ionicons
@@ -261,7 +297,7 @@ export default function CalculatorScreen() {
                   onCommit={v => { setPaymentTouched(true); updateField('monthlyPayment', v); }}
                   hint={paymentTouched
                     ? 'Your figure. Reset to defaults to go back to the calculated payment.'
-                    : 'Calculated from your balance and rate over 30 years. Edit to override.'}
+                    : `Calculated from your balance and rate over ${termYears} years. Edit to override.`}
                 />
                 <NumericField
                   label="HELOC interest rate"
@@ -348,6 +384,80 @@ export default function CalculatorScreen() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * Years left on the note.
+ *
+ * A chip row rather than a text field: the answer is almost always one of five
+ * round numbers, and tapping "20" beats opening a keypad. The odd term that
+ * isn't listed is still reachable — typing a real payment under Advanced
+ * overrides this entirely, which is why the row greys out once they do.
+ */
+function TermPicker({ years, onChange, disabled, isLast }: {
+  years: number;
+  onChange: (y: number) => void;
+  disabled?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[inputStyles.group, isLast && inputStyles.groupLast]}>
+      <Text style={inputStyles.label}>Years left on your mortgage</Text>
+      <Text style={inputStyles.hint}>
+        {disabled
+          ? 'Not used — your payment below already implies a term.'
+          : 'Sets the monthly payment we calculate. Most people are part-way through.'}
+      </Text>
+      <View style={termStyles.row}>
+        {TERM_OPTIONS.map(y => {
+          const active = !disabled && y === years;
+          return (
+            <TouchableOpacity
+              key={y}
+              style={[
+                termStyles.chip,
+                active && termStyles.chipActive,
+                disabled && termStyles.chipDisabled,
+              ]}
+              onPress={() => onChange(y)}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active, disabled }}
+              accessibilityLabel={`${y} years left`}
+            >
+              <Text style={[termStyles.chipText, active && termStyles.chipTextActive]}>
+                {y}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+        <Text style={termStyles.unit}>yrs</Text>
+      </View>
+    </View>
+  );
+}
+
+const termStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  chip: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.gray50,
+  },
+  chipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  chipDisabled: { opacity: 0.45 },
+  chipText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textSecondary,
+  },
+  chipTextActive: { color: Colors.white },
+  unit: { fontSize: Typography.xs, color: Colors.textMuted },
+});
 
 /**
  * A numeric field that keeps the user's raw keystrokes while they type.

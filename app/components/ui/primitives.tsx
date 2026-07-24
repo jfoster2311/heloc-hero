@@ -337,6 +337,51 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
 }
 
 /**
+ * A figure that is also a door.
+ *
+ * The dashboard's job is to rank, not to hold everything: each tile states one
+ * number and hands off to the tab that can explain it. Sized so two sit in a
+ * row within the thumb zone, and the whole tile is the target rather than the
+ * chevron — a 44pt hit area is the floor, not the goal.
+ */
+export function NavTile({ eyebrow, value, sub, icon, onPress, muted, accessibilityHint }: {
+  eyebrow: string;
+  value: string;
+  sub?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  /** Renders the value in grey. For a figure that is real but not good news. */
+  muted?: boolean;
+  accessibilityHint?: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.navTile}
+      onPress={onPress}
+      activeOpacity={0.86}
+      accessibilityRole="button"
+      accessibilityLabel={`${eyebrow}: ${value}`}
+      accessibilityHint={accessibilityHint}
+    >
+      <View style={styles.navTileHead}>
+        {icon ? <Ionicons name={icon} size={13} color={Colors.textMuted} /> : null}
+        <Text style={styles.navTileEyebrow} numberOfLines={1}>{eyebrow}</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.gray300} />
+      </View>
+      <Text
+        style={[styles.navTileValue, muted && styles.navTileValueMuted]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {value}
+      </Text>
+      {sub ? <Text style={styles.navTileSub} numberOfLines={2}>{sub}</Text> : null}
+    </TouchableOpacity>
+  );
+}
+
+/**
  * Detail that stays on the screen without leading it.
  *
  * The Accounts tab renders every figure the app holds, with its provenance, and
@@ -593,6 +638,34 @@ const styles = StyleSheet.create({
   linkLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
   linkLabelDanger: { color: Colors.gray500 },
   linkSub:   { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+
+  navTile: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    padding: Spacing[4],
+    gap: Spacing[1],
+    minHeight: 96,
+    ...Shadows.card,
+  },
+  navTileHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  navTileEyebrow: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: Typography.extrabold,
+    color: Colors.textMuted,
+    letterSpacing: Tracking.label,
+  },
+  navTileValue: {
+    fontSize: Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: Tracking.heading,
+  },
+  navTileValueMuted: { color: Colors.gray400 },
+  navTileSub: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
 
   disclosure: {
     flexDirection: 'row',

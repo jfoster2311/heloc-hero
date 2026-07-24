@@ -22,7 +22,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
-  Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow,
+  Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow, NavTile,
 } from '../../components/ui/primitives';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
@@ -198,6 +198,39 @@ export default function DashboardScreen() {
               onPress={() => router.push(
                 f.hasLinkedAccounts ? '/tabs/accounts' : isPro ? '/modals/link-account' : '/modals/upgrade',
               )}
+            />
+          </View>
+
+          {/* ── Summary tiles — each one a door to the tab that explains it ──
+              The dashboard ranks; it does not hold everything. These two carry
+              the figures people check most often and hand off rather than
+              growing a breakdown here.
+
+              "Home equity", not "net worth": the app knows a home value, two
+              secured balances and one savings balance. It has no visibility of
+              retirement, brokerage or anything else, so a tile labelled net
+              worth would be a number the product cannot stand behind. */}
+          <View style={styles.tileRow}>
+            <NavTile
+              eyebrow="HOME EQUITY"
+              icon="home-outline"
+              value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
+              sub={f.combinedLTV !== null
+                ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
+                : 'add your home value'}
+              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+              accessibilityHint="Opens the Accounts tab"
+            />
+            <NavTile
+              eyebrow={f.surplus >= 0 ? 'FREE EACH MONTH' : 'SHORT EACH MONTH'}
+              icon="swap-vertical-outline"
+              value={`${f.surplus < 0 ? '−' : ''}$${fmt(Math.abs(f.surplus))}`}
+              muted={f.surplus < 0}
+              sub={f.surplusBasis === 'trailing'
+                ? 'from your transactions'
+                : 'from the figures you entered'}
+              onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+              accessibilityHint="Opens the Cash flow tab"
             />
           </View>
 
@@ -477,6 +510,7 @@ const styles = StyleSheet.create({
     gap: Spacing[4],
   },
 
+  tileRow: { flexDirection: 'row', gap: Spacing[3] },
   asOfRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   asOfText: { fontSize: Typography.xs, color: Colors.textMuted },
 

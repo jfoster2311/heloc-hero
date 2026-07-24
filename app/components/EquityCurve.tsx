@@ -7,76 +7,68 @@
 // says so — which is what the reference is actually doing too (its axis runs
 // "Today → Age 80").
 //
-// Two things are drawn:
-//   · the solid area — equity under the strategy, which DIPS at every draw,
-//     because money borrowed against the house is not equity
+// Two lines:
+//   · the solid, filled curve — equity under the strategy
 //   · the faint line — equity if nothing changes, over the same span
 //
-// Built from Views rather than SVG on purpose. react-native-svg is a native
-// module, and pulling one in for a single chart costs a fresh EAS build on
-// every machine that touches this repo. Sixty-four thin columns read as an area
-// chart at this size and cost nothing.
+// A dump moves debt from the mortgage to the line one-for-one, so it leaves
+// equity flat rather than dipping. The curve rises because surplus is retiring
+// debt. See computeEquitySeries.
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import LineChart from './ui/LineChart';
 import { Typography, Spacing, Aurora, OnDark } from '../lib/theme';
 import type { EquitySeries } from '../lib/projections';
 
-const COLUMNS = 64;
-const CHART_H = 104;
+const SAMPLES = 40;
+const CHART_H = 112;
 
 interface Props {
   series: EquitySeries;
-  /** Labelled on the right edge, where the curve lands. */
+  /** The month the mortgage clears. The line runs past it to debt-free. */
   payoffDate: Date;
   /** False when the figures are illustrative rather than the user's own. */
   hasRealData?: boolean;
 }
 
 export default function EquityCurve({ series, payoffDate, hasRealData = true }: Props) {
-  const acc = sample(series.accelerated.map(p => p.equity), COLUMNS);
-  const base = sample(series.baseline.map(p => p.equity), COLUMNS);
+  const acc = sample(series.accelerated.map(p => p.equity), SAMPLES);
+  const base = sample(series.baseline.map(p => p.equity), SAMPLES);
   if (acc.length < 2) return null;
 
-  // "Mortgage-free" and "owns it outright" are different months. The curve's
-  // right edge is the second one; payoffDate is the first.
+  // "Mortgage-free" and "owns it outright" are different months.
   const settleMonths = series.debtFreeMonth - series.payoffMonth;
   const debtFreeDate = addMonths(payoffDate, settleMonths);
 
-  // Domain floor sits at zero unless the user is underwater, in which case
-  // clipping the negative part would hide the only thing worth seeing.
-  const lo = Math.min(0, ...acc, ...base);
-  const hi = Math.max(series.finalEquity, ...acc, ...base);
-  const span = hi - lo || 1;
-  const y = (v: number) => clamp01((v - lo) / span) * CHART_H;
+  // Floor sits at zero unless the user is underwater, in which case clipping
+  // the negative part would hide the only thing worth seeing.
+  const min = Math.min(0, ...acc, ...base);
+  const max = Math.max(series.finalEquity, ...acc, ...base);
 
   return (
     <View style={styles.wrap}>
       <View
-        style={styles.chart}
         accessibilityRole="image"
         accessibilityLabel={
           `Projected equity, rising to ${money(series.finalEquity)} by ` +
           `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
         }
       >
-        {acc.map((v, i) => {
-          const hA = y(v);
-          const hB = y(base[i] ?? v);
-          return (
-            <View key={i} style={styles.col}>
-              {/* Equity if nothing changes — a reference, kept quiet. */}
-              <View style={[styles.baseCap, { bottom: Math.max(0, hB - 1) }]} />
-              {/* Equity under the strategy. */}
-              <View style={[styles.area, { height: hA }]} />
-              <View style={[styles.cap, { bottom: Math.max(0, hA - 2) }]} />
-            </View>
-          );
-        })}
-
-        {/* Where the line lands: the whole house, no debt against it. */}
-        <View style={styles.finish}>
-          <View style={styles.finishDot} />
-        </View>
+        <LineChart
+          height={CHART_H}
+          min={min}
+          max={max}
+          series={[
+            { values: base, color: 'rgba(255,255,255,0.22)', width: 1.5 },
+            {
+              values: acc,
+              color: Aurora.glowSoft,
+              width: 2.5,
+              fillColor: 'rgba(18,183,106,0.16)',
+              glow: true,
+            },
+          ]}
+        />
       </View>
 
       <View style={styles.axis}>
@@ -114,10 +106,6 @@ function sample(values: number[], n: number): number[] {
   }
   return out;
 }
-function clamp01(n: number) {
-  if (!Number.isFinite(n)) return 0;
-  return Math.min(1, Math.max(0, n));
-}
 function money(n: number) {
   if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (Math.abs(n) >= 1_000) return `$${Math.round(n / 1_000)}k`;
@@ -134,49 +122,6 @@ function addMonths(d: Date, months: number) {
 
 const styles = StyleSheet.create({
   wrap: { gap: Spacing[3] },
-  chart: {
-    height: CHART_H,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    position: 'relative',
-  },
-  col: { flex: 1, height: CHART_H, position: 'relative' },
-  area: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(18,183,106,0.20)',
-  },
-  cap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: Aurora.glowSoft,
-  },
-  baseCap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  finish: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  finishDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ffffff',
-    borderWidth: 2,
-    borderColor: Aurora.glow,
-  },
 
   axis: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   axisRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
