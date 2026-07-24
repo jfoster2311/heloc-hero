@@ -1,20 +1,22 @@
-// app/tabs/dashboard.tsx — one hero and four cards. Everything else behind a tap.
+// app/tabs/dashboard.tsx — a glance, one decision, and doors. Everything else a tap away.
 //
 // The hero is a date, not a countdown. "March 2037" is a thing a person can
 // picture and check against their own plans; "13 yrs 2 mo" is an abstraction
 // they have to convert before it means anything. The conclusion is annotated
 // directly beneath it, because a bare number is homework.
 //
-// The four cards, in this order and no other:
-//   1. Safe to Move   — the decision, in the thumb zone, reasoning always visible
-//   2. Interest       — realized first, projected second, servicer figure alongside
-//   3. Line status    — balance, available, limit, and the threshold gauge
-//   4. Watch items    — only when there is genuinely something to watch
+// Below the hero, in this order and no other:
+//   1. Safe to Move    — the decision, in the thumb zone, reasoning always visible
+//   2. Needs attention — the watch feed, sat with the action rather than below it
+//   3. Interest        — the realized reward and its live ticker, and nothing else
+//   4. Door tiles      — equity, surplus, line, saved: each hands off to its tab
 //
-// Explicitly not on this screen: amortization tables, transaction lists, rate
-// history, per-account balances, month-by-month schedules. Every one of those
-// is a real thing a user might want and none of them is what this screen is
-// for. Ranking is the feature.
+// The dashboard ranks; it does not hold everything. The dense multi-stat cards
+// that used to sit here — a full line-of-credit breakdown that only duplicated
+// the Accounts tab, a stack of interest figures — are gone. Amortization tables,
+// transaction lists, rate history, per-account balances: every one is a real
+// thing a user might want, and none is what this screen is for. Ranking is the
+// feature.
 import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +24,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
-  Card, CardHead, Chip, StatusPill, Meter, Stat, SourceNote, ActionPair, LinkRow, NavTile,
+  Card, CardHead, Chip, StatusPill, ActionPair, LinkRow, NavTile,
 } from '../../components/ui/primitives';
-import { Skeleton, SkeletonGroup, SkeletonLines, SkeletonStatRow } from '../../components/ui/Skeleton';
+import { Skeleton, SkeletonGroup, SkeletonLines } from '../../components/ui/Skeleton';
 import WatchRow from '../../components/ui/WatchRow';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
@@ -255,54 +257,6 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ── Summary tiles — each one a door to the tab that explains it ──
-              The dashboard ranks; it does not hold everything. These two carry
-              the figures people check most often and hand off rather than
-              growing a breakdown here.
-
-              "Home equity", not "net worth": the app knows a home value, two
-              secured balances and one savings balance. It has no visibility of
-              retirement, brokerage or anything else, so a tile labelled net
-              worth would be a number the product cannot stand behind. */}
-          <View style={styles.tileRow}>
-            {/* Equity subtracts `helocDrawn ?? 0`, so while the balances load it
-                is overstated by the whole drawn amount — flattering, and wrong.
-                The surplus tile beside it comes off the profile and is right
-                immediately, so it is left alone rather than blanked for
-                symmetry's sake. */}
-            {f.loading ? (
-              <View style={styles.tileSkeleton}>
-                <SkeletonGroup label="Loading your home equity">
-                  <Skeleton width={70} height={10} />
-                  <Skeleton width={104} height={24} style={{ marginTop: Spacing[3] }} />
-                  <Skeleton width={88} height={11} style={{ marginTop: Spacing[2] }} />
-                </SkeletonGroup>
-              </View>
-            ) : (
-              <NavTile
-                eyebrow="HOME EQUITY"
-                icon="home-outline"
-                value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
-                sub={f.combinedLTV !== null
-                  ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
-                  : 'add your home value'}
-                onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-                accessibilityHint="Opens the Accounts tab"
-              />
-            )}
-            <NavTile
-              eyebrow={f.surplus >= 0 ? 'FREE EACH MONTH' : 'SHORT EACH MONTH'}
-              icon="swap-vertical-outline"
-              value={`${f.surplus < 0 ? '−' : ''}$${fmt(Math.abs(f.surplus))}`}
-              muted={f.surplus < 0}
-              sub={f.surplusBasis === 'trailing'
-                ? 'from your transactions'
-                : 'from the figures you entered'}
-              onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
-              accessibilityHint="Opens the Cash flow tab"
-            />
-          </View>
-
           {/* ── CARD 1 — Safe to Move ──────────────────────────────────── */}
           {/* The one card that must never speak early. Its inputs are the HELOC
               balance and the savings balance, both of which arrive with the
@@ -376,7 +330,30 @@ export default function DashboardScreen() {
           </Card>
           )}
 
-          {/* ── CARD 2 — Interest ──────────────────────────────────────── */}
+          {/* ── Needs attention (only when non-empty) ──────────────────────
+              The app's own watch feed — a rate to re-confirm, a draw period
+              closing, spending drifting from the estimate. It sits with the
+              decision it might change, not below the reward. */}
+          {f.watchItems.length > 0 && (
+            <Card>
+              <CardHead title="Needs attention" icon="eye-outline" />
+              {f.watchItems.map((item, i) => (
+                <WatchRow
+                  key={item.kind}
+                  item={item}
+                  last={i === f.watchItems.length - 1}
+                  onPress={item.action ? () => { hapticLight(); router.push(item.action!.route as never); } : undefined}
+                />
+              ))}
+            </Card>
+          )}
+
+          {/* ── Interest — the reward, and its live ticker ─────────────────
+              Slimmed to the one figure worth a daily look: interest actually
+              removed by logged moves, and the ticker that keeps moving between
+              them. The servicer YTD figure and the projected-lifetime number
+              moved off here — the latter to a door tile below, the former to the
+              Accounts export where detail belongs. */}
           <Card>
             <CardHead title="Interest" />
 
@@ -401,92 +378,71 @@ export default function DashboardScreen() {
               helocDrawn={f.helocDrawn ?? 0}
               helocRate={f.helocRate}
             />
-
-            <View style={styles.statRow}>
-              <Stat
-                label="Interest paid this year"
-                value={f.mortgage.ytdInterestPaid.value !== null
-                  ? `$${fmt(f.mortgage.ytdInterestPaid.value)}`
-                  : '—'}
-                sub={f.mortgage.ytdInterestPaid.source === 'liability'
-                  ? 'from your servicer'
-                  : 'link your mortgage'}
-              />
-              <Stat
-                label="Projected lifetime"
-                value={`$${fmtK(f.projection.interestSaved)}`}
-                sub="projected, not guaranteed"
-              />
-            </View>
-
-            {f.mortgage.ytdInterestPaid.source === 'liability' && (
-              <SourceNote>
-                Year-to-date interest comes straight from your servicer, so it should match
-                your statement to the dollar.
-              </SourceNote>
-            )}
           </Card>
 
-          {/* ── CARD 3 — Line status ───────────────────────────────────── */}
-          <Card onPress={() => router.push('/tabs/accounts' as never)} accessibilityLabel="Line details">
-            <CardHead
-              title="Your line"
-              right={<Chip label={limitSourceLabel(f.helocLimitSource)} />}
-            />
-
-            {/* Drawn and Available come from the linked line; the limit can come
-                from the profile. So during load this card would read "Drawn $0,
-                Available $100,000" at 0% utilization — a line the user has drawn
-                on, shown as untouched, with the meter to match. */}
+          {/* ── Door tiles — each hands off to the tab that explains it ─────
+              The dashboard ranks and hands off. "Home equity", not "net worth":
+              the app sees a home value, two secured balances and one savings
+              balance, so a net-worth tile would be a number it cannot stand
+              behind. The equity tile alone waits for the balances — it subtracts
+              helocDrawn, so before they land it overstates by the whole drawn
+              amount. The others read off the profile and are right at once. */}
+          <View style={styles.tileRow}>
             {f.loading ? (
-              <SkeletonGroup label="Loading your line of credit">
-                <SkeletonStatRow count={3} />
-                <Skeleton height={10} radius={Radius.full} style={{ marginTop: Spacing[4] }} />
-                <SkeletonLines count={2} last="55%" />
-              </SkeletonGroup>
-            ) : f.helocLimit && f.helocLimit > 0 ? (
-              <>
-                <View style={styles.statRow}>
-                  <Stat label="Drawn"     value={`$${fmt(f.helocDrawn ?? 0)}`} />
-                  <Stat label="Available" value={`$${fmt(f.helocAvailable ?? 0)}`} />
-                  <Stat label="Limit"     value={`$${fmt(f.helocLimit)}`} align="right" />
-                </View>
-
-                {/* The mark sits where the threshold actually is. */}
-                <Meter
-                  value={f.utilization ?? 0}
-                  marks={[{ at: f.replenishThreshold, label: `replenish at ${Math.round(f.replenishThreshold * 100)}%` }]}
-                  tone={(f.utilization ?? 0) > f.replenishThreshold ? 'muted' : 'accent'}
-                />
-
-                <Text style={styles.reason}>
-                  {(f.utilization ?? 0) > f.replenishThreshold
-                    ? `At ${Math.round((f.utilization ?? 0) * 100)}% you are above your replenish threshold — surplus goes to the line, not to principal.`
-                    : `At ${Math.round((f.utilization ?? 0) * 100)}%, with room to draw before you reach your threshold.`}
-                </Text>
-              </>
+              <View style={styles.tileSkeleton}>
+                <SkeletonGroup label="Loading your home equity">
+                  <Skeleton width={70} height={10} />
+                  <Skeleton width={104} height={24} style={{ marginTop: Spacing[3] }} />
+                  <Skeleton width={88} height={11} style={{ marginTop: Spacing[2] }} />
+                </SkeletonGroup>
+              </View>
             ) : (
-              <Text style={styles.reason}>
-                No credit limit on file yet. Link your HELOC, or enter the limit from your
-                statement, and this card starts working.
-              </Text>
+              <NavTile
+                eyebrow="HOME EQUITY"
+                icon="home-outline"
+                value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
+                sub={f.combinedLTV !== null
+                  ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
+                  : 'add your home value'}
+                onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+                accessibilityHint="Opens the Accounts tab"
+              />
             )}
-          </Card>
-
-          {/* ── CARD 4 — Watch items (only when non-empty) ─────────────── */}
-          {f.watchItems.length > 0 && (
-            <Card>
-              <CardHead title="Worth a look" icon="eye-outline" />
-              {f.watchItems.map((item, i) => (
-                <WatchRow
-                  key={item.kind}
-                  item={item}
-                  last={i === f.watchItems.length - 1}
-                  onPress={item.action ? () => router.push(item.action!.route as never) : undefined}
-                />
-              ))}
-            </Card>
-          )}
+            <NavTile
+              eyebrow={f.surplus >= 0 ? 'FREE EACH MONTH' : 'SHORT EACH MONTH'}
+              icon="swap-vertical-outline"
+              value={`${f.surplus < 0 ? '−' : ''}$${fmt(Math.abs(f.surplus))}`}
+              muted={f.surplus < 0}
+              sub={f.surplusBasis === 'trailing'
+                ? 'from your transactions'
+                : 'from the figures you entered'}
+              onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+              accessibilityHint="Opens the Cash flow tab"
+            />
+          </View>
+          <View style={styles.tileRow}>
+            <NavTile
+              eyebrow="YOUR LINE"
+              icon="card-outline"
+              value={f.helocLimit && f.helocLimit > 0 && f.utilization !== null
+                ? `${Math.round(f.utilization * 100)}%`
+                : '—'}
+              muted={f.utilization !== null && f.utilization > f.replenishThreshold}
+              sub={f.helocLimit && f.helocLimit > 0
+                ? `$${fmtK(f.helocDrawn ?? 0)} of $${fmtK(f.helocLimit)} drawn`
+                : 'add your HELOC'}
+              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+              accessibilityHint="Opens the Accounts tab"
+            />
+            <NavTile
+              eyebrow="INTEREST SAVED"
+              icon="trending-down-outline"
+              value={`$${fmtK(f.projection.interestSaved)}`}
+              sub="projected over the plan"
+              onPress={() => { hapticLight(); router.push('/tabs/calculator' as never); }}
+              accessibilityHint="Opens the Calculator tab"
+            />
+          </View>
 
           {/* The one thing that is not a card: the upgrade path, kept as a
               findable link rather than a fifth tile competing with the four. */}
@@ -543,12 +499,6 @@ function relativeTime(iso: string | null): string {
   if (diff < 604800)  return `${Math.floor(diff / 86400)}d ago`;
   // Past a week, a date is more use than a count of days.
   return `on ${fmtDayMonth(new Date(then))}`;
-}
-function limitSourceLabel(s: 'plaid_limit' | 'derived' | 'user' | 'unknown'): string {
-  return s === 'plaid_limit' ? 'from your bank'
-    : s === 'derived' ? 'from your balances'
-    : s === 'user' ? 'you entered this'
-    : 'not set';
 }
 function clamp(min: number, n: number, max: number) { return Math.min(max, Math.max(min, n)); }
 
@@ -662,7 +612,4 @@ const styles = StyleSheet.create({
     letterSpacing: Tracking.heading,
   },
   bigLabel: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: 2 },
-
-  statRow: { flexDirection: 'row', gap: Spacing[4] },
-
 });
