@@ -38,6 +38,7 @@ import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { useCycleReminders } from '../../hooks/useCycleReminders';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { computeRealized } from '../../lib/realized';
+import { computeSafeToSweep } from '../../lib/sweep';
 import { formatMonths } from '../../lib/projections';
 import { monthsBetween } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
@@ -62,6 +63,23 @@ export default function DashboardScreen() {
     helocRate:       f.helocRate,
     monthlySurplus:  Math.max(0, f.surplus),
     helocLimit:      f.helocLimit ?? 0,
+  });
+
+  // Reads the same threshold gate the Safe to Move card above it is decided by,
+  // so the two cards cannot contradict each other about whether a dump is open.
+  const sweep = computeSafeToSweep({
+    helocDrawn:         f.helocDrawn,
+    helocLimit:         f.helocLimit,
+    monthlySurplus:     f.surplus,
+    helocRate:          f.helocRate,
+    replenishThreshold: f.replenishThreshold,
+    // Only the structural blockers. `utilization_maxed` is deliberately absent:
+    // that is the ordinary mid-cycle state this card exists to explain, and
+    // treating it as a blocker would replace the useful "$X has to come off the
+    // line first" with a dead end.
+    dumpAvailable: !f.safeToMove.blockers.some(b =>
+      b === 'amortizing_heloc' || b === 'draw_ended' ||
+      b === 'prepayment_penalty' || b === 'buffer_too_thin'),
   });
 
   const remindersEnabled = isPaidTier(tier);
@@ -330,6 +348,104 @@ export default function DashboardScreen() {
           </Card>
           )}
 
+          {/* ── CARD 2 — Safe to Sweep ─────────────────────────────────────
+              The counterpart to the card above. Safe to Move answers "how much
+              should I put on the mortgage"; this answers "what can I actually
+              spend" — the question the strategy otherwise leaves a user to
+              guess at, since "send every spare dollar at the line" is correct
+              and unlivable.
+
+              Gated on f.loading for the same reason Safe to Move is: the
+              commitment is computed from the HELOC balance, which arrives with
+              the linked accounts. Before it lands the line looks undrawn, so
+              nothing looks committed and the whole surplus reads as free — the
+              flattering direction, on a number the user might go and spend. */}
+          {f.loading ? (
+            <Card>
+              <SkeletonGroup label="Working out how much is free to spend">
+                <Skeleton width={132} height={13} />
+                <Skeleton width={168} height={34} radius={Radius.sm} style={{ marginTop: Spacing[3] }} />
+                <SkeletonLines count={2} last="64%" />
+              </SkeletonGroup>
+            </Card>
+          ) : (
+            <Card>
+              <CardHead title="Safe to sweep" icon="wallet-outline" />
+
+              {sweep.state === 'no_line' ? (
+                <Text style={styles.sweepEmpty}>
+                  Add your HELOC and this shows how much of your surplus you can spend
+                  without pushing back your next dump.
+                </Text>
+              ) : sweep.state === 'no_surplus' ? (
+                <Text style={styles.sweepEmpty}>
+                  Nothing is left over each month yet, so there is nothing to divide up.
+                  Your figures are in Cash flow.
+                </Text>
+              ) : sweep.state === 'under_water' ? (
+                <>
+                  <Text style={styles.sweepValue}>$0</Text>
+                  <Text style={styles.sweepCaption}>
+                    Your surplus does not cover the {fmtMoney(sweep.interestDue)} of interest your
+                    line charges this month, so the balance grows by{' '}
+                    {fmtMoney(sweep.shortfall)} even if you spend nothing.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  {/* The subtraction, shown rather than asserted. A single
+                      "safe to spend" figure is a number to be trusted; the
+                      three lines are a number that can be checked. */}
+                  <View style={styles.sweepMath}>
+                    <SweepLine label="This month's surplus" amount={sweep.surplus} />
+                    <SweepLine
+                      label="Committed to replenishing"
+                      amount={-sweep.committed}
+                      muted
+                    />
+                    <View style={styles.sweepRule} />
+                    <SweepLine label="Safe to spend" amount={sweep.safeToSpend} total />
+                  </View>
+
+                  <Text style={styles.sweepCaption}>
+                    {sweep.state === 'dump_blocked'
+                      ? 'No dump is possible right now for the reason above, so nothing is ' +
+                        'committed to replenishing beyond the ' + fmtMoney(sweep.interestDue) +
+                        ' of interest your line charges. Sort that out before treating this ' +
+                        'as spare.'
+                      : sweep.state === 'fully_free'
+                      ? 'Your line is already back under ' +
+                        `${Math.round(f.replenishThreshold * 100)}%, so your next dump is open. ` +
+                        'Spend this freely without slowing it.'
+                      : sweep.state === 'all_committed'
+                        ? `Every dollar is spoken for this month: ${fmtMoney(sweep.toThreshold)} has ` +
+                          'to come off the line before your next dump is available, plus ' +
+                          `${fmtMoney(sweep.interestDue)} of interest.`
+                        : `Spend this freely without slowing your next dump. The ` +
+                          `${fmtMoney(sweep.committed)} above it covers ${fmtMoney(sweep.interestDue)} ` +
+                          `of interest and the ${fmtMoney(sweep.toThreshold)} that has to come off ` +
+                          `the line to re-open the dump.`}
+                  </Text>
+
+                  {/* The honest caveat. "Free to spend" is true and "free of
+                      consequence" is not: repaying beyond the threshold lowers
+                      the balance, and the next dump is sized off the headroom
+                      that leaves. Not saying so would make this the one card on
+                      the dashboard that sells rather than advises. */}
+                  {sweep.safeToSpend > 0 && sweep.state !== 'dump_blocked' && (
+                    <View style={styles.sweepNote}>
+                      <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
+                      <Text style={styles.sweepNoteText}>
+                        Putting it on the line instead does not bring the next dump forward —
+                        it makes that dump bigger.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </Card>
+          )}
+
           {/* ── Needs attention (only when non-empty) ──────────────────────
               The app's own watch feed — a rate to re-confirm, a draw period
               closing, spending drifting from the estimate. It sits with the
@@ -456,6 +572,40 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * One line of the sweep subtraction.
+ *
+ * The committed line is drawn in muted grey with a leading minus, never red —
+ * money doing exactly what the strategy asks of it is not an error state, and
+ * this palette carries severity as saturation.
+ */
+function SweepLine({ label, amount, muted, total }: {
+  label: string;
+  amount: number;
+  muted?: boolean;
+  total?: boolean;
+}) {
+  const negative = amount < 0;
+  return (
+    <View style={styles.sweepLine}>
+      <Text style={[styles.sweepLabel, total && styles.sweepLabelTotal]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.sweepAmount,
+          muted && styles.sweepAmountMuted,
+          total && styles.sweepAmountTotal,
+        ]}
+      >
+        {negative ? '−' : ''}${fmt(Math.abs(amount))}
+      </Text>
     </View>
   );
 }
@@ -604,6 +754,61 @@ const styles = StyleSheet.create({
   },
   bufferText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
   undoText: { fontSize: Typography.sm, color: Colors.mint600, fontWeight: Typography.medium },
+
+  sweepMath: { gap: Spacing[2] },
+  sweepLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    minHeight: 26,
+  },
+  sweepLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  sweepLabelTotal: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  sweepAmount: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
+    color: Colors.textPrimary,
+  },
+  sweepAmountMuted: { color: Colors.gray500 },
+  sweepAmountTotal: {
+    fontSize: Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.mint700,
+    letterSpacing: Tracking.heading,
+  },
+  sweepRule: {
+    height: 1,
+    backgroundColor: Colors.borderSubtle,
+    marginVertical: Spacing[1],
+  },
+  sweepValue: {
+    fontSize: Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: Tracking.heading,
+  },
+  sweepCaption: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginTop: Spacing[3],
+  },
+  sweepEmpty: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  sweepNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[2],
+    backgroundColor: Colors.gray50,
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    marginTop: Spacing[3],
+  },
+  sweepNoteText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
 
   bigValue: {
     fontSize: Typography['3xl'],
