@@ -1,10 +1,15 @@
 // lib/cashflow.ts — what the user actually earns and spends, from their transactions.
 //
 // This module exists to answer one question: is the surplus figure the app is
-// running on anywhere near reality? It does NOT categorise spending, build a
-// budget, or feed a chart of where the money went. That is a different product
-// (see the note on the Cash flow tab), and the moment this file starts growing
-// category logic it has drifted into it.
+// running on anywhere near reality?
+//
+// Category breakdown lives in lib/spending.ts, NOT here. The split is not
+// tidiness: this file decides what counts toward the surplus every projection
+// rests on, and that decision must not start bending to make a budgeting screen
+// read better. What the two share is exported below as `classifyTransactions`,
+// so the Cash flow tab and the surplus figure can never disagree about which
+// rows are transfers — a category list whose total contradicts the hero above it
+// would discredit both.
 //
 // ── The failure mode this is built around ──────────────────────────────────
 // Internal transfers. A user moving $4,000 from checking to their HELOC — the
@@ -254,6 +259,60 @@ export function deriveCashflow(
     usable: true,
     incomeConfident,
   };
+}
+
+/**
+ * Which rows are transfers, and which inflows are income — the two judgements
+ * that decide what "spending" even means here.
+ *
+ * Exported so lib/spending.ts can categorise the exact same set of rows this
+ * module counts. If the breakdown applied its own rules, a user could add up
+ * every category on the Cash flow tab and land somewhere other than the expense
+ * figure the payoff date is computed from, with nothing on screen to explain the
+ * gap. Same input, same exclusions, one answer.
+ *
+ * Note this is deliberately NOT windowed: the caller slices by period after
+ * classifying, because transfer pairing needs to see the neighbouring days to
+ * match a draw against its deposit.
+ */
+export interface TransactionClassification {
+  /** Movements of the user's own money, plus the separately-modelled mortgage. */
+  excludedIds: Set<string>;
+  /** Inflows that behave like income. Everything else in is left uncounted. */
+  incomeIds: Set<string>;
+}
+
+export function classifyTransactions(
+  transactions: TransactionRow[],
+): TransactionClassification {
+  // Same gate as deriveCashflow: only depository rows describe living costs.
+  // Mortgage and HELOC activity is the strategy's own machinery, not spending.
+  const usable = transactions.filter(t => !t.pending && t.account_type === 'savings');
+
+  const transferIds = findTransfers(usable);
+  const recurring   = findRecurringInflows(usable, transferIds);
+
+  const excludedIds = new Set<string>();
+  const incomeIds   = new Set<string>();
+
+  for (const t of usable) {
+    const isTransfer =
+      transferIds.has(t.transaction_id) ||
+      (t.category_primary !== null && TRANSFER_PRIMARY.has(t.category_primary)) ||
+      (t.category_detailed !== null && EXCLUDED_DETAILED.has(t.category_detailed));
+
+    if (isTransfer) {
+      excludedIds.add(t.transaction_id);
+      continue;
+    }
+    // An inflow that is neither labelled income nor recurring stays out of both
+    // sets: counting it would inflate income, and calling it spending is absurd.
+    if (t.amount < 0 && (t.category_primary === 'INCOME' || recurring.has(t.transaction_id))) {
+      incomeIds.add(t.transaction_id);
+    }
+  }
+
+  return { excludedIds, incomeIds };
 }
 
 /**

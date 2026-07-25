@@ -12,6 +12,15 @@ import { SURPLUS_WINDOW_MONTHS, TXN_SYNC_INTERVAL_HOURS } from '../lib/config';
 
 export interface UseCashflowResult {
   derived: DerivedCashflow | null;
+  /**
+   * The rows the derivation ran on.
+   *
+   * Exposed so the Cash flow tab can break spending down by category without
+   * mounting this hook a second time — a second mount means a second edge
+   * function invoke, a second read, and two copies of the same transactions that
+   * can differ mid-flight. Same rows in, same rows on screen.
+   */
+  transactions: TransactionRow[];
   loading: boolean;
   /** True while Plaid's asynchronous historical backfill is still landing. */
   awaitingBackfill: boolean;
@@ -25,6 +34,7 @@ export function useCashflow(
   windowMonths = SURPLUS_WINDOW_MONTHS,
 ): UseCashflowResult {
   const [derived, setDerived] = useState<DerivedCashflow | null>(null);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [awaitingBackfill, setAwaitingBackfill] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +43,7 @@ export function useCashflow(
   const load = useCallback(async (forceSync = false) => {
     if (!userId || !enabled) {
       setDerived(null);
+      setTransactions([]);
       setLoading(false);
       return;
     }
@@ -67,12 +78,14 @@ export function useCashflow(
     if (err) {
       setError(err.message);
       setDerived(null);
+      setTransactions([]);
       setLoading(false);
       return;
     }
 
     setError(null);
     const rows = (data ?? []) as unknown as TransactionRow[];
+    setTransactions(rows);
     setDerived(deriveCashflow(rows, { windowMonths }));
 
     // Distinguish "this user has no spending" from "Plaid hasn't sent it yet".
@@ -96,6 +109,7 @@ export function useCashflow(
 
   return {
     derived,
+    transactions,
     loading,
     awaitingBackfill,
     error,

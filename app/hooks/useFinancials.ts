@@ -24,7 +24,10 @@ import {
 } from '../lib/mortgage';
 import { evaluateMove, type SafeToMove, type Blocker } from '../lib/safeToMove';
 import { buildWatchItems, type WatchItem } from '../lib/watchItems';
-import { compareToEntered, type DerivedCashflow, type CashflowGap } from '../lib/cashflow';
+import {
+  compareToEntered, classifyTransactions,
+  type DerivedCashflow, type CashflowGap, type TransactionRow, type TransactionClassification,
+} from '../lib/cashflow';
 import { UTILIZATION, CASHFLOW_MATERIAL_GAP_PCT } from '../lib/config';
 import type { LinkedAccount, PayoffProjection, UserProfile } from '../lib/types';
 
@@ -75,6 +78,10 @@ export interface Financials {
   liquidCash: number;
   /** Trailing transaction average, when there is enough history to derive one. */
   derivedCashflow: DerivedCashflow | null;
+  /** The rows behind that average, for the Cash flow tab's category breakdown. */
+  transactions: TransactionRow[];
+  /** Which rows are transfers and which inflows are income. One shared answer. */
+  transactionClassification: TransactionClassification;
   /** How far the figures in use sit from what the transactions say. */
   cashflowGap: CashflowGap | null;
   awaitingTransactions: boolean;
@@ -104,16 +111,17 @@ export function useFinancials(): Financials {
 
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
-  const { derived, awaitingBackfill } = useCashflow(profile?.id ?? null, accounts.length > 0);
+  const { derived, transactions, awaitingBackfill } =
+    useCashflow(profile?.id ?? null, accounts.length > 0);
 
   return useMemo(
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, error, refresh, derived, awaitingBackfill,
+      loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, error, refresh, derived, awaitingBackfill,
+      loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
     ],
   );
 }
@@ -129,6 +137,7 @@ function derive(
   error: string | null,
   refresh: () => Promise<boolean>,
   derivedCashflow: DerivedCashflow | null,
+  transactions: TransactionRow[],
   awaitingTransactions: boolean,
 ): Financials {
   const hasLinkedAccounts = accounts.length > 0;
@@ -273,6 +282,8 @@ function derive(
     surplusBasis,
     liquidCash,
     derivedCashflow,
+    transactions,
+    transactionClassification: classifyTransactions(transactions),
     cashflowGap,
     awaitingTransactions,
 

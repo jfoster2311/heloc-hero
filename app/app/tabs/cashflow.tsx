@@ -1,27 +1,30 @@
-// app/tabs/cashflow.tsx — cash flow and cycle history.
+// app/tabs/cashflow.tsx — real budgeting, subordinate to the strategy.
 //
-// This screen used to render eight hardcoded budget categories and a fabricated
-// six-month income/expense chart. The disclosure was also inverted: the
-// "Example" chip and badge only rendered for FREE users, so a PAYING user saw
-// invented categories labelled "This month" and an invented trend chart with no
-// caveat at all. In a finance app that is a claim the product cannot back up.
+// This screen used to refuse a category breakdown on principle: transactions
+// were read for exactly one number — what the user has left each month — and
+// showing where the money went was called a different product. That call has
+// been reversed deliberately, and the reasoning it was protecting still holds,
+// so it is enforced structurally instead of by omission:
 //
-// Transactions ARE stored now (see lib/cashflow.ts), but only to derive one
-// number: what the user actually earns and spends each month, so the surplus
-// every projection rests on can be checked rather than trusted. That is the
-// whole remit. Per-category spending is still not shown and is not coming —
-// this is a strategy engine, not a budgeting app, and the moment it grows a
-// category breakdown it is competing in a category it deliberately isn't in.
-// What IS real here:
-//   · the figures in force, labelled as entered or transaction-derived
-//   · the trailing monthly series behind the derived figure
-//   · live HELOC/mortgage balances when accounts are linked
-//   · dumps they have logged, from automation_log
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+//   · The hero is still the strategy's number, not a budget total. The payoff
+//     and HELOC cards on the Dashboard remain the app's hero; this is a tool
+//     that explains the surplus feeding them.
+//   · Every exclusion comes from lib/cashflow.ts (`classifyTransactions`), so
+//     the categories below always sum to the spending the projection was
+//     computed from. A breakdown that quietly disagreed with the payoff date
+//     would discredit both numbers.
+//   · Live and estimated figures are labelled as such, everywhere. A period
+//     total scaled from a typed monthly figure is not a measurement.
+//   · The mortgage payment is NOT in the breakdown — the strategy models it
+//     directly — and the screen says so rather than leaving a hole.
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
+  Modal, ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
 import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
@@ -30,7 +33,12 @@ import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
-import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
+import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
+import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
+import {
+  PERIODS, SPEND_CATEGORIES, categoryMeta, periodRange, summarizePeriod,
+  type PeriodId, type SpendCategory, type CategoryTotal, type CategorizedTxn,
+} from '../../lib/spending';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 
 export default function CashFlowScreen() {
@@ -42,16 +50,13 @@ export default function CashFlowScreen() {
     buckets, totalDumped, count, lastDumpAt, loading: historyLoading,
     error: historyError, refresh: refreshHistory,
   } = useDumpHistory(profile?.id);
+  const overrides = useCategoryOverrides(profile?.id);
+
+  const [period, setPeriod] = useState<PeriodId>('month');
+  const [openCategory, setOpenCategory] = useState<SpendCategory | null>(null);
 
   // Everything below comes from useFinancials, which exists precisely so two
-  // screens cannot disagree about the same figure. This one was reading income,
-  // expenses, the payment and the HELOC rate straight off the profile instead —
-  // and the payment is the one that bites: useFinancials resolves it as
-  // `mortgage.nextPayment.value ?? profile.monthly_payment`, so a servicer
-  // reporting an escrow-adjusted payment made the dashboard and this screen
-  // print different surpluses from the same data. It also mounted its OWN
-  // useAccounts alongside the one inside useFinancials: two fetches, two
-  // realtime channels, two copies of the same rows that could differ mid-flight.
+  // screens cannot disagree about the same figure.
   const income    = f.income;
   const expenses  = f.expenses;
   const payment   = f.payment;
@@ -65,9 +70,22 @@ export default function CashFlowScreen() {
   const surplus    = income - committed;
   const committedPct = income > 0 ? Math.min((committed / income) * 100, 100) : 0;
 
-  // Recurring income is a pattern extended; the mortgage date is reported.
-  // buildUpcoming keeps the two labelled apart. Recomputed on the minute-ish
-  // rather than memoised on a Date, which would never invalidate.
+  // Recomputed when the period changes, not on a Date that would never
+  // invalidate. `now` is read at render so a session left open overnight rolls
+  // into the new day rather than summing yesterday's window.
+  const range = useMemo(() => periodRange(period), [period]);
+
+  const summary = useMemo(
+    () => summarizePeriod({
+      transactions: f.transactions,
+      classification: f.transactionClassification,
+      overrides: overrides.overrides,
+      range,
+      entered: { monthlyIncome: income, monthlyExpenses: expenses },
+    }),
+    [f.transactions, f.transactionClassification, overrides.overrides, range, income, expenses],
+  );
+
   const upcoming = useMemo(
     () => buildUpcoming(
       f.derivedCashflow?.recurringIncome ?? [],
@@ -82,10 +100,6 @@ export default function CashFlowScreen() {
     [f.derivedCashflow, f.mortgage.nextPayment, f.mortgage.nextPaymentDueDate, payment],
   );
 
-  // Awaited, and both halves. It used to fire the two calls without waiting, so
-  // RefreshControl — which only tracks the accounts half — stopped spinning
-  // while the dump history was still in flight, and the chart then changed
-  // under a screen that had just told the user it was done.
   const onRefresh = useCallback(async () => {
     const [ok] = await Promise.all([f.refresh(), refreshHistory()]);
     if (ok) hapticSuccess();
@@ -93,6 +107,15 @@ export default function CashFlowScreen() {
   }, [f.refresh, refreshHistory]);
 
   const maxBucket = Math.max(...buckets.map(b => b.total), 0);
+
+  const openRows = useMemo(
+    () => openCategory
+      ? summary.rows
+          .filter(r => r.category === openCategory)
+          .sort((a, b) => b.txn.amount - a.txn.amount)
+      : [],
+    [summary.rows, openCategory],
+  );
 
   return (
     <View style={CommonStyles.screenContainer}>
@@ -113,8 +136,8 @@ export default function CashFlowScreen() {
 
           {/* Committed includes interest on the linked HELOC balance, so while
               that balance is loading it is missing and the surplus above it
-              reads HIGH — the flattering direction again, on the figure the
-              whole strategy is sized from. */}
+              reads HIGH — the flattering direction, on the figure the whole
+              strategy is sized from. */}
           {f.loading ? (
             <SkeletonGroup label="Working out what you have left each month" style={styles.heroSkeleton}>
               <Skeleton onDark width={170} height={40} radius={Radius.sm} />
@@ -136,8 +159,6 @@ export default function CashFlowScreen() {
         </Hero>
 
         <View style={styles.content}>
-        {/* Same contract as the dashboard: a failed balance read is stated, not
-            absorbed. Everything on this screen is downstream of it. */}
         {!f.loading && f.error && (
           <TouchableOpacity
             style={styles.staleBanner}
@@ -153,65 +174,141 @@ export default function CashFlowScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Monthly cash flow, from the user's own figures ──────────────── */}
-        {hasFigures ? (
-          <Card>
-            <Text style={styles.cardTitle}>Every month</Text>
+        {/* ── Period totals ────────────────────────────────────────────────
+            Income, spend and net for a window the user picks. The basis line
+            is not a footnote here: "$3,100 spent" measured and "$3,100 spent"
+            scaled from a figure someone typed at onboarding are different
+            claims, and only one of them is evidence. */}
+        <Card>
+          <PeriodToggle value={period} onChange={p => { hapticSelection(); setPeriod(p); }} />
 
-            {/* Bars, not a ledger. Two lengths side by side answer "how much
-                of what I earn is already spoken for" at a glance; four
-                right-aligned numbers make the reader do the subtraction. The
-                committed bar is drawn to the same scale as income, so the gap
-                between them IS the surplus. */}
-            <FlowBar label="Income" amount={income} max={income} tone="accent" />
-            <FlowBar label="Committed" amount={committed} max={income} tone="muted" />
+          <View style={styles.rangeRow}>
+            <Text style={styles.rangeLabel}>{range.rangeLabel}</Text>
+            {range.inProgress && <Text style={styles.rangeNote}>· in progress</Text>}
+          </View>
 
-            <View style={styles.committedDetail}>
-              <Text style={styles.committedText}>
-                Mortgage ${fmt(payment)} · living ${fmt(expenses)}
-                {helocInterest > 1
-                  ? ` · HELOC interest ${'$'}${fmt(helocInterest)}${helocRateAssumed ? ' (assumed 8.5% APR)' : ''}`
-                  : ''}
+          {f.loading ? (
+            <SkeletonGroup label="Loading this period" style={styles.statsSkeleton}>
+              <Skeleton width={220} height={44} radius={Radius.sm} />
+              <Skeleton width={180} height={13} />
+            </SkeletonGroup>
+          ) : (
+            <>
+              <View style={styles.statRow}>
+                <PeriodStat label="Income" value={summary.income} />
+                <PeriodStat label="Spent"  value={summary.spend} />
+                <PeriodStat label="Net" value={summary.net} emphasis signed />
+              </View>
+
+              <BasisNote basis={summary.basis} period={period} hasFigures={hasFigures} />
+
+              {/* The thread back to the strategy. Deliberately states the
+                  bridge rather than implying the two figures are the same:
+                  net here is BEFORE the mortgage payment, because the payment
+                  is modelled by the projection and excluded from these rows.
+                  Calling a pre-mortgage figure "what powers your cycling"
+                  would be wrong by exactly the payment. */}
+              {hasFigures && (
+                <View style={styles.tieBack}>
+                  <Ionicons name="repeat-outline" size={15} color={Colors.mint700} />
+                  <Text style={styles.tieBackText}>
+                    {surplus > 0
+                      ? `Net is before your mortgage payment. After it, $${fmt(surplus)} a month ` +
+                        'is the number that powers your HELOC cycling.'
+                      : 'After your mortgage payment there is nothing left over yet — ' +
+                        'that surplus is what HELOC cycling runs on.'}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </Card>
+
+        {/* ── Where it went ────────────────────────────────────────────────
+            Only ever rendered from real transactions. With no linked accounts
+            there is nothing to break down, and a split invented from a single
+            typed expense total would be a fabrication. */}
+        <Card>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>Where it went</Text>
+            {summary.basis === 'live' && summary.categories.length > 0 && (
+              <Text style={styles.cardStatus}>${fmt(summary.spend)} total</Text>
+            )}
+          </View>
+
+          {f.loading || overrides.loading ? (
+            <SkeletonGroup label="Loading your spending by category">
+              <View style={{ gap: Spacing[3] }}>
+                {[0, 1, 2, 3].map(i => (
+                  <View key={i} style={styles.catSkeletonRow}>
+                    <Skeleton width={32} height={32} radius={Radius.md} />
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Skeleton width={130} height={13} />
+                      <Skeleton width={'100%'} height={6} radius={3} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </SkeletonGroup>
+          ) : summary.basis === 'estimated' ? (
+            <View style={styles.stateBlock}>
+              <Text style={styles.emptyBody}>
+                {f.hasLinkedAccounts
+                  ? f.awaitingTransactions
+                    ? 'Your bank is still sending its history. Categories appear here once it lands — ' +
+                      'usually within a few minutes of linking.'
+                    : `No transactions in this ${period === 'week' ? 'week' : period}. ` +
+                      'Try a longer period, or pull down to refresh.'
+                  : 'Link an account and your spending is broken down here automatically. ' +
+                    'Until then this screen runs on the figures you entered.'}
               </Text>
+              {!f.hasLinkedAccounts && (
+                <TouchableOpacity
+                  style={styles.emptyBtn}
+                  onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+                  accessibilityLabel="Link an account"
+                >
+                  <Text style={styles.emptyBtnText}>Link an account</Text>
+                </TouchableOpacity>
+              )}
             </View>
+          ) : (
+            <>
+              {summary.categories.map(c => (
+                <CategoryRow
+                  key={c.id}
+                  category={c}
+                  onPress={() => { hapticLight(); setOpenCategory(c.id); }}
+                />
+              ))}
 
-            <Text style={styles.sourceNote}>
-              {f.surplusBasis === 'trailing'
-                ? `Averaged from ${f.derivedCashflow?.coverageMonths ?? 0} months of your own transactions`
-                : 'Based on the figures you entered'}
-              {helocInterest > 1 ? ', plus interest estimated from your linked HELOC balance' : ''}.
-              Update them under Assumptions.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyBtn}
-              onPress={() => router.push('/modals/assumptions' as never)}
-              accessibilityLabel="Edit your figures"
-            >
-              <Text style={styles.emptyBtnText}>Edit these figures</Text>
-            </TouchableOpacity>
-          </Card>
-        ) : (
-          <Card>
-            <Text style={styles.cardTitle}>Every month</Text>
-            <Text style={styles.emptyBody}>
-              Add your income and expenses to see what you have available to cycle.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyBtn}
-              onPress={() => router.push('/modals/assumptions' as never)}
-              accessibilityLabel="Add your figures"
-            >
-              <Text style={styles.emptyBtnText}>Add your figures</Text>
-            </TouchableOpacity>
-          </Card>
-        )}
+              {/* The largest single housing cost is missing from the list
+                  above by design. Saying so beats a user concluding the
+                  breakdown is broken. */}
+              {payment > 0 && (
+                <Text style={styles.sourceNote}>
+                  Your mortgage payment (${fmt(payment)} a month) is not counted here — the
+                  strategy models it directly, and counting it twice would understate your
+                  surplus. Transfers between your own accounts are excluded too.
+                </Text>
+              )}
 
-        {/* ── The next two weeks ──────────────────────────────────────────
-            Answers the question that actually precedes a dump: is there room
-            this month, or is payday still a week out with the mortgage due
-            first? Only rendered when at least one dated thing exists — an
-            empty calendar filled with plausible-looking rows would be the
-            dishonest version of this feature. */}
+              {summary.untaggedCount > 0 && (
+                <Text style={styles.untagged}>
+                  {summary.untaggedCount} transaction{summary.untaggedCount === 1 ? '' : 's'} your
+                  bank didn&apos;t label {summary.untaggedCount === 1 ? 'is' : 'are'} sitting in
+                  Other. Tap a category to retag {summary.untaggedCount === 1 ? 'it' : 'them'}.
+                </Text>
+              )}
+            </>
+          )}
+
+          {overrides.error && (
+            <Text style={styles.errorNote}>{overrides.error}</Text>
+          )}
+        </Card>
+
+        {/* ── The next two weeks ─────────────────────────────────────────── */}
         {upcoming.length > 0 && (
           <Card>
             <View style={styles.cardHead}>
@@ -222,9 +319,8 @@ export default function CashFlowScreen() {
         )}
 
         {/* ── The trailing series behind the derived figure ───────────────
-            Not a spending breakdown: one bar per month of surplus, which is the
-            single quantity the strategy runs on. It earns its place by showing
-            how steady — or not — the number in the hero actually is. */}
+            One bar per month of surplus — the single quantity the strategy
+            runs on. It earns its place by showing how steady that number is. */}
         {f.derivedCashflow?.usable && f.derivedCashflow.months.length > 0 && (
           <Card>
             <View style={styles.cardHead}>
@@ -266,9 +362,6 @@ export default function CashFlowScreen() {
               </TouchableOpacity>
             </View>
           ) : historyLoading ? (
-            /* Was the bare string "Loading…", which is both the least
-               informative possible placeholder and a layout jump waiting to
-               happen — the card grows by ~110pt when the chart arrives. */
             <SkeletonGroup label="Loading your dump history">
               <View style={styles.chart}>
                 {[38, 64, 22, 80, 50, 70].map((h, i) => (
@@ -315,8 +408,6 @@ export default function CashFlowScreen() {
                   </View>
                 ))}
               </View>
-              {/* The totals above are all-time; the chart is a 6-month window.
-                  Say so, rather than leaving two different numbers unexplained. */}
               <Text style={styles.chartNote}>
                 Last 6 months
                 {lastDumpAt
@@ -327,15 +418,303 @@ export default function CashFlowScreen() {
           )}
         </Card>
 
-        {/* Kept as a line, not a card: this screen reads your transactions for one
-            figure — what you have left each month — and shows no spending categories. */}
-        <Text style={styles.footnote}>
-          No spending categories here on purpose — your transactions are read for one figure,
-          what you have left each month, and nothing else.
-        </Text>
+        <TouchableOpacity
+          style={styles.editRow}
+          onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+          accessibilityRole="button"
+          accessibilityLabel="Edit your income and expense figures"
+        >
+          <Text style={styles.editRowText}>
+            {f.surplusBasis === 'trailing'
+              ? `Figures averaged from ${f.derivedCashflow?.coverageMonths ?? 0} months of your transactions`
+              : 'Figures you entered'}
+          </Text>
+          <Text style={styles.editRowAction}>Edit</Text>
+        </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <CategorySheet
+        category={openCategory}
+        rows={openRows}
+        saving={overrides.saving}
+        onClose={() => setOpenCategory(null)}
+        onRecategorize={overrides.setCategory}
+      />
     </View>
+  );
+}
+
+// ─── Period controls ──────────────────────────────────────────────────────────
+
+function PeriodToggle({ value, onChange }: {
+  value: PeriodId;
+  onChange: (p: PeriodId) => void;
+}) {
+  return (
+    <View style={styles.toggle} accessibilityRole="tablist">
+      {PERIODS.map(p => {
+        const active = p.id === value;
+        return (
+          <TouchableOpacity
+            key={p.id}
+            style={[styles.toggleBtn, active && styles.toggleBtnActive]}
+            onPress={() => onChange(p.id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`Show this ${p.label.toLowerCase()}`}
+          >
+            <Text style={[styles.toggleText, active && styles.toggleTextActive]}>
+              {p.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * A negative net is drawn in muted grey, never red — severity reads as
+ * saturation in this palette, and a month of overspending is information.
+ */
+function PeriodStat({ label, value, emphasis, signed }: {
+  label: string;
+  value: number;
+  emphasis?: boolean;
+  signed?: boolean;
+}) {
+  const negative = value < 0;
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.statValue,
+          emphasis && styles.statValueEmphasis,
+          negative && styles.statValueNegative,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {signed && negative ? '−' : ''}${fmt(Math.abs(value))}
+      </Text>
+    </View>
+  );
+}
+
+/** Which of the two claims the figures above are making. Never omitted. */
+function BasisNote({ basis, period, hasFigures }: {
+  basis: 'live' | 'estimated';
+  period: PeriodId;
+  hasFigures: boolean;
+}) {
+  const live = basis === 'live';
+  if (!live && !hasFigures) {
+    return (
+      <View style={styles.basis}>
+        <Ionicons name="help-circle-outline" size={14} color={Colors.textMuted} />
+        <Text style={styles.basisText}>
+          Nothing on file yet — add your income and expenses, or link an account.
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.basis, live && styles.basisLive]}>
+      <Ionicons
+        name={live ? 'pulse-outline' : 'create-outline'}
+        size={14}
+        color={live ? Colors.mint700 : Colors.textMuted}
+      />
+      <Text style={[styles.basisText, live && styles.basisTextLive]}>
+        {live
+          ? 'Summed from your own transactions'
+          : `Estimated — your monthly figures scaled to a ${periodWord(period)}, not measured`}
+      </Text>
+    </View>
+  );
+}
+
+function periodWord(p: PeriodId): string {
+  return p === 'week' ? 'week' : p === 'month' ? 'month' : p === 'quarter' ? 'quarter' : 'year';
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+function CategoryRow({ category, onPress }: { category: CategoryTotal; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      style={styles.catRow}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={
+        `${category.label}, $${fmt(category.amount)}, ${category.pct.toFixed(0)} percent ` +
+        `of spending, ${category.count} transaction${category.count === 1 ? '' : 's'}`
+      }
+      accessibilityHint="Shows the transactions in this category"
+    >
+      <View style={styles.catIcon}>
+        <Ionicons name={category.icon} size={17} color={Colors.mint700} />
+      </View>
+
+      <View style={styles.catBody}>
+        <View style={styles.catHead}>
+          <Text style={styles.catLabel} numberOfLines={1}>{category.label}</Text>
+          <Text style={styles.catAmount}>${fmt(category.amount)}</Text>
+        </View>
+        <View style={styles.catTrack}>
+          <View style={[styles.catFill, { width: `${Math.max(2, category.pct)}%` }]} />
+        </View>
+        <Text style={styles.catMeta}>
+          {category.pct.toFixed(0)}% · {category.count} transaction{category.count === 1 ? '' : 's'}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * The transactions behind one category, with a retag picker.
+ *
+ * A sheet rendered in place rather than a route: the modal would otherwise have
+ * to re-fetch the transactions it is displaying, which means a second read and
+ * two copies of the same rows that can differ mid-flight. This one reads the
+ * rows the screen already has.
+ */
+function CategorySheet({ category, rows, saving, onClose, onRecategorize }: {
+  category: SpendCategory | null;
+  rows: CategorizedTxn[];
+  saving: string | null;
+  onClose: () => void;
+  onRecategorize: (transactionId: string, next: SpendCategory) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const meta = category ? categoryMeta(category) : null;
+  const total = rows.reduce((sum, r) => sum + r.txn.amount, 0);
+
+  // onDismiss is iOS-only, so the picker is collapsed here too — otherwise
+  // re-opening a category on Android shows a row still expanded from last time.
+  const close = useCallback(() => { setExpanded(null); onClose(); }, [onClose]);
+
+  return (
+    <Modal
+      visible={category !== null}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={close}
+      onDismiss={() => setExpanded(null)}
+    >
+      <SafeAreaView style={styles.sheet} edges={['top', 'bottom']}>
+        <View style={styles.sheetHeader}>
+          <View style={styles.sheetTitleBlock}>
+            <Text style={styles.sheetTitle}>{meta?.label ?? 'Category'}</Text>
+            <Text style={styles.sheetSub}>
+              ${fmt(total)} · {rows.length} transaction{rows.length === 1 ? '' : 's'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={close}
+            style={styles.sheetClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {rows.map(r => {
+            const isOpen = expanded === r.txn.transaction_id;
+            return (
+              <View key={r.txn.transaction_id} style={styles.txnBlock}>
+                <TouchableOpacity
+                  style={styles.txnRow}
+                  onPress={() => {
+                    hapticLight();
+                    setExpanded(isOpen ? null : r.txn.transaction_id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    `${r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}, ` +
+                    `$${fmtCents(r.txn.amount)}, ${formatDay(r.txn.date)}`
+                  }
+                  accessibilityHint="Opens the category picker for this transaction"
+                >
+                  <View style={styles.txnBody}>
+                    <Text style={styles.txnName} numberOfLines={1}>
+                      {r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
+                    </Text>
+                    <Text style={styles.txnMeta}>
+                      {formatDay(r.txn.date)}
+                      {r.overridden ? ' · you categorised this' : ''}
+                    </Text>
+                  </View>
+                  {saving === r.txn.transaction_id ? (
+                    <ActivityIndicator size="small" color={Colors.mint600} />
+                  ) : (
+                    <Text style={styles.txnAmount}>${fmtCents(r.txn.amount)}</Text>
+                  )}
+                  <Ionicons
+                    name={isOpen ? 'chevron-up' : 'chevron-down'}
+                    size={15}
+                    color={Colors.textMuted}
+                  />
+                </TouchableOpacity>
+
+                {isOpen && (
+                  <View style={styles.picker}>
+                    <Text style={styles.pickerLabel}>Move to</Text>
+                    <View style={styles.pickerGrid}>
+                      {SPEND_CATEGORIES.map(c => {
+                        const active = c.id === r.category;
+                        return (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[styles.pickerChip, active && styles.pickerChipActive]}
+                            disabled={active}
+                            onPress={async () => {
+                              hapticSelection();
+                              setExpanded(null);
+                              await onRecategorize(r.txn.transaction_id, c.id);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`Categorise as ${c.label}`}
+                          >
+                            <Ionicons
+                              name={c.icon}
+                              size={14}
+                              color={active ? Colors.mint700 : Colors.textSecondary}
+                            />
+                            <Text
+                              style={[styles.pickerChipText, active && styles.pickerChipTextActive]}
+                            >
+                              {c.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          <Text style={styles.sheetFootnote}>
+            Categories you set are yours and stay put — they never change what your bank
+            reported, and they do not alter your payoff projection.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -372,36 +751,16 @@ function SurplusChart({ months }: { months: { key: string; label: string; surplu
   );
 }
 
-/** A labelled bar drawn against a shared maximum, so two can be compared. */
-function FlowBar({ label, amount, max, tone }: {
-  label: string;
-  amount: number;
-  max: number;
-  tone: 'accent' | 'muted';
-}) {
-  const pct = max > 0 ? Math.min(100, (amount / max) * 100) : 0;
-  return (
-    <View style={styles.flowBar}>
-      <View style={styles.flowHead}>
-        <Text style={styles.flowLabel}>{label}</Text>
-        <Text style={styles.flowAmount}>${fmt(amount)}</Text>
-      </View>
-      <View style={styles.flowTrack}>
-        <View
-          style={[
-            styles.flowFill,
-            { width: `${pct}%` },
-            tone === 'muted' && styles.flowFillMuted,
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
+function fmtCents(n: number) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatDay(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -420,6 +779,7 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
   heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
+  statsSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
 
   staleBanner: {
     flexDirection: 'row',
@@ -448,21 +808,115 @@ const styles = StyleSheet.create({
   },
   cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
 
-  flowBar: { gap: Spacing[2], marginBottom: Spacing[3] },
-  flowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  flowLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
-  flowAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  flowTrack: {
-    height: 10,
-    borderRadius: 5,
+  // ── Period toggle ────────────────────────────────────────────────────────
+  toggle: {
+    flexDirection: 'row',
     backgroundColor: Colors.gray100,
-    overflow: 'hidden',
+    borderRadius: Radius.md,
+    padding: 3,
+    gap: 3,
   },
-  flowFill: { height: 10, borderRadius: 5, backgroundColor: Colors.mint600 },
-  flowFillMuted: { backgroundColor: Colors.gray300 },
+  toggleBtn: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: Colors.surface,
+    shadowColor: '#0A0F0D',
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  toggleText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
+  toggleTextActive: { color: Colors.textPrimary, fontWeight: Typography.semibold },
 
-  committedDetail: { marginBottom: Spacing[1] },
-  committedText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[1],
+    marginTop: Spacing[3],
+  },
+  rangeLabel: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
+  rangeNote: { fontSize: Typography.xs, color: Colors.textMuted },
+
+  statRow: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
+  stat: { flex: 1, gap: 2 },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: Typography.extrabold,
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  statValue: { fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  statValueEmphasis: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.mint700 },
+  statValueNegative: { color: Colors.gray500 },
+
+  basis: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    marginTop: Spacing[3],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.gray100,
+  },
+  basisLive: { backgroundColor: Colors.mint50 },
+  basisText: { flex: 1, fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
+  basisTextLive: { color: Colors.mint700 },
+
+  tieBack: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[2],
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  tieBackText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+
+  // ── Category list ────────────────────────────────────────────────────────
+  catRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    minHeight: 60,
+    paddingVertical: Spacing[2],
+  },
+  catIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catBody: { flex: 1, gap: 5 },
+  catHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing[2] },
+  catLabel: { flex: 1, fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
+  catAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  catTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.gray100, overflow: 'hidden' },
+  catFill: { height: 6, borderRadius: 3, backgroundColor: Colors.mint600 },
+  catMeta: { fontSize: 11, color: Colors.textMuted },
+  catSkeletonRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+
+  untagged: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint50,
+  },
+  errorNote: { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: Spacing[3] },
 
   sourceNote: {
     fontSize: Typography.xs,
@@ -492,6 +946,94 @@ const styles = StyleSheet.create({
     color: Colors.mint700,
   },
 
+  editRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    minHeight: 44,
+    paddingHorizontal: Spacing[1],
+  },
+  editRowText: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17 },
+  editRowAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
+
+  // ── Category sheet ───────────────────────────────────────────────────────
+  sheet: { flex: 1, backgroundColor: Colors.background },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[4],
+  },
+  sheetTitleBlock: { flex: 1, gap: 2 },
+  sheetTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
+  sheetSub: { fontSize: Typography.xs, color: Colors.textMuted },
+  sheetClose: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  sheetContent: { padding: Spacing[4], gap: Spacing[2], paddingBottom: Spacing[10] },
+
+  txnBlock: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    overflow: 'hidden',
+  },
+  txnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    minHeight: 60,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+  },
+  txnBody: { flex: 1, gap: 3 },
+  txnName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
+  txnMeta: { fontSize: 11, color: Colors.textMuted },
+  txnAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+
+  picker: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[4],
+    paddingTop: Spacing[1],
+    gap: Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+    backgroundColor: Colors.surfaceSunken,
+  },
+  pickerLabel: {
+    fontSize: 10,
+    fontWeight: Typography.extrabold,
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: Spacing[3],
+  },
+  pickerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2] },
+  pickerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: Spacing[3],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  pickerChipActive: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
+  pickerChipText: { fontSize: Typography.xs, fontWeight: Typography.medium, color: Colors.textSecondary },
+  pickerChipTextActive: { color: Colors.mint700, fontWeight: Typography.semibold },
+
+  sheetFootnote: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: Spacing[2],
+    paddingTop: Spacing[4],
+  },
+
   surplusChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   surplusCol: { flex: 1, alignItems: 'center' },
   surplusUpper: { height: 60, justifyContent: 'flex-end' },
@@ -506,13 +1048,4 @@ const styles = StyleSheet.create({
   bar: { width: 18, borderRadius: 4 },
   barLabel: { fontSize: 11, color: Colors.textMuted },
   chartNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[3] },
-
-  footnote: {
-    fontSize: Typography.xs,
-    color: Colors.textMuted,
-    lineHeight: 18,
-    textAlign: 'center',
-    paddingHorizontal: Spacing[2],
-    paddingTop: Spacing[1],
-  },
 });
