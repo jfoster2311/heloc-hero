@@ -15,3 +15,8 @@ web-build/
 app_unzipped/
 app_unzipped/
 supabase/.temp/
+
+# UI reference screenshots dropped at the repo root. Inspiration only — these
+# are other companies' apps and must never be committed or shipped as assets.
+/image.png
+/image copy*.png

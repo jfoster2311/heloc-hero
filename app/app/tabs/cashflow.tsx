@@ -128,6 +128,14 @@ export default function CashFlowScreen() {
   const netAfterMortgage  = summary.net - mortgageForPeriod;
   const monthlyEquivalent = range.months > 0 ? netAfterMortgage / range.months : netAfterMortgage;
 
+  // Each outflow as a share of what came in, for the bars on the summary rows.
+  // Null with no income on file rather than 0: a bar measured against nothing
+  // is not an empty bar, it is a comparison that cannot be drawn, and every row
+  // would sit at 100% or 0% and imply a proportion nobody computed.
+  const shareOfIncome = summary.income > 0
+    ? (v: number) => Math.min(100, (Math.abs(v) / summary.income) * 100)
+    : null;
+
   const openRows = useMemo(
     () => openCategory
       ? summary.rows
@@ -290,17 +298,20 @@ export default function CashFlowScreen() {
               icon="arrow-down-circle-outline"
               label={`Income this ${periodWord(period)}`}
               value={summary.income}
+              barPct={shareOfIncome === null ? undefined : 100}
             />
             <SummaryRow
               icon="arrow-up-circle-outline"
               label="Total spend"
               value={-summary.spend}
+              barPct={shareOfIncome?.(summary.spend)}
             />
             {payment > 0 && (
               <SummaryRow
                 icon="home-outline"
                 label="Mortgage payment"
                 value={-mortgageForPeriod}
+                barPct={shareOfIncome?.(mortgageForPeriod)}
                 hint={summary.basis === 'live'
                   ? 'modelled by the strategy, so it is not in the ring above'
                   : 'modelled by the strategy, so it is not in the spend above'}
@@ -501,13 +512,25 @@ function PeriodToggle({ value, onChange }: {
  *
  * A negative value is drawn in muted grey and never red: severity reads as
  * saturation in this palette, and money leaving on schedule is not an error.
+ *
+ * `barPct` draws the row's share of income beneath it. Three figures stacked as
+ * text make you do the division yourself; the bars make "spending ate most of
+ * what came in" a shape you read in one look. Income is the reference and
+ * always draws full width — every other bar is measured against it, which is
+ * the only reason the comparison means anything.
+ *
+ * The outflow fill is the same muted grey the negative values wear, for the
+ * same reason: it is the largest mark on the card, and a mint one would read as
+ * approval of the spending rather than a measurement of it.
  */
-function SummaryRow({ icon, label, value, hint, total }: {
+function SummaryRow({ icon, label, value, hint, total, barPct }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: number;
   hint?: string;
   total?: boolean;
+  /** Share of income, 0–100. Omitted where there is no income to divide by. */
+  barPct?: number;
 }) {
   const negative = value < 0;
   return (
@@ -519,21 +542,39 @@ function SummaryRow({ icon, label, value, hint, total }: {
           color={total ? Colors.mint700 : Colors.textSecondary}
         />
       </View>
+
       <View style={styles.sumBody}>
-        <Text style={[styles.sumLabel, total && styles.sumLabelTotal]} numberOfLines={1}>
-          {label}
-        </Text>
+        <View style={styles.sumHead}>
+          <Text style={[styles.sumLabel, total && styles.sumLabelTotal]} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text
+            style={[
+              styles.sumValue,
+              total && (negative ? styles.sumValueTotalNeg : styles.sumValueTotal),
+              !total && negative && styles.sumValueMuted,
+            ]}
+          >
+            {negative ? '−' : ''}${fmt(Math.abs(value))}
+          </Text>
+        </View>
+
+        {barPct !== undefined && (
+          // A hair of width on a non-zero share, so a small-but-real outflow
+          // still reads as a bar rather than as nothing at all.
+          <View style={styles.sumTrack}>
+            <View
+              style={[
+                styles.sumFill,
+                negative ? styles.sumFillOut : styles.sumFillIn,
+                { width: `${barPct > 0 ? Math.max(1.5, barPct) : 0}%` },
+              ]}
+            />
+          </View>
+        )}
+
         {hint ? <Text style={styles.sumHint}>{hint}</Text> : null}
       </View>
-      <Text
-        style={[
-          styles.sumValue,
-          total && (negative ? styles.sumValueTotalNeg : styles.sumValueTotal),
-          !total && negative && styles.sumValueMuted,
-        ]}
-      >
-        {negative ? '−' : ''}${fmt(Math.abs(value))}
-      </Text>
     </View>
   );
 }
@@ -951,7 +992,22 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   sumIconTotal: { backgroundColor: Colors.mint50 },
-  sumBody: { flex: 1, gap: 1 },
+  sumBody: { flex: 1, gap: 4 },
+  sumHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing[2],
+  },
+  sumTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.gray100,
+    overflow: 'hidden',
+  },
+  sumFill: { height: 5, borderRadius: 3 },
+  sumFillIn:  { backgroundColor: Colors.mint600 },
+  sumFillOut: { backgroundColor: Colors.gray400 },
   sumLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
   sumLabelTotal: {
     fontSize: Typography.base,
