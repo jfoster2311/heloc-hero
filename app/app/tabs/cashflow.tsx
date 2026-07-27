@@ -30,6 +30,7 @@ import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import { Card } from '../../components/ui/primitives';
+import DonutRing, { buildSegments } from '../../components/ui/DonutRing';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
@@ -39,7 +40,10 @@ import {
   PERIODS, SPEND_CATEGORIES, categoryMeta, periodRange, summarizePeriod,
   type PeriodId, type SpendCategory, type CategoryTotal, type CategorizedTxn,
 } from '../../lib/spending';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import {
+  Colors, Typography, Spacing, Radius, Shadows, OnDark, CommonStyles,
+  CategoryRamp, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE,
+} from '../../lib/theme';
 
 export default function CashFlowScreen() {
   const router = useRouter();
@@ -108,6 +112,22 @@ export default function CashFlowScreen() {
 
   const maxBucket = Math.max(...buckets.map(b => b.total), 0);
 
+  // Ranked arcs plus a folded tail, and the colour each category is painted in
+  // — shared with the list below so a swatch there means the same arc here.
+  const ring = useMemo(
+    () => buildSegments(summary.categories, CATEGORY_RAMP_MAX),
+    [summary.categories],
+  );
+
+  // The mortgage payment scaled to the period. It is deliberately absent from
+  // the ring (the projection models it, and counting it twice would understate
+  // the surplus) but it cannot be absent from the summary: without it "net"
+  // would be the figure before the largest committed payment of the month, and
+  // the cycling line beneath it would be wrong by exactly that amount.
+  const mortgageForPeriod = payment * range.months;
+  const netAfterMortgage  = summary.net - mortgageForPeriod;
+  const monthlyEquivalent = range.months > 0 ? netAfterMortgage / range.months : netAfterMortgage;
+
   const openRows = useMemo(
     () => openCategory
       ? summary.rows
@@ -174,90 +194,38 @@ export default function CashFlowScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Period totals ────────────────────────────────────────────────
-            Income, spend and net for a window the user picks. The basis line
-            is not a footnote here: "$3,100 spent" measured and "$3,100 spent"
-            scaled from a figure someone typed at onboarding are different
-            claims, and only one of them is evidence. */}
-        <Card>
-          <PeriodToggle value={period} onChange={p => { hapticSelection(); setPeriod(p); }} />
+        {/* ── Period toggle ────────────────────────────────────────────────
+            Sits above the cards rather than inside one: it governs everything
+            below it, and burying it in the first card would imply it only
+            drives that card's figures. */}
+        <PeriodToggle value={period} onChange={p => { hapticSelection(); setPeriod(p); }} />
 
+        {/* ── The breakdown ────────────────────────────────────────────────
+            Only ever drawn from real transactions. With nothing linked there is
+            nothing to break down, and a ring invented from one typed expense
+            total would be a picture of a measurement that never happened. */}
+        <Card style={styles.ringCard}>
           <View style={styles.rangeRow}>
             <Text style={styles.rangeLabel}>{range.rangeLabel}</Text>
             {range.inProgress && <Text style={styles.rangeNote}>· in progress</Text>}
           </View>
 
-          {f.loading ? (
-            <SkeletonGroup label="Loading this period" style={styles.statsSkeleton}>
-              <Skeleton width={220} height={44} radius={Radius.sm} />
-              <Skeleton width={180} height={13} />
-            </SkeletonGroup>
-          ) : (
-            <>
-              <View style={styles.statRow}>
-                <PeriodStat label="Income" value={summary.income} />
-                <PeriodStat label="Spent"  value={summary.spend} />
-                <PeriodStat label="Net" value={summary.net} emphasis signed />
-              </View>
-
-              <BasisNote basis={summary.basis} period={period} hasFigures={hasFigures} />
-
-              {/* The thread back to the strategy. Deliberately states the
-                  bridge rather than implying the two figures are the same:
-                  net here is BEFORE the mortgage payment, because the payment
-                  is modelled by the projection and excluded from these rows.
-                  Calling a pre-mortgage figure "what powers your cycling"
-                  would be wrong by exactly the payment. */}
-              {hasFigures && (
-                <View style={styles.tieBack}>
-                  <Ionicons name="repeat-outline" size={15} color={Colors.mint700} />
-                  <Text style={styles.tieBackText}>
-                    {surplus > 0
-                      ? `Net is before your mortgage payment. After it, $${fmt(surplus)} a month ` +
-                        'is the number that powers your HELOC cycling.'
-                      : 'After your mortgage payment there is nothing left over yet — ' +
-                        'that surplus is what HELOC cycling runs on.'}
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
-        </Card>
-
-        {/* ── Where it went ────────────────────────────────────────────────
-            Only ever rendered from real transactions. With no linked accounts
-            there is nothing to break down, and a split invented from a single
-            typed expense total would be a fabrication. */}
-        <Card>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>Where it went</Text>
-            {summary.basis === 'live' && summary.categories.length > 0 && (
-              <Text style={styles.cardStatus}>${fmt(summary.spend)} total</Text>
-            )}
-          </View>
-
           {f.loading || overrides.loading ? (
-            <SkeletonGroup label="Loading your spending by category">
-              <View style={{ gap: Spacing[3] }}>
-                {[0, 1, 2, 3].map(i => (
-                  <View key={i} style={styles.catSkeletonRow}>
-                    <Skeleton width={32} height={32} radius={Radius.md} />
-                    <View style={{ flex: 1, gap: 6 }}>
-                      <Skeleton width={130} height={13} />
-                      <Skeleton width={'100%'} height={6} radius={3} />
-                    </View>
-                  </View>
-                ))}
-              </View>
+            <SkeletonGroup label="Loading your spending by category" style={styles.ringSkeleton}>
+              <Skeleton width={216} height={216} radius={108} />
+              <Skeleton width={150} height={13} />
             </SkeletonGroup>
           ) : summary.basis === 'estimated' ? (
             <View style={styles.stateBlock}>
+              <View style={styles.emptyRing}>
+                <Ionicons name="pie-chart-outline" size={26} color={Colors.textMuted} />
+              </View>
               <Text style={styles.emptyBody}>
                 {f.hasLinkedAccounts
                   ? f.awaitingTransactions
-                    ? 'Your bank is still sending its history. Categories appear here once it lands — ' +
-                      'usually within a few minutes of linking.'
-                    : `No transactions in this ${period === 'week' ? 'week' : period}. ` +
+                    ? 'Your bank is still sending its history. Your breakdown appears here once ' +
+                      'it lands — usually within a few minutes of linking.'
+                    : `No transactions in this ${periodWord(period)}. ` +
                       'Try a longer period, or pull down to refresh.'
                   : 'Link an account and your spending is broken down here automatically. ' +
                     'Until then this screen runs on the figures you entered.'}
@@ -274,39 +242,91 @@ export default function CashFlowScreen() {
             </View>
           ) : (
             <>
-              {summary.categories.map(c => (
-                <CategoryRow
-                  key={c.id}
-                  category={c}
-                  onPress={() => { hapticLight(); setOpenCategory(c.id); }}
-                />
-              ))}
-
-              {/* The largest single housing cost is missing from the list
-                  above by design. Saying so beats a user concluding the
-                  breakdown is broken. */}
-              {payment > 0 && (
-                <Text style={styles.sourceNote}>
-                  Your mortgage payment (${fmt(payment)} a month) is not counted here — the
-                  strategy models it directly, and counting it twice would understate your
-                  surplus. Transfers between your own accounts are excluded too.
-                </Text>
-              )}
-
-              {summary.untaggedCount > 0 && (
-                <Text style={styles.untagged}>
-                  {summary.untaggedCount} transaction{summary.untaggedCount === 1 ? '' : 's'} your
-                  bank didn&apos;t label {summary.untaggedCount === 1 ? 'is' : 'are'} sitting in
-                  Other. Tap a category to retag {summary.untaggedCount === 1 ? 'it' : 'them'}.
-                </Text>
-              )}
+              <DonutRing
+                segments={ring.segments}
+                centerLabel="TOTAL SPEND"
+                centerValue={`$${fmt(summary.spend)}`}
+                centerSub={`this ${periodWord(period)}`}
+              />
             </>
           )}
-
-          {overrides.error && (
-            <Text style={styles.errorNote}>{overrides.error}</Text>
-          )}
         </Card>
+
+        {/* ── Category rows ────────────────────────────────────────────────
+            Each its own surface, so a row is a target rather than a line in a
+            table. The swatch repeats the arc colour and the name repeats the
+            icon: identity survives with the colour removed entirely. */}
+        {!f.loading && !overrides.loading && summary.basis === 'live' && (
+          <View style={styles.catList}>
+            {summary.categories.map(c => (
+              <CategoryCard
+                key={c.id}
+                category={c}
+                color={ring.colorFor[c.id] ?? CategoryRamp.neutral}
+                onPress={() => { hapticLight(); setOpenCategory(c.id); }}
+              />
+            ))}
+
+            {summary.untaggedCount > 0 && (
+              <Text style={styles.untagged}>
+                {summary.untaggedCount} transaction{summary.untaggedCount === 1 ? '' : 's'} your
+                bank didn&apos;t label {summary.untaggedCount === 1 ? 'is' : 'are'} sitting in
+                Other. Open it to retag {summary.untaggedCount === 1 ? 'it' : 'them'}.
+              </Text>
+            )}
+            {overrides.error && <Text style={styles.errorNote}>{overrides.error}</Text>}
+          </View>
+        )}
+
+        {/* ── Income · spend · net ─────────────────────────────────────────
+            The mortgage row is not decoration. Transaction spending excludes
+            the payment by design, so a net computed without it is the figure
+            BEFORE the largest committed outflow of the month — and the cycling
+            line beneath would then be wrong by exactly that payment. Showing
+            the subtraction keeps the closing sentence true. */}
+        {!f.loading && (
+          <Card>
+            <SummaryRow
+              icon="arrow-down-circle-outline"
+              label={`Income this ${periodWord(period)}`}
+              value={summary.income}
+            />
+            <SummaryRow
+              icon="arrow-up-circle-outline"
+              label="Total spend"
+              value={-summary.spend}
+            />
+            {payment > 0 && (
+              <SummaryRow
+                icon="home-outline"
+                label="Mortgage payment"
+                value={-mortgageForPeriod}
+                hint={summary.basis === 'live'
+                  ? 'modelled by the strategy, so it is not in the ring above'
+                  : 'modelled by the strategy, so it is not in the spend above'}
+              />
+            )}
+
+            <View style={styles.summaryRule} />
+
+            <SummaryRow
+              icon="repeat-outline"
+              label={summary.basis === 'live' ? 'Net, measured' : 'Net surplus'}
+              value={netAfterMortgage}
+              total
+            />
+
+            <BasisNote basis={summary.basis} period={period} hasFigures={hasFigures} />
+
+            {hasFigures && (
+              <CyclingNote
+                measuredMonthly={monthlyEquivalent}
+                plannedMonthly={surplus}
+                basis={summary.basis}
+              />
+            )}
+          </Card>
+        )}
 
         {/* ── The next two weeks ─────────────────────────────────────────── */}
         {upcoming.length > 0 && (
@@ -447,6 +467,7 @@ export default function CashFlowScreen() {
 
 // ─── Period controls ──────────────────────────────────────────────────────────
 
+/** Pill segmented control. Active pill filled solid; the rest sit outlined. */
 function PeriodToggle({ value, onChange }: {
   value: PeriodId;
   onChange: (p: PeriodId) => void;
@@ -458,13 +479,14 @@ function PeriodToggle({ value, onChange }: {
         return (
           <TouchableOpacity
             key={p.id}
-            style={[styles.toggleBtn, active && styles.toggleBtnActive]}
+            style={[styles.pill, active && styles.pillActive]}
             onPress={() => onChange(p.id)}
+            activeOpacity={0.8}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={`Show this ${p.label.toLowerCase()}`}
           >
-            <Text style={[styles.toggleText, active && styles.toggleTextActive]}>
+            <Text style={[styles.pillText, active && styles.pillTextActive]}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -475,29 +497,42 @@ function PeriodToggle({ value, onChange }: {
 }
 
 /**
- * A negative net is drawn in muted grey, never red — severity reads as
- * saturation in this palette, and a month of overspending is information.
+ * One line of the income/spend/net summary.
+ *
+ * A negative value is drawn in muted grey and never red: severity reads as
+ * saturation in this palette, and money leaving on schedule is not an error.
  */
-function PeriodStat({ label, value, emphasis, signed }: {
+function SummaryRow({ icon, label, value, hint, total }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: number;
-  emphasis?: boolean;
-  signed?: boolean;
+  hint?: string;
+  total?: boolean;
 }) {
   const negative = value < 0;
   return (
-    <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.sumRow}>
+      <View style={[styles.sumIcon, total && styles.sumIconTotal]}>
+        <Ionicons
+          name={icon}
+          size={16}
+          color={total ? Colors.mint700 : Colors.textSecondary}
+        />
+      </View>
+      <View style={styles.sumBody}>
+        <Text style={[styles.sumLabel, total && styles.sumLabelTotal]} numberOfLines={1}>
+          {label}
+        </Text>
+        {hint ? <Text style={styles.sumHint}>{hint}</Text> : null}
+      </View>
       <Text
         style={[
-          styles.statValue,
-          emphasis && styles.statValueEmphasis,
-          negative && styles.statValueNegative,
+          styles.sumValue,
+          total && (negative ? styles.sumValueTotalNeg : styles.sumValueTotal),
+          !total && negative && styles.sumValueMuted,
         ]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
       >
-        {signed && negative ? '−' : ''}${fmt(Math.abs(value))}
+        {negative ? '−' : ''}${fmt(Math.abs(value))}
       </Text>
     </View>
   );
@@ -536,18 +571,81 @@ function BasisNote({ basis, period, hasFigures }: {
   );
 }
 
+/**
+ * The bridge from this period back to the strategy — and the one place on this
+ * screen where two surpluses meet.
+ *
+ * They are not the same number and must never be written as if they were. The
+ * hero figure is PLANNED: income minus expenses, the mortgage payment and any
+ * HELOC interest, taken from what the user entered, and it is the figure the
+ * projection is actually sized from. The figure in this card is MEASURED: what
+ * the linked accounts really cleared over the window, minus the payment. With
+ * accounts linked the two diverge routinely, and whichever one this card called
+ * "the number that powers your cycling" would be a claim about the other.
+ *
+ * So it compares them and names which one drives the schedule, rather than
+ * silently substituting the measured figure for the planned one. When they
+ * disagree the honest move is to show the gap and hand the user the decision.
+ */
+function CyclingNote({ measuredMonthly, plannedMonthly, basis }: {
+  measuredMonthly: number;
+  plannedMonthly: number;
+  basis: 'live' | 'estimated';
+}) {
+  // Estimated means this card is the entered figures scaled back out again, so
+  // there is no second measurement to compare against — only one claim exists.
+  if (basis === 'estimated') {
+    return (
+      <Text style={styles.tieBackText}>
+        {plannedMonthly > 0
+          ? `Your projection is sized on ${signedMoney(plannedMonthly)} a month. ` +
+            'Link an account and this becomes measured rather than estimated.'
+          : 'After your mortgage payment these figures leave nothing over — ' +
+            'that surplus is what HELOC cycling runs on.'}
+      </Text>
+    );
+  }
+
+  // Close enough that naming a gap would be noise rather than information. The
+  // floor keeps small absolute differences on a small surplus from reading as a
+  // disagreement; the percentage keeps large ones from being waved through.
+  const gap = measuredMonthly - plannedMonthly;
+  const inLine = Math.abs(gap) <= Math.max(50, Math.abs(plannedMonthly) * 0.1);
+
+  return (
+    <Text style={styles.tieBackText}>
+      {`Measured, that is ${signedMoney(measuredMonthly)} a month. `}
+      {inLine
+        ? `That is in line with the ${signedMoney(plannedMonthly)} a month your projection is ` +
+          'sized on.'
+        : `Your projection is still sized on ${signedMoney(plannedMonthly)} a month from the ` +
+          `figures you entered, so this period ran ${gap > 0 ? 'ahead of' : 'behind'} it. ` +
+          'Update those figures if the measured number is the truer one.'}
+    </Text>
+  );
+}
+
+/** Money with an explicit minus, never parentheses and never red. */
+function signedMoney(v: number): string {
+  return `${v < 0 ? '−' : ''}$${fmt(Math.abs(v))}`;
+}
+
 function periodWord(p: PeriodId): string {
   return p === 'week' ? 'week' : p === 'month' ? 'month' : p === 'quarter' ? 'quarter' : 'year';
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
-function CategoryRow({ category, onPress }: { category: CategoryTotal; onPress: () => void }) {
+function CategoryCard({ category, color, onPress }: {
+  category: CategoryTotal;
+  color: string;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
-      style={styles.catRow}
+      style={styles.catCard}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={
         `${category.label}, $${fmt(category.amount)}, ${category.pct.toFixed(0)} percent ` +
@@ -556,22 +654,20 @@ function CategoryRow({ category, onPress }: { category: CategoryTotal; onPress: 
       accessibilityHint="Shows the transactions in this category"
     >
       <View style={styles.catIcon}>
-        <Ionicons name={category.icon} size={17} color={Colors.mint700} />
+        <Ionicons name={category.icon} size={18} color={Colors.mint700} />
+        {/* The swatch ties the row to its arc. It is a second cue, never the
+            only one — the icon and the name carry the same identity. */}
+        <View style={[styles.catSwatch, { backgroundColor: color }]} />
       </View>
 
       <View style={styles.catBody}>
-        <View style={styles.catHead}>
-          <Text style={styles.catLabel} numberOfLines={1}>{category.label}</Text>
-          <Text style={styles.catAmount}>${fmt(category.amount)}</Text>
-        </View>
-        <View style={styles.catTrack}>
-          <View style={[styles.catFill, { width: `${Math.max(2, category.pct)}%` }]} />
-        </View>
+        <Text style={styles.catLabel} numberOfLines={1}>{category.label}</Text>
         <Text style={styles.catMeta}>
           {category.pct.toFixed(0)}% · {category.count} transaction{category.count === 1 ? '' : 's'}
         </Text>
       </View>
 
+      <Text style={styles.catAmount}>${fmt(category.amount)}</Text>
       <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
     </TouchableOpacity>
   );
@@ -779,7 +875,6 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
   heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
-  statsSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
 
   staleBanner: {
     flexDirection: 'row',
@@ -809,52 +904,78 @@ const styles = StyleSheet.create({
   cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
 
   // ── Period toggle ────────────────────────────────────────────────────────
-  toggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.gray100,
-    borderRadius: Radius.md,
-    padding: 3,
-    gap: 3,
-  },
-  toggleBtn: {
+  toggle: { flexDirection: 'row', gap: Spacing[2] },
+  pill: {
     flex: 1,
-    minHeight: 38,
-    borderRadius: Radius.sm,
+    minHeight: 44,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing[2],
   },
-  toggleBtnActive: {
-    backgroundColor: Colors.surface,
-    shadowColor: '#0A0F0D',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+  pillActive: {
+    backgroundColor: Colors.mint800,
+    borderColor: Colors.mint800,
+    ...Shadows.card,
   },
-  toggleText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  toggleTextActive: { color: Colors.textPrimary, fontWeight: Typography.semibold },
+  pillText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
+  pillTextActive: { color: Colors.white, fontWeight: Typography.semibold },
 
-  rangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[1],
-    marginTop: Spacing[3],
+  // ── Ring card ────────────────────────────────────────────────────────────
+  ringCard: { alignItems: 'center', gap: Spacing[4] },
+  ringSkeleton: { alignItems: 'center', gap: Spacing[4] },
+  emptyRing: {
+    width: 64, height: 64, borderRadius: 32,
+    borderWidth: 6, borderColor: CategoryRamp.track,
+    alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center',
   },
+
+  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] },
   rangeLabel: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
   rangeNote: { fontSize: Typography.xs, color: Colors.textMuted },
 
-  statRow: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
-  stat: { flex: 1, gap: 2 },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+  // ── Summary card ─────────────────────────────────────────────────────────
+  sumRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    minHeight: 48,
   },
-  statValue: { fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  statValueEmphasis: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.mint700 },
-  statValueNegative: { color: Colors.gray500 },
+  sumIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: Colors.gray100,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sumIconTotal: { backgroundColor: Colors.mint50 },
+  sumBody: { flex: 1, gap: 1 },
+  sumLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
+  sumLabelTotal: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  sumHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  sumValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  sumValueMuted: { color: Colors.gray500 },
+  sumValueTotal: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.extrabold,
+    color: Colors.mint600,
+  },
+  sumValueTotalNeg: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.extrabold,
+    color: Colors.gray500,
+  },
+  summaryRule: {
+    height: 1,
+    backgroundColor: Colors.borderSubtle,
+    marginVertical: Spacing[2],
+  },
 
   basis: {
     flexDirection: 'row',
@@ -870,41 +991,53 @@ const styles = StyleSheet.create({
   basisText: { flex: 1, fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
   basisTextLive: { color: Colors.mint700 },
 
-  tieBack: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing[2],
+  tieBackText: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
     marginTop: Spacing[3],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
   },
-  tieBackText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
 
   // ── Category list ────────────────────────────────────────────────────────
-  catRow: {
+  catList: { gap: Spacing[2] },
+  catCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
-    minHeight: 60,
-    paddingVertical: Spacing[2],
+    minHeight: 68,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    ...Shadows.card,
   },
   catIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  catBody: { flex: 1, gap: 5 },
-  catHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing[2] },
-  catLabel: { flex: 1, fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  catAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  catTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.gray100, overflow: 'hidden' },
-  catFill: { height: 6, borderRadius: 3, backgroundColor: Colors.mint600 },
+  catSwatch: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.surface,
+  },
+  catBody: { flex: 1, gap: 2 },
+  catLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  catAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
   catMeta: { fontSize: 11, color: Colors.textMuted },
-  catSkeletonRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
 
   untagged: {
     fontSize: Typography.xs,
@@ -917,16 +1050,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.mint50,
   },
   errorNote: { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: Spacing[3] },
-
-  sourceNote: {
-    fontSize: Typography.xs,
-    color: Colors.textMuted,
-    lineHeight: 17,
-    marginTop: Spacing[3],
-    paddingTop: Spacing[3],
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
 
   stateBlock: { gap: Spacing[3] },
   emptyBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },

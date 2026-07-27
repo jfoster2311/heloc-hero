@@ -1,0 +1,222 @@
+// components/ui/DonutRing.tsx — a segmented ring, without react-native-svg.
+//
+// Same constraint and same technique as LineChart: react-native-svg is a native
+// module, so adding it would force a fresh EAS build on every machine that
+// touches this repo. One chart is not worth that, so the arc is approximated by
+// a dense run of small rotated Views — each one a short chord of the ring, placed
+// by trig and rotated to sit tangent. At 2.5° per tick the seams are invisible
+// and the whole ring costs ~144 Views, in the same order as the line chart.
+//
+// ── Reading the ring ───────────────────────────────────────────────────────
+// Segments are ordered largest-first from twelve o'clock and coloured from the
+// ramp in that order, so the ring reads as one hue getting lighter as the
+// shares get smaller. That is a sequential encoding doing a categorical job,
+// which only works because identity never rests on colour alone: every arc
+// large enough carries its own icon on the rim, and the list beneath the chart
+// repeats every category by name with its amount. Strip the colour out entirely
+// and nothing is lost — which is the test.
+//
+// A 2pt gap is left between neighbouring arcs. Without it two adjacent steps of
+// one hue merge into a single band and the count of categories is lost.
+import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Typography, Spacing, Radius, Shadows, Tracking, CategoryRamp } from '../../lib/theme';
+
+export interface RingSegment {
+  key: string;
+  label: string;
+  /** Share of the whole, 0–100. */
+  pct: number;
+  color: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+interface Props {
+  segments: RingSegment[];
+  /** Small caps above the centre figure. */
+  centerLabel: string;
+  /** The headline — already formatted, e.g. "$3,482". */
+  centerValue: string;
+  /** One line beneath it, e.g. the date range. */
+  centerSub?: string;
+  size?: number;
+  thickness?: number;
+}
+
+/** Degrees per tick. Smaller is smoother and heavier; 2.5 is past the seam. */
+const STEP = 2.5;
+/** Gap between neighbouring arcs, in degrees — roughly 2pt at this radius. */
+const GAP = 2.5;
+/** Below this share an arc is too short to hold an icon without collisions. */
+const ICON_MIN_PCT = 7;
+
+export default function DonutRing({
+  segments, centerLabel, centerValue, centerSub, size = 216, thickness = 20,
+}: Props) {
+  const radius = (size - thickness) / 2;
+  const center = size / 2;
+  // The rim badges sit outside the band, so the box has to make room for them.
+  const pad = 20;
+  const box = size + pad * 2;
+
+  const total = segments.reduce((s, seg) => s + seg.pct, 0);
+  const hasData = total > 0.01;
+
+  // Lay the arcs out first: every tick and every badge is positioned from this,
+  // so the geometry is decided once rather than recomputed per element.
+  const arcs: { seg: RingSegment; start: number; end: number; mid: number }[] = [];
+  let cursor = 0;
+  for (const seg of segments) {
+    const sweep = (seg.pct / 100) * 360;
+    // A gap is only honest where there is an arc on both sides of it. Taking it
+    // out of a sliver would make small categories look smaller than they are.
+    const inset = sweep > GAP * 2 ? GAP / 2 : 0;
+    const start = cursor + inset;
+    const end   = cursor + sweep - inset;
+    if (end > start) arcs.push({ seg, start, end, mid: (start + end) / 2 });
+    cursor += sweep;
+  }
+
+  return (
+    <View style={[styles.box, { width: box, height: box }]}>
+      {/* The track. Always drawn, so a partial or empty ring still reads as a
+          ring rather than as a broken arc floating in space. */}
+      <View
+        style={[
+          styles.track,
+          {
+            width: size, height: size, borderRadius: size / 2,
+            borderWidth: thickness, top: pad, left: pad,
+          },
+        ]}
+      />
+
+      {hasData && arcs.map(arc => {
+        const ticks: React.ReactNode[] = [];
+        for (let a = arc.start; a < arc.end; a += STEP) {
+          // Chord length per tick, plus a hair of overlap so no seam shows
+          // between ticks of the same colour.
+          const w = (2 * Math.PI * radius * (STEP / 360)) + 1.2;
+          const rad = (a + STEP / 2 - 90) * (Math.PI / 180);
+          ticks.push(
+            <View
+              key={a}
+              style={{
+                position: 'absolute',
+                width: w,
+                height: thickness,
+                left: pad + center + radius * Math.cos(rad) - w / 2,
+                top:  pad + center + radius * Math.sin(rad) - thickness / 2,
+                backgroundColor: arc.seg.color,
+                transform: [{ rotate: `${a + STEP / 2}deg` }],
+              }}
+            />,
+          );
+        }
+        return <View key={arc.seg.key} style={StyleSheet.absoluteFill}>{ticks}</View>;
+      })}
+
+      {/* Rim badges — the direct labels that keep identity off colour alone.
+          Skipped on arcs too short to hold one, where the list below carries it. */}
+      {hasData && arcs.filter(a => a.seg.pct >= ICON_MIN_PCT).map(arc => {
+        const rad = (arc.mid - 90) * (Math.PI / 180);
+        const rBadge = radius + thickness / 2 + 6;
+        return (
+          <View
+            key={`badge-${arc.seg.key}`}
+            style={[
+              styles.badge,
+              {
+                left: pad + center + rBadge * Math.cos(rad) - 14,
+                top:  pad + center + rBadge * Math.sin(rad) - 14,
+              },
+            ]}
+            accessibilityLabel={`${arc.seg.label}, ${Math.round(arc.seg.pct)} percent`}
+          >
+            <Ionicons name={arc.seg.icon} size={14} color={arc.seg.color} />
+          </View>
+        );
+      })}
+
+      {/* The hero number. Text wears text tokens, never a series colour — the
+          arcs carry identity, the centre carries the total. */}
+      <View style={[styles.center, { top: pad + thickness, left: pad + thickness,
+        width: size - thickness * 2, height: size - thickness * 2 }]}>
+        <Text style={styles.centerLabel}>{centerLabel}</Text>
+        <Text style={styles.centerValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          {centerValue}
+        </Text>
+        {centerSub ? <Text style={styles.centerSub}>{centerSub}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  box: { alignSelf: 'center', position: 'relative' },
+  track: { position: 'absolute', borderColor: CategoryRamp.track },
+  badge: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  center: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing[3],
+    gap: 2,
+  },
+  centerLabel: {
+    fontSize: 10,
+    fontWeight: Typography.extrabold,
+    color: Colors.textMuted,
+    letterSpacing: 1.1,
+    textAlign: 'center',
+  },
+  centerValue: {
+    fontSize: Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: Tracking.heading,
+    textAlign: 'center',
+  },
+  centerSub: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+});
+
+/** Assigns ramp colours by rank and folds the tail into one neutral arc. */
+export function buildSegments<T extends { id: string; label: string; amount: number; pct: number; icon: keyof typeof Ionicons.glyphMap }>(
+  categories: T[],
+  maxArcs: number,
+): { segments: RingSegment[]; colorFor: Record<string, string>; folded: T[] } {
+  const head = categories.slice(0, maxArcs);
+  const tail = categories.slice(maxArcs);
+
+  const colorFor: Record<string, string> = {};
+  const segments: RingSegment[] = head.map((c, i) => {
+    const color = CategoryRamp.steps[i] ?? CategoryRamp.neutral;
+    colorFor[c.id] = color;
+    return { key: c.id, label: c.label, pct: c.pct, color, icon: c.icon };
+  });
+
+  if (tail.length > 0) {
+    const pct = tail.reduce((s, c) => s + c.pct, 0);
+    for (const c of tail) colorFor[c.id] = CategoryRamp.neutral;
+    segments.push({
+      key: '__rest',
+      label: `${tail.length} smaller categories`,
+      pct,
+      color: CategoryRamp.neutral,
+      icon: 'ellipsis-horizontal-outline',
+    });
+  }
+
+  return { segments, colorFor, folded: tail };
+}

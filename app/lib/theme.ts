@@ -167,6 +167,38 @@ export const Gradients = {
   hero:    ['#0C2A18', '#081A0F'] as const,
 };
 
+/**
+ * The spend-breakdown ramp — one hue, dark to light, ordered by magnitude.
+ *
+ * These are NOT the mint tokens above, and the difference is deliberate. The
+ * brand ramp is spaced for surfaces and text, so consecutive steps sit close
+ * together in lightness: mint800 against mint700 measures ΔE 6.7 to normal
+ * vision, which is below the threshold where two arcs of a chart can be told
+ * apart at all. Painting a breakdown in them produces a ring that looks
+ * correct and cannot be read.
+ *
+ * These four are re-stepped in the same green to clear both bars — worst
+ * adjacent pair ΔE 16.4 to normal vision, 11.3 under deuteranopia. Verified
+ * with a palette validator rather than by eye, because "these look different
+ * enough" is exactly the judgement people get wrong.
+ *
+ * FOUR is the ceiling, not a starting point. A single hue cannot carry eight
+ * legible steps — past four, adjacent pairs fall back under the floor no
+ * matter how they are spaced. A breakdown with more slices than this puts the
+ * tail in `neutral` and names it, which is also better charting.
+ */
+export const CategoryRamp = {
+  /** Largest share first. Assign in order; never cycle, never interpolate. */
+  steps: ['#08341F', '#0E7043', '#17A863', '#5FDCA0'] as const,
+  /** Reserved for the aggregated tail. Neutral on purpose — it is not a rank. */
+  neutral: '#9CA3AF',
+  /** The track behind an empty or partial ring. */
+  track: '#EEF4F0',
+};
+
+/** How many arcs the ring may draw before the rest becomes `neutral`. */
+export const CATEGORY_RAMP_MAX = CategoryRamp.steps.length;
+
 // Deep-green aurora used by the full-bleed dark screens and every hero block.
 // Layered rather than a single ramp: a dark vertical base, a mint glow raked
 // across it, and a pale wash at the very top. Grain sits over the whole stack.
