@@ -30,6 +30,22 @@ export interface LineChartSeries {
   fillColor?: string;
   /** Draws the stroke with a soft glow. One series per chart, at most. */
   glow?: boolean;
+  /**
+   * Dash pattern as [on, off] in points. A second channel beside colour, which
+   * matters in a monochrome palette: two greens can be told apart only by
+   * lightness, and dashing survives both a colourblind reader and a grey print.
+   */
+  dash?: [number, number];
+  /**
+   * Fraction of the chart width this series occupies, from the left. Defaults
+   * to 1.
+   *
+   * This is what lets a part-period line stop at today instead of being
+   * stretched to fill the axis. Without it a 22-day line and a 31-day line
+   * drawn on the same chart would both span the full width, silently placing
+   * day 22 above day 31 and making the comparison a lie.
+   */
+  widthFraction?: number;
 }
 
 interface Props {
@@ -60,8 +76,9 @@ export default function LineChart({
       {width > 0 && series.map((s, si) => {
         if (s.values.length < 2) return null;
 
+        const usable = width * (s.widthFraction ?? 1);
         const pts = smooth(s.values, resolution).map((v, i, arr) => ({
-          x: (i / (arr.length - 1)) * width,
+          x: (i / (arr.length - 1)) * usable,
           y: height - ((v - min) / span) * height,
         }));
 
@@ -73,6 +90,7 @@ export default function LineChart({
               color={s.color}
               width={s.width ?? 2}
               glow={s.glow}
+              dash={s.dash}
             />
           </View>
         );
@@ -89,16 +107,17 @@ export default function LineChart({
  * centre. Ends are rounded so consecutive segments meet without a notch on the
  * outside of a bend.
  */
-function Stroke({ points, color, width, glow }: {
+function Stroke({ points, color, width, glow, dash }: {
   points: { x: number; y: number }[];
   color: string;
   width: number;
   glow?: boolean;
+  dash?: [number, number];
 }) {
+  const drawn = dash ? dashPath(points, dash) : pairs(points);
   return (
     <>
-      {points.slice(0, -1).map((p, i) => {
-        const q = points[i + 1];
+      {drawn.map(({ p, q }, i) => {
         const dx = q.x - p.x;
         const dy = q.y - p.y;
         const len = Math.hypot(dx, dy);
@@ -131,6 +150,54 @@ function Stroke({ points, color, width, glow }: {
       })}
     </>
   );
+}
+
+type Seg = { p: { x: number; y: number }; q: { x: number; y: number } };
+
+/** Consecutive points as segments — the undashed case. */
+function pairs(points: { x: number; y: number }[]): Seg[] {
+  const out: Seg[] = [];
+  for (let i = 0; i < points.length - 1; i++) out.push({ p: points[i], q: points[i + 1] });
+  return out;
+}
+
+/**
+ * Splits a path into the "on" runs of a dash pattern.
+ *
+ * The phase carries across segment boundaries rather than restarting at each
+ * point, because the polyline's vertices are an artefact of sampling, not
+ * anything the reader should see. Restarting per segment would bunch the dashes
+ * wherever the curve bends — exactly where samples are densest — and the
+ * pattern would visibly breathe along the line.
+ */
+function dashPath(points: { x: number; y: number }[], [on, off]: [number, number]): Seg[] {
+  const period = on + off;
+  if (!(period > 0)) return pairs(points);
+
+  const out: Seg[] = [];
+  let phase = 0;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i];
+    const q = points[i + 1];
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.01) continue;
+
+    const at = (d: number) => ({ x: p.x + (dx * d) / len, y: p.y + (dy * d) / len });
+
+    let t = 0;
+    while (t < len) {
+      const cycle = phase % period;
+      const isOn = cycle < on;
+      const step = Math.min(len - t, (isOn ? on : period) - cycle);
+      if (isOn) out.push({ p: at(t), q: at(t + step) });
+      t += step;
+      phase += step;
+    }
+  }
+  return out;
 }
 
 /**

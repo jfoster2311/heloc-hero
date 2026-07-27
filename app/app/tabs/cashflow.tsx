@@ -38,8 +38,11 @@ import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import {
   PERIODS, SPEND_CATEGORIES, categoryMeta, periodRange, summarizePeriod,
+  previousRange, cumulativeSpend,
   type PeriodId, type SpendCategory, type CategoryTotal, type CategorizedTxn,
+  type SpendSeries,
 } from '../../lib/spending';
+import LineChart from '../../components/ui/LineChart';
 import {
   Colors, Typography, Spacing, Radius, Shadows, OnDark, CommonStyles,
   CategoryRamp, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE,
@@ -135,6 +138,22 @@ export default function CashFlowScreen() {
   const shareOfIncome = summary.income > 0
     ? (v: number) => Math.min(100, (Math.abs(v) / summary.income) * 100)
     : null;
+
+  // Spending pace: this period's cumulative curve against the same period one
+  // step back. Estimated basis is excluded outright — there is no day-by-day
+  // shape in a single typed monthly total, and drawing one would be inventing
+  // a measurement.
+  const pace = useMemo(() => {
+    if (summary.basis !== 'live') return null;
+    const args = {
+      transactions: f.transactions,
+      classification: f.transactionClassification,
+    };
+    const cur = cumulativeSpend({ ...args, range });
+    // One point is not a line. Early in a period there is nothing to plot yet.
+    if (cur.elapsed < 2) return null;
+    return { cur, prev: cumulativeSpend({ ...args, range: previousRange(range) }) };
+  }, [summary.basis, f.transactions, f.transactionClassification, range]);
 
   const openRows = useMemo(
     () => openCategory
@@ -259,6 +278,23 @@ export default function CashFlowScreen() {
             </>
           )}
         </Card>
+
+        {/* ── Spending pace ────────────────────────────────────────────────
+            The ring says what the total was; this says whether it is on its
+            way somewhere good. Sits between the two because the pace is only
+            interesting once you know the total, and the categories only matter
+            once you know the pace is off. */}
+        {!f.loading && pace && (
+          <SpendTrendCard
+            cur={pace.cur}
+            prev={pace.prev}
+            period={period}
+            // Entered monthly expenses, scaled. On the same basis as the
+            // measured spend: `expenses` excludes the mortgage payment, and so
+            // does everything the ring and this curve are summed from.
+            reference={expenses > 0 ? expenses * range.months : null}
+          />
+        )}
 
         {/* ── Category rows ────────────────────────────────────────────────
             Each its own surface, so a row is a target rather than a line in a
@@ -575,6 +611,185 @@ function SummaryRow({ icon, label, value, hint, total, barPct }: {
 
         {hint ? <Text style={styles.sumHint}>{hint}</Text> : null}
       </View>
+    </View>
+  );
+}
+
+/**
+ * Cumulative spend this period against the same period one step back.
+ *
+ * ── Why cumulative rather than per-day bars ────────────────────────────────
+ * Daily spend is spiky and answers nothing: one $900 day tells you a bill went
+ * out. The running total answers the question people actually have mid-period,
+ * which is "am I going to end up where I usually do", and it is the only shape
+ * that can be compared against a period that has already finished.
+ *
+ * ── The comparison is made at the same day, not the same total ─────────────
+ * A running period compared against a finished one is not a comparison, it is
+ * an arithmetic guarantee that you are "under". So the delta is measured at the
+ * SAME day index in both, and the current line stops at today via
+ * `widthFraction` rather than being stretched across the axis. Both curves
+ * share one x-domain — day 1 of the period at the left — so vertical distance
+ * between them at any point is a like-for-like difference.
+ *
+ * ── The reference line is not a budget ─────────────────────────────────────
+ * This product has no budget-target feature, so there is no budget to draw. The
+ * dashed horizontal line is the user's OWN stated monthly spend, scaled to the
+ * period, and it is labelled as that. Dressing it up as "Budget" would invent a
+ * commitment they never made.
+ */
+function SpendTrendCard({ cur, prev, period, reference }: {
+  cur: SpendSeries;
+  prev: SpendSeries;
+  period: PeriodId;
+  reference: number | null;
+}) {
+  const word = periodWord(period);
+
+  const curValues = cur.values.slice(0, cur.elapsed);
+  // Clipped to the current period's length so the two share an x-domain. A
+  // 31-day previous month plotted against a 30-day current one would otherwise
+  // run off the axis and misalign every day before it.
+  const prevValues = prev.values.slice(0, cur.days);
+  const hasPrev = prev.total > 0 && prevValues.length >= 2;
+
+  // Where the previous period stood on the day the current one has reached.
+  const prevAtSameDay = hasPrev
+    ? prevValues[Math.min(cur.elapsed, prevValues.length) - 1] ?? 0
+    : 0;
+  const delta = cur.total - prevAtSameDay;
+  // Under 2% of the baseline is noise, not a trend worth naming.
+  const same = hasPrev && Math.abs(delta) < Math.max(25, prevAtSameDay * 0.02);
+
+  const max = Math.max(cur.total, hasPrev ? prev.total : 0, reference ?? 0) * 1.12 || 1;
+
+  return (
+    <Card>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle}>Spending pace</Text>
+      </View>
+
+      <Text style={styles.paceHeadline}>
+        {!hasPrev
+          ? `No ${word} before this one to compare against yet.`
+          : same
+            ? `About the same as last ${word} at this point.`
+            : `${signedMoney(Math.abs(delta))} ${delta > 0 ? 'more' : 'less'} than last ${word} at this point.`}
+      </Text>
+
+      {/* The curves carry no information a screen reader can reach, so the
+          chart is one labelled element describing what it plots. The headline
+          above already states the comparison in words; this adds the levels. */}
+      <View
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={
+          `Spending pace. ${signedMoney(cur.total)} spent so far this ${word}, ` +
+          `day ${cur.elapsed} of ${cur.days}.` +
+          (hasPrev ? ` Last ${word} at the same point: ${signedMoney(prevAtSameDay)}.` : '') +
+          (reference !== null ? ` Your stated spend for a ${word}: ${signedMoney(reference)}.` : '')
+        }
+      >
+      <LineChart
+        height={CHART_H}
+        min={0}
+        max={max}
+        series={[
+          // The reference is drawn as a flat two-point series rather than a
+          // bordered View: it goes through the same dash renderer as the
+          // comparison curve, so the two read as the same kind of mark, and it
+          // is positioned by the chart's own scale instead of by arithmetic
+          // that could drift out of step with it.
+          ...(reference !== null
+            ? [{
+                values: [reference, reference],
+                color: Colors.gray300,
+                width: 1,
+                dash: [4, 4] as [number, number],
+              }]
+            : []),
+          ...(hasPrev
+            ? [{
+                values: prevValues,
+                color: Colors.gray400,
+                width: 2,
+                dash: [4, 4] as [number, number],
+                widthFraction: prevValues.length / cur.days,
+              }]
+            : []),
+          {
+            values: curValues,
+            color: Colors.mint600,
+            width: 2.5,
+            fillColor: Colors.mint50,
+            widthFraction: cur.elapsed / cur.days,
+          },
+        ]}
+      />
+      </View>
+
+      <View style={styles.axisRow}>
+        {axisDays(cur.days).map(d => (
+          <Text key={d} style={styles.axisLabel}>{d}</Text>
+        ))}
+      </View>
+
+      <View style={styles.legend}>
+        <LegendItem label={`This ${word}`} color={Colors.mint600} />
+        {hasPrev && <LegendItem label={`Last ${word}`} color={Colors.gray400} dashed />}
+        {reference !== null && (
+          <LegendItem
+            label={`You said ${signedMoney(reference)}`}
+            color={Colors.gray300}
+            dashed
+          />
+        )}
+      </View>
+
+      {reference !== null && (
+        <Text style={styles.paceNote}>
+          The dashed level is the spending you entered yourself, scaled to a {word} — not a
+          budget you set here. {cur.total > reference
+            ? 'You are over it already.'
+            : 'You are under it so far.'}
+        </Text>
+      )}
+    </Card>
+  );
+}
+
+/** Chart body height. Shared by the plot and the reference-line placement. */
+const CHART_H = 148;
+
+/** Four evenly spaced day numbers, always including the first and last. */
+function axisDays(days: number): number[] {
+  if (days <= 4) return Array.from({ length: days }, (_, i) => i + 1);
+  return [1, Math.round(days / 3), Math.round((days * 2) / 3), days];
+}
+
+/**
+ * A key entry. Dashed swatches are drawn as discrete ticks rather than with
+ * `borderStyle: 'dashed'`, which React Native renders inconsistently on a
+ * single-sided border — a key that silently draws solid would defeat the only
+ * thing separating the two grey series.
+ */
+function LegendItem({ label, color, dashed }: {
+  label: string;
+  color: string;
+  dashed?: boolean;
+}) {
+  return (
+    <View style={styles.legendItem}>
+      {dashed ? (
+        <View style={styles.legendSwatch}>
+          {[0, 1, 2].map(i => (
+            <View key={i} style={[styles.legendTick, { backgroundColor: color }]} />
+          ))}
+        </View>
+      ) : (
+        <View style={[styles.legendSwatch, styles.legendSolid, { backgroundColor: color }]} />
+      )}
+      <Text style={styles.legendText}>{label}</Text>
     </View>
   );
 }
@@ -1055,6 +1270,44 @@ const styles = StyleSheet.create({
     paddingTop: Spacing[3],
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
+  },
+
+  // ── Spending pace ────────────────────────────────────────────────────────
+  paceHeadline: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+    lineHeight: 22,
+    marginBottom: Spacing[3],
+  },
+  axisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing[2],
+  },
+  axisLabel: { fontSize: 10, color: Colors.textMuted },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing[3],
+    marginTop: Spacing[3],
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendSwatch: {
+    width: 14,
+    height: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  legendSolid: { borderRadius: 2 },
+  legendTick: { width: 4, height: 2, borderRadius: 1 },
+  legendText: { fontSize: 11, color: Colors.textSecondary },
+  paceNote: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    lineHeight: 16,
+    marginTop: Spacing[3],
   },
 
   // ── Category list ────────────────────────────────────────────────────────

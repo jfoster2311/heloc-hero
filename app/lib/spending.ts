@@ -329,3 +329,118 @@ export function summarizePeriod(args: {
 function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ─── Spending pace ────────────────────────────────────────────────────────────
+
+/**
+ * The same period, one step back — the only fair thing to compare a running
+ * period against.
+ *
+ * Calendar-aligned like `periodRange`, so "last month" is last month and not
+ * the previous 30 days. `inProgress` is always false: a period that has ended
+ * cannot still be running, which is what makes it a stable baseline.
+ */
+export function previousRange(range: PeriodRange): PeriodRange {
+  const s = range.start;
+  let start: Date;
+  let endExclusive: Date;
+
+  switch (range.id) {
+    case 'week':
+      start = new Date(s.getFullYear(), s.getMonth(), s.getDate() - 7);
+      endExclusive = new Date(s);
+      break;
+    case 'month':
+      start = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+      endExclusive = new Date(s.getFullYear(), s.getMonth(), 1);
+      break;
+    case 'quarter':
+      start = new Date(s.getFullYear(), s.getMonth() - 3, 1);
+      endExclusive = new Date(s.getFullYear(), s.getMonth(), 1);
+      break;
+    case 'year':
+      start = new Date(s.getFullYear() - 1, 0, 1);
+      endExclusive = new Date(s.getFullYear(), 0, 1);
+      break;
+  }
+
+  const lastCounted = new Date(endExclusive.getTime() - 86_400_000);
+  return {
+    id: range.id,
+    start,
+    endExclusive,
+    months: range.months,
+    inProgress: false,
+    rangeLabel: formatRange(start, lastCounted),
+  };
+}
+
+export interface SpendSeries {
+  /** Cumulative spend at the end of each day. Index 0 is the period's day 1. */
+  values: number[];
+  /** Days in the whole period. */
+  days: number;
+  /**
+   * Days with data behind them. Equals `days` for a finished period, and stops
+   * at today for a running one — so a line for a part-period can be drawn
+   * short rather than running flat to the end of the month, which would read
+   * as "spending stopped" instead of "the month is not over".
+   */
+  elapsed: number;
+  /** Cumulative spend at `elapsed`. */
+  total: number;
+}
+
+/**
+ * Spend accumulated day by day across a period.
+ *
+ * Deliberately built from the same filters as `summarizePeriod` — not pending,
+ * savings only, nothing `classifyTransactions` excluded, money out only. If the
+ * two ever diverged, the curve and the total printed beside it would disagree
+ * on screen and neither would be trustworthy.
+ *
+ * Day indices come from formatted local date strings rather than millisecond
+ * arithmetic, so a DST boundary inside the period cannot shift a transaction
+ * into the wrong bucket.
+ */
+export function cumulativeSpend(args: {
+  transactions: TransactionRow[];
+  classification: TransactionClassification;
+  range: PeriodRange;
+  now?: Date;
+}): SpendSeries {
+  const { transactions, classification, range, now = new Date() } = args;
+
+  const dayIndex = new Map<string, number>();
+  const cursor = new Date(range.start);
+  let days = 0;
+  while (cursor < range.endExclusive) {
+    dayIndex.set(iso(cursor), days);
+    cursor.setDate(cursor.getDate() + 1);
+    days++;
+  }
+  if (days === 0) return { values: [], days: 0, elapsed: 0, total: 0 };
+
+  const daily = new Array<number>(days).fill(0);
+  for (const t of transactions) {
+    if (t.pending || t.account_type !== 'savings') continue;
+    if (classification.excludedIds.has(t.transaction_id)) continue;
+    // Plaid's sign convention: positive is money out. Income is not spend.
+    if (t.amount <= 0) continue;
+    const i = dayIndex.get(t.date);
+    if (i !== undefined) daily[i] += t.amount;
+  }
+
+  const values: number[] = [];
+  let running = 0;
+  for (const d of daily) {
+    running += d;
+    values.push(running);
+  }
+
+  const today = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  const todayIdx = dayIndex.get(today);
+  const elapsed = range.inProgress && todayIdx !== undefined ? todayIdx + 1 : days;
+
+  return { values, days, elapsed, total: values[elapsed - 1] ?? 0 };
+}
