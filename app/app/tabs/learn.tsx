@@ -1,99 +1,166 @@
-// app/tabs/learn.tsx
+// app/tabs/learn.tsx — what the strategy is, what the app does, and who it is wrong for.
+//
+// Rewritten after this screen was found teaching a product that does not exist.
+// What it used to say, and why each is gone:
+//  · "Safe Sweep™ Explained" and "Safe Dump™ Explained" — branded features with
+//    invented formulas (`Available Balance − Buffer Target − Upcoming Bills`,
+//    `min(Accumulated Sweep, HELOC Available Credit)`). Neither is what ships.
+//    Those same two names were stripped from the paywall in an earlier audit
+//    precisely because they described automation this app cannot perform, and
+//    they survived here, where a user is most likely to believe them.
+//  · A description of the ALL-IN-ONE variant — paycheck deposited straight into
+//    the line, every bill paid from it. That is a different, riskier strategy
+//    than the one this app models, and a user who followed it because Learn
+//    said so would be running their entire income through a variable-rate
+//    secured line on our say-so.
+//
+// The rule for this file: every mechanic described here must be traceable to
+// lib/safeToMove.ts, lib/sweep.ts or lib/config.ts. If the copy and the code
+// disagree, the copy is the bug. Thresholds are interpolated from config rather
+// than typed as prose, so they cannot drift out of sync again.
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { SectionLabel } from '../../components/ui/primitives';
+import { hapticLight } from '../../lib/haptics';
+import { UTILIZATION, BUFFER } from '../../lib/config';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 
-const ARTICLES = [
+/** Thresholds read from config so the copy cannot outlive the numbers. */
+const REPLENISH_PCT = Math.round(UTILIZATION.replenishThreshold * 100);
+const HOLD_PCT      = Math.round(UTILIZATION.hold * 100);
+
+interface Article {
+  id: number;
+  category: string;
+  title: string;
+  body: string;
+  /** Optional jump to the screen that actually does the thing. */
+  action?: { label: string; route: string };
+}
+
+const ARTICLES: Article[] = [
   {
     id: 1,
     category: 'Strategy',
-    title: 'How the HELOC Hero Strategy Works',
-    body: `The HELOC Hero strategy uses your home equity line of credit as a financial buffer. Instead of letting your paycheck sit in a low-interest savings account, you deposit it directly into your HELOC — reducing the balance and therefore the daily interest accrual.
+    title: 'How the HELOC Hero strategy works',
+    body: `Your mortgage is large, long, and front-loaded with interest. A HELOC is small, short-lived, and charges interest daily on whatever you owe that day. The strategy trades the second against the first.
 
-Each month you pay your bills out of the HELOC like a checking account. At the end of the month, your surplus has been working hard reducing HELOC interest the whole time.
+It runs in a loop:
 
-Periodically, you take a larger lump sum from your HELOC and dump it directly onto your mortgage principal. This dramatically reduces mortgage interest over the long run.
+1. Draw a lump sum from your HELOC and put it straight onto your mortgage principal. This is a "dump". Principal falls immediately, so every remaining mortgage payment contains less interest.
 
-The math works because HELOC interest accrues daily on the average daily balance. Every dollar deposited saves you money immediately.`,
+2. Send your monthly surplus — income minus expenses minus your mortgage payment — at the HELOC balance until the line is paid back down.
+
+3. Once the line is replenished, the next dump is available. Repeat.
+
+The reason it works is the shape of the two debts, not a trick. You carry a small HELOC balance for a short time in order to remove principal from a large balance for a long time. That is also why the surplus matters more than the rates: with no surplus there is nothing to replenish with, and the loop stops after one turn.
+
+One thing to be clear about, because a common version of this strategy online says otherwise: this app does not ask you to deposit your paycheck into your HELOC or pay your bills out of it. That is a different arrangement with different risks. Keep banking the way you already do.
+
+HELOC Hero never moves your money. Every draw, transfer and payment is one you make yourself at your own bank. The app works out the amounts, shows the reasoning, and records what you did.`,
   },
   {
     id: 2,
     category: 'Strategy',
-    title: 'Safe Sweep™ Explained',
-    body: `Safe Sweep™ works out how much cash is genuinely spare before you move anything into your HELOC. HELOC Hero does not move money — you make the transfer at your bank, and Safe Sweep™ tells you the amount.
+    title: 'How "Safe to move" decides',
+    body: `Safe to move answers one question: is now a sensible time to put money onto the mortgage? It returns CLEAR, CAUTION or HOLD, an amount, and the reasoning behind both.
 
-Formula: Sweep Amount = Available Balance − Buffer Target − Upcoming Bills
+Some things make the strategy structurally unsound, and any one of them is a HOLD outright rather than a smaller amount:
 
-The buffer keeps cash on hand for unexpected expenses. The upcoming bills estimate guards against overdrafting yourself. Only the true surplus is suggested.`,
+• The HELOC amortizes instead of charging interest only — cycling does not work on it
+• The draw period has closed, so no further draws are possible
+• The mortgage carries a prepayment penalty
+• There is no HELOC limit on file, or no monthly surplus to replenish with
+• The line is already drawn close to its limit
+
+Past those, two numbers set the status. The first is how much of your line is drawn: above ${HOLD_PCT}% there is no meaningful emergency room left. The second is your buffer — cash plus remaining credit, measured in months of expenses. Under ${BUFFER.minMonths} months a move is never recommended; between ${BUFFER.minMonths} and ${BUFFER.comfortMonths} it is recommended with a caution.
+
+Liquidity is always stated alongside the saving. Interest saved without saying what it cost you in available cash is a sales pitch, not a recommendation.
+
+Worth knowing: this reasons from balances that refresh roughly twice a day, so it can be working from figures a few hours old. It shows its reasoning so you can tell when it is wrong.`,
   },
   {
     id: 3,
     category: 'Strategy',
-    title: 'Safe Dump™ Explained',
-    body: `Safe Dump™ handles the mortgage acceleration piece. Once enough HELOC credit has been freed up, it calculates the lump sum to put toward your mortgage principal and shows you what that move costs and saves. You make the payment; HELOC Hero records it and updates your payoff.
+    title: 'How "Safe to sweep" decides',
+    body: `Taken literally, the strategy says send every spare dollar at the line. That is correct and unlivable. Safe to sweep works out how much of this month's surplus you can spend without slowing the plan down.
 
-Formula: Dump Amount = min(Accumulated Sweep, HELOC Available Credit)
+It starts from your surplus and subtracts what is genuinely committed:
 
-It only suggests a dump once your accumulated sweep reaches your minimum threshold, so you are not repeatedly drawing your HELOC down to nothing.`,
+• The repayment needed to bring your line back to your replenish threshold — ${REPLENISH_PCT}% by default, and adjustable — because that is exactly what re-opens your next dump
+• The interest your line charges in the meantime, calculated on the full drawn balance
+
+Whatever survives that is free to spend.
+
+The commitment is derived from the same threshold Safe to move uses, deliberately. If this card ran its own model of replenishment, you could be told your surplus was free to spend while the card above it said HOLD, and neither number would survive the contradiction.
+
+Where the arithmetic has to round, it rounds toward a smaller free figure. Telling you $400 is spare when it was $500 costs you nothing; the reverse quietly slows down the payoff you are here for.`,
   },
   {
     id: 4,
     category: 'Risk',
-    title: 'What Are the Risks?',
-    body: `The HELOC strategy is not for everyone. Key risks to understand:
+    title: 'What are the risks?',
+    body: `This strategy is not for everyone, and it is worth being honest about what can go wrong.
 
-1. Variable rate risk — HELOCs have variable interest rates. If rates rise significantly, the math can change.
+1. Variable rate risk — HELOC rates move. Yours is typically prime plus a margin, with a lifetime cap. Ask your lender for both. If rates rise sharply the cost of carrying the balance rises with them, and the maths gets worse.
 
-2. Discipline required — The strategy requires maintaining spending discipline. If expenses increase, the surplus shrinks.
+2. Your home is the collateral. A HELOC is secured against your house. Aggressive use of one is a real commitment, not a budgeting technique.
 
-3. HELOC draw period — Most HELOCs have a 10-year draw period followed by a repayment period. Plan accordingly.
+3. The surplus is the whole engine. If income drops or expenses rise, the surplus shrinks and the loop slows or stops — while the HELOC balance is still there.
 
-4. Home equity risk — Your home is collateral. Understand this commitment before using a HELOC aggressively.
+4. The draw period ends. Most HELOCs allow draws for about 10 years, then convert to repayment. Know your date, and plan for the balance to still be outstanding when it arrives.
 
-The strategy works best for people with stable income, controlled expenses, and a long time horizon.`,
+5. Discipline over years. The strategy only pays off over a long horizon. Drawing the line for anything other than the mortgage breaks it.
+
+It works best for people with stable income, controlled expenses, meaningful equity, and a long time horizon. If that is not you, paying extra directly onto the mortgage each month is a slower plan with far less that can go wrong.`,
   },
   {
     id: 5,
     category: 'HELOC Basics',
-    title: 'How to Get a HELOC',
-    body: `To qualify for a HELOC you generally need:
-    
+    title: 'How to get a HELOC',
+    body: `To qualify you generally need:
+
 • At least 15–20% equity in your home
-• Credit score of 620+ (700+ for best rates)
-• Debt-to-income ratio below 43%
+• A credit score of 620+, or 700+ for the best rates
+• A debt-to-income ratio below 43%
 • Stable income history
 
-The process: apply with a lender → home appraisal → underwriting → close. Usually takes 2–6 weeks.
+The process runs: apply with a lender, home appraisal, underwriting, close. Usually two to six weeks.
 
 What to look for, because the strategy depends on it: an interest-only draw period of at least 10 years. A HELOC that amortizes from day one, or whose draw period ends sooner, will not support cycling. Ask about the rate cap, the margin over prime, and any annual or early-closure fees.
 
 HELOC Hero does not broker HELOCs or receive offers on your behalf. Shop lenders yourself and compare on those terms.`,
+    action: { label: 'What to look for', route: '/modals/get-heloc' },
   },
 ];
 
 const FAQ = [
   {
+    q: 'Does HELOC Hero move money for me?',
+    a: 'No. There is no payment rail in this app and it never initiates a transfer. It works out the amounts, explains the reasoning, and records the moves you make yourself at your own bank. Anything in the app that says a dump or a sweep happened is recording what you told it you did.',
+  },
+  {
     q: 'Do I need a HELOC to use this app?',
-    a: 'No. The calculator and projections work without one. The full strategy does require a HELOC — see "How to Get a HELOC" above for what to look for. You apply directly with a lender; HELOC Hero is not a lender or a broker.',
+    a: 'No. The calculator, projections and cycle tracking work without one. The full strategy does require a HELOC — see "How to get a HELOC" above for what to look for. You apply directly with a lender; HELOC Hero is not a lender or a broker.',
   },
   {
     q: 'Is my banking data safe?',
-    a: 'Yes. We use Plaid — the industry standard for bank connections. We never see or store your bank login credentials. Your data is encrypted and we never sell it.',
+    a: 'We connect through Plaid, the same service most banking apps use, so your bank login is entered with Plaid and never seen or stored by us. Your data is encrypted in transit and at rest. We do not sell it. You can disconnect an institution from the Accounts tab at any time, or delete your account and all of its data from Settings.',
   },
   {
     q: 'How much could I realistically save?',
-    a: 'It depends entirely on your mortgage balance, interest rate, and how much surplus you can consistently put toward it — the surplus matters most. Run the calculator for a projection from your own numbers. Those figures are estimates based on what you enter, not a guarantee, and we don\'t publish typical-user results.',
+    a: 'It depends on your mortgage balance, your rate, and how much surplus you can consistently put toward it — the surplus matters most. Run the calculator for a projection from your own numbers. Those figures are estimates based on what you enter and on assumptions the calculator lists, not a guarantee, and we do not publish typical-user results.',
   },
   {
-    q: 'What if my HELOC rate is higher than my mortgage?',
-    a: "That's actually fine — and expected. The HELOC balance stays low because you're constantly sweeping money in and dumping it out. The average daily HELOC balance is small compared to the mortgage balance being reduced.",
+    q: 'What if my HELOC rate is higher than my mortgage rate?',
+    a: 'That is expected, and it is not automatically a problem. What matters is that you carry a small HELOC balance for a short time to remove principal from a much larger balance for a much longer time. It stops being true if the line stays heavily drawn, which is why the app gates the next dump on replenishing it first.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -103,6 +170,7 @@ const FAQ = [
 
 export default function LearnScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
 
@@ -122,61 +190,98 @@ export default function LearnScreen() {
         <View style={styles.content}>
         {/* Articles */}
         <SectionLabel>STRATEGY GUIDES</SectionLabel>
-        {ARTICLES.map(article => (
-          <TouchableOpacity
-            key={article.id}
-            style={[CommonStyles.card, styles.articleCard]}
-            onPress={() =>
-              setExpandedArticle(expandedArticle === article.id ? null : article.id)
-            }
-            activeOpacity={0.8}
-          >
-            <View style={styles.articleHeader}>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{article.category}</Text>
-              </View>
-              <Ionicons
-                name={expandedArticle === article.id ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={Colors.textMuted}
-              />
+        {ARTICLES.map(article => {
+          const open = expandedArticle === article.id;
+          return (
+            // The card is a plain View, not a Touchable, so the toggle and the
+            // jump below it stay two separate accessibility elements. Nesting
+            // them would let TouchableOpacity's implicit `accessible` group the
+            // link into the card and put it out of VoiceOver's reach entirely.
+            <View key={article.id} style={[CommonStyles.card, styles.articleCard]}>
+              <TouchableOpacity
+                style={styles.articleToggle}
+                onPress={() => {
+                  hapticLight();
+                  setExpandedArticle(open ? null : article.id);
+                }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open }}
+                accessibilityLabel={`${article.title}. ${article.category}.`}
+                accessibilityHint={open ? 'Collapses this guide' : 'Expands this guide'}
+              >
+                <View style={styles.articleHeader}>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>{article.category}</Text>
+                  </View>
+                  <Ionicons
+                    name={open ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={Colors.textMuted}
+                  />
+                </View>
+                <Text style={styles.articleTitle}>{article.title}</Text>
+              </TouchableOpacity>
+
+              {open && <Text style={styles.articleBody}>{article.body}</Text>}
+
+              {open && article.action && (
+                <TouchableOpacity
+                  style={styles.articleAction}
+                  onPress={() => {
+                    hapticLight();
+                    router.push(article.action!.route as never);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={article.action.label}
+                >
+                  <Text style={styles.articleActionText}>{article.action.label}</Text>
+                  <Ionicons name="arrow-forward" size={15} color={Colors.mint700} />
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.articleTitle}>{article.title}</Text>
-            {expandedArticle === article.id && (
-              <Text style={styles.articleBody}>{article.body}</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+          );
+        })}
 
         {/* FAQ */}
         <SectionLabel>FREQUENTLY ASKED</SectionLabel>
-        {FAQ.map((item, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[CommonStyles.card, styles.faqCard]}
-            onPress={() => setExpandedFaq(expandedFaq === i ? null : i)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.faqHeader}>
-              <Text style={styles.faqQuestion}>{item.q}</Text>
-              <Ionicons
-                name={expandedFaq === i ? 'remove-circle-outline' : 'add-circle-outline'}
-                size={20}
-                color={Colors.mint600}
-              />
-            </View>
-            {expandedFaq === i && (
-              <Text style={styles.faqAnswer}>{item.a}</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+        {FAQ.map((item, i) => {
+          const open = expandedFaq === i;
+          return (
+            <TouchableOpacity
+              key={item.q}
+              style={[CommonStyles.card, styles.faqCard]}
+              onPress={() => {
+                hapticLight();
+                setExpandedFaq(open ? null : i);
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
+              accessibilityLabel={item.q}
+              accessibilityHint={open ? 'Collapses this answer' : 'Expands this answer'}
+            >
+              <View style={styles.faqHeader}>
+                <Text style={styles.faqQuestion}>{item.q}</Text>
+                <Ionicons
+                  name={open ? 'remove-circle-outline' : 'add-circle-outline'}
+                  size={20}
+                  color={Colors.mint600}
+                />
+              </View>
+              {open && <Text style={styles.faqAnswer}>{item.a}</Text>}
+            </TouchableOpacity>
+          );
+        })}
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
           <Ionicons name="information-circle-outline" size={16} color={Colors.textMuted} />
           <Text style={styles.disclaimerText}>
-            HELOC Hero provides financial education and tools, not financial advice. Consult a
-            licensed financial advisor before making significant financial decisions.
+            HELOC Hero provides financial education and tools, not financial advice. Projected
+            savings and payoff dates are estimates based on the figures you enter, not guarantees.
+            Consult a licensed financial advisor before making significant financial decisions.
           </Text>
         </View>
         </View>
@@ -194,6 +299,7 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
   articleCard: { gap: Spacing[2] },
+  articleToggle: { gap: Spacing[2], minHeight: 44, justifyContent: 'center' },
   articleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -222,6 +328,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingTop: Spacing[3],
+  },
+  articleAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    minHeight: 44,
+    marginTop: Spacing[1],
+  },
+  articleActionText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
   },
   faqCard: { gap: Spacing[2] },
   faqHeader: {
