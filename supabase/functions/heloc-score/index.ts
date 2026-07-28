@@ -1,5 +1,24 @@
 // supabase/functions/heloc-score/index.ts
-// Server-side HELOC Hero Score™ for Medium+ tier users
+//
+// ⚠️ SUPERSEDED AND UNCALLED. Do not deploy or wire this up as-is.
+//
+// This implements the ORIGINAL score — 55 surplus / 25 utilization / 20 credit
+// / ±10 LTV modifier — which app/lib/helocScore.ts no longer uses. The client
+// formula was rewritten (45 / 25 / 20 / 10, normalised over applicable factors
+// only) and the two now return different numbers for the same user.
+//
+// Nothing in the app calls this: `grep invokeFunction` finds no reference, and
+// the score is computed on-device from figures the client already has. It is
+// left in place rather than deleted because it may still be deployed, and a
+// deployed-but-absent function is harder to reason about than a marked one.
+//
+// If a server-side score is ever wanted, the fix is NOT to port the new formula
+// here — two implementations of one score is precisely the divergence this
+// codebase keeps having to undo. Move `computeHelocScore` somewhere both can
+// import, or have the client send its inputs.
+//
+// Also note: the "™" below is not a mark this project holds. Removed everywhere
+// else in the app; left here only because this file is dormant.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 import { corsHeaders } from '../_shared/cors.ts';
