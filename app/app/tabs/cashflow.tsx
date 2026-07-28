@@ -67,6 +67,13 @@ import {
 
 /** How many months the category trend charts look back over. */
 const TREND_MONTHS = 6;
+/**
+ * Category rows shown before "Show more".
+ *
+ * Six, not four: the ring above folds to four arcs plus a tail, so a list cut
+ * to four would hide the very rows the tail is asking about.
+ */
+const COLLAPSED_CATS = 6;
 
 export default function CashFlowScreen() {
   const router = useRouter();
@@ -87,6 +94,7 @@ export default function CashFlowScreen() {
   const [openCategory, setOpenCategory] = useState<CategoryDetailTarget | null>(null);
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
   const [openDay, setOpenDay] = useState<DayCell | null>(null);
+  const [catsExpanded, setCatsExpanded] = useState(false);
 
   // Everything below comes from useFinancials, which exists precisely so two
   // screens cannot disagree about the same figure.
@@ -436,7 +444,7 @@ export default function CashFlowScreen() {
             icon: identity survives with the colour removed entirely. */}
         {!f.loading && !overrides.loading && summary.basis === 'live' && (
           <View style={styles.catList}>
-            {summary.categories.map(c => (
+            {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => (
               <TouchableOpacity
                 key={c.id}
                 style={styles.catCard}
@@ -472,6 +480,34 @@ export default function CashFlowScreen() {
                 <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
               </TouchableOpacity>
             ))}
+
+            {/* Progressive disclosure. The count is stated rather than a bare
+                "See more", because four more rows and forty more rows are
+                different decisions and only the number distinguishes them. */}
+            {summary.categories.length > COLLAPSED_CATS && (
+              <TouchableOpacity
+                style={styles.seeMore}
+                onPress={() => { hapticLight(); setCatsExpanded(e => !e); }}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: catsExpanded }}
+                accessibilityLabel={
+                  catsExpanded
+                    ? 'Show fewer categories'
+                    : `Show ${summary.categories.length - COLLAPSED_CATS} more categories`
+                }
+              >
+                <Text style={styles.seeMoreText}>
+                  {catsExpanded
+                    ? 'Show fewer'
+                    : `Show ${summary.categories.length - COLLAPSED_CATS} more`}
+                </Text>
+                <Ionicons
+                  name={catsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={15}
+                  color={Colors.mint700}
+                />
+              </TouchableOpacity>
+            )}
 
             {summary.untaggedCount > 0 && (
               <Text style={styles.untagged}>
@@ -1293,6 +1329,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.mint50,
   },
   errorNote: { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: Spacing[3] },
+
+  seeMore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minHeight: 44,
+    marginTop: Spacing[1],
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+    backgroundColor: Colors.mint50,
+  },
+  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
 
   stateBlock: { gap: Spacing[3] },
   emptyBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },

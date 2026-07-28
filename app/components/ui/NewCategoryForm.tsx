@@ -20,20 +20,30 @@ export interface NewCategoryFormProps {
   /** Resolves once the category exists, so the caller can select it. */
   onCreate: (label: string, icon: string) => Promise<void>;
   onCancel: () => void;
+  /**
+   * Pre-filled values, which turn this into an edit form.
+   *
+   * The same component both ways because the fields and the validation are
+   * identical — a separate edit form is how the two drift into accepting
+   * different names.
+   */
+  initial?: { label: string; icon: string };
+  title?: string;
+  submitLabel?: string;
 }
 
 export default function NewCategoryForm({
-  saving, error, onCreate, onCancel,
+  saving, error, onCreate, onCancel, initial, title, submitLabel,
 }: NewCategoryFormProps) {
-  const [label, setLabel] = useState('');
-  const [icon, setIcon] = useState<string>(CUSTOM_CATEGORY_ICONS[0]);
+  const [label, setLabel] = useState(initial?.label ?? '');
+  const [icon, setIcon] = useState<string>(initial?.icon ?? CUSTOM_CATEGORY_ICONS[0]);
 
   const valid = label.trim().length > 0;
 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={styles.title}>New category</Text>
+        <Text style={styles.title}>{title ?? 'New category'}</Text>
         <TouchableOpacity
           onPress={() => { hapticLight(); onCancel(); }}
           style={styles.cancel}
@@ -89,7 +99,7 @@ export default function NewCategoryForm({
       >
         {saving
           ? <ActivityIndicator size="small" color={Colors.white} />
-          : <Text style={styles.createText}>Create</Text>}
+          : <Text style={styles.createText}>{submitLabel ?? 'Create'}</Text>}
       </TouchableOpacity>
     </View>
   );

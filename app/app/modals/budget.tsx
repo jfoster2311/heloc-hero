@@ -12,11 +12,12 @@
 // a payoff date, someone tightening a grocery budget would watch their mortgage
 // payoff jump forward by two years, which is a lie the arithmetic would tell
 // with total confidence. The closing note on this screen says so out loud.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useCallback } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
 import GaugeArc from '../../components/ui/GaugeArc';
+import NewCategoryForm from '../../components/ui/NewCategoryForm';
 import CategoryDetailSheet, {
   type CategoryDetailTarget,
 } from '../../components/sheets/CategoryDetailSheet';
@@ -45,6 +46,29 @@ export default function BudgetScreen() {
 
   const [openCategory, setOpenCategory] = useState<CategoryDetailTarget | null>(null);
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  /**
+   * Deleting a category leaves its transactions alone — they fall back to
+   * "Other" (see the migration). That is the right behaviour and a surprising
+   * one, so it is stated before the fact rather than discovered after.
+   */
+  const confirmDelete = useCallback((id: string, label: string) => {
+    Alert.alert(
+      `Delete “${label}”?`,
+      'Transactions you filed here stay where they are and show as Other. Any budget ' +
+      'you set for it is removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => f.categories.remove(id as never),
+        },
+      ],
+    );
+  }, [f.categories]);
 
   const range = useMemo(() => periodRange('month'), []);
   const monthKey = useMemo(
@@ -270,6 +294,88 @@ export default function BudgetScreen() {
             </View>
 
             {budgets.error && <Text style={styles.errorNote}>{budgets.error}</Text>}
+
+            {/* ── Your own categories ────────────────────────────────────────
+                Lives here rather than in Settings because this is the screen
+                where someone discovers the taxonomy does not fit their life —
+                they are looking down a list of thirteen budgets and none of
+                them is "Childcare". */}
+            <View style={styles.manage}>
+              <Text style={CommonStyles.eyebrow}>YOUR OWN CATEGORIES</Text>
+
+              {f.categories.custom.length === 0 && !creating && (
+                <Text style={styles.manageEmpty}>
+                  None yet. Add one for anything the list above does not cover.
+                </Text>
+              )}
+
+              {f.categories.custom.map(c => (
+                editing === c.id ? (
+                  <NewCategoryForm
+                    key={c.id}
+                    title="Rename category"
+                    submitLabel="Save"
+                    initial={{ label: c.label, icon: c.icon }}
+                    saving={f.categories.saving}
+                    error={f.categories.error}
+                    onCancel={() => setEditing(null)}
+                    onCreate={async (label, icon) => {
+                      const ok = await f.categories.rename(c.id as never, label, icon);
+                      if (ok) setEditing(null);
+                    }}
+                  />
+                ) : (
+                  <View key={c.id} style={styles.manageRow}>
+                    <View style={styles.rowIcon}>
+                      <Ionicons name={c.icon} size={17} color={Colors.mint700} />
+                    </View>
+                    <Text style={styles.manageLabel} numberOfLines={1}>{c.label}</Text>
+                    <TouchableOpacity
+                      style={styles.manageBtn}
+                      onPress={() => { hapticLight(); setEditing(c.id); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename ${c.label}`}
+                    >
+                      <Text style={styles.manageBtnText}>Rename</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.manageBtn}
+                      onPress={() => { hapticLight(); confirmDelete(c.id, c.label); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${c.label}`}
+                    >
+                      <Ionicons name="trash-outline" size={17} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                )
+              ))}
+
+              {creating ? (
+                <NewCategoryForm
+                  saving={f.categories.saving}
+                  error={f.categories.error}
+                  onCancel={() => setCreating(false)}
+                  onCreate={async (label, icon) => {
+                    const id = await f.categories.create(label, icon);
+                    if (id) setCreating(false);
+                  }}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.addBtn}
+                  onPress={() => { hapticLight(); setCreating(true); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a category"
+                >
+                  <Ionicons name="add" size={17} color={Colors.mint700} />
+                  <Text style={styles.addBtnText}>Add a category</Text>
+                </TouchableOpacity>
+              )}
+
+              {f.categories.error && !creating && editing === null && (
+                <Text style={styles.errorNote}>{f.categories.error}</Text>
+              )}
+            </View>
           </>
         )}
       </ModalScreen>
@@ -454,4 +560,49 @@ const styles = StyleSheet.create({
   stateBlock: { gap: Spacing[3], paddingVertical: Spacing[6] },
   stateBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
   errorNote: { fontSize: Typography.xs, color: Colors.textSecondary },
+
+  manage: { gap: Spacing[2], marginTop: Spacing[2] },
+  manageEmpty: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
+  manageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    minHeight: 56,
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  manageLabel: {
+    flex: 1,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  manageBtn: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing[2],
+  },
+  manageBtnText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    minHeight: 48,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.mint600,
+    backgroundColor: Colors.mint50,
+  },
+  addBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
 });

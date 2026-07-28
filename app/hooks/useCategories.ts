@@ -31,6 +31,14 @@ export interface UseCategoriesResult {
   error: string | null;
   /** Returns the new id, or null when the write failed. */
   create: (label: string, icon: string) => Promise<CustomCategoryId | null>;
+  /**
+   * Rename or re-glyph a category the user made.
+   *
+   * Only the label and icon change; the id is untouched, which is the point.
+   * Every transaction filed under it and every ceiling set against it are keyed
+   * by that id, so a rename is purely cosmetic and cannot orphan anything.
+   */
+  rename: (id: CustomCategoryId, label: string, icon: string) => Promise<boolean>;
   remove: (id: CustomCategoryId) => Promise<void>;
 }
 
@@ -135,6 +143,41 @@ export function useCategories(userId: string | null | undefined): UseCategoriesR
     return `custom:${row.id}` as CustomCategoryId;
   }, [userId]);
 
+  const rename = useCallback(async (
+    id: CustomCategoryId,
+    label: string,
+    icon: string,
+  ) => {
+    if (!userId) return false;
+    const trimmed = label.trim();
+    if (!trimmed) return false;
+    const rowId = id.slice('custom:'.length);
+    const previous = rows;
+
+    setRows(prev => prev.map(r => (r.id === rowId ? { ...r, label: trimmed, icon } : r)));
+    setSaving(true);
+    setError(null);
+
+    const { error: err } = await supabase
+      .from('custom_categories')
+      .update({ label: trimmed, icon, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('id', rowId);
+
+    if (!alive.current) return false;
+    setSaving(false);
+    if (err) {
+      setRows(previous);
+      setError(
+        err.code === '23505'
+          ? `You already have a category called “${trimmed}”.`
+          : "Couldn't rename that category.",
+      );
+      return false;
+    }
+    return true;
+  }, [userId, rows]);
+
   const remove = useCallback(async (id: CustomCategoryId) => {
     if (!userId) return;
     const rowId = id.slice('custom:'.length);
@@ -158,5 +201,5 @@ export function useCategories(userId: string | null | undefined): UseCategoriesR
     }
   }, [userId, rows]);
 
-  return { all, custom, metaFor, loading, saving, error, create, remove };
+  return { all, custom, metaFor, loading, saving, error, create, rename, remove };
 }
