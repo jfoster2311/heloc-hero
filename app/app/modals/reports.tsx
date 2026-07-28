@@ -29,8 +29,10 @@ import {
   buildReportSeries, buildCategorySeries, buildChangeRows,
   type ReportMonth,
 } from '../../lib/reports';
-import { CategoryRamp, CATEGORY_RAMP_MAX } from '../../lib/theme';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import {
+  Colors, Typography, Spacing, Radius, CommonStyles,
+  CategoryRamp, CATEGORY_RAMP_MAX,
+} from '../../lib/theme';
 import type { MonthPoint } from '../../lib/spending';
 
 const MONTHS = 6;

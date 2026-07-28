@@ -26,6 +26,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
+import type { CustomCategoryId } from '../../lib/spending';
 import { EMPTY_TRANSACTION_META } from '../../hooks/useTransactionMeta';
 import { hapticLight } from '../../lib/haptics';
 import {
@@ -47,14 +48,14 @@ export default function BudgetScreen() {
   const [openCategory, setOpenCategory] = useState<CategoryDetailTarget | null>(null);
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<CustomCategoryId | null>(null);
 
   /**
    * Deleting a category leaves its transactions alone — they fall back to
    * "Other" (see the migration). That is the right behaviour and a surprising
    * one, so it is stated before the fact rather than discovered after.
    */
-  const confirmDelete = useCallback((id: string, label: string) => {
+  const confirmDelete = useCallback((id: CustomCategoryId, label: string) => {
     Alert.alert(
       `Delete “${label}”?`,
       'Transactions you filed here stay where they are and show as Other. Any budget ' +
@@ -64,7 +65,7 @@ export default function BudgetScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => f.categories.remove(id as never),
+          onPress: () => f.categories.remove(id),
         },
       ],
     );
@@ -320,7 +321,7 @@ export default function BudgetScreen() {
                     error={f.categories.error}
                     onCancel={() => setEditing(null)}
                     onCreate={async (label, icon) => {
-                      const ok = await f.categories.rename(c.id as never, label, icon);
+                      const ok = await f.categories.rename(c.id, label, icon);
                       if (ok) setEditing(null);
                     }}
                   />

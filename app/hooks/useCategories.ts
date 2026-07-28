@@ -19,11 +19,23 @@ import {
   type SpendCategory, type CategoryMeta, type CustomCategoryId,
 } from '../lib/spending';
 
+/**
+ * A user-created category.
+ *
+ * Narrows `id` to `CustomCategoryId` so the manage UI can call `rename` and
+ * `remove` without casting — those two only accept custom ids, and a plain
+ * `CategoryMeta` would force every call site to assert.
+ */
+export interface CustomCategory extends CategoryMeta {
+  id: CustomCategoryId;
+  custom: true;
+}
+
 export interface UseCategoriesResult {
   /** Builtins first, then the user's own. The order every picker uses. */
   all: CategoryMeta[];
   /** Just the user's, for the manage/delete list. */
-  custom: CategoryMeta[];
+  custom: CustomCategory[];
   /** Total: any id resolves, including deleted ones. */
   metaFor: (id: SpendCategory) => CategoryMeta;
   loading: boolean;
@@ -82,7 +94,7 @@ export function useCategories(userId: string | null | undefined): UseCategoriesR
     return () => { cancelled = true; };
   }, [userId]);
 
-  const custom = useMemo<CategoryMeta[]>(
+  const custom = useMemo<CustomCategory[]>(
     () => rows.map(r => ({
       id: `custom:${r.id}` as CustomCategoryId,
       label: r.label,
@@ -101,8 +113,11 @@ export function useCategories(userId: string | null | undefined): UseCategoriesR
     return [...builtins, ...custom, other];
   }, [custom]);
 
+  // Keyed as SpendCategory rather than CustomCategoryId: `metaFor` is total and
+  // is handed builtin ids constantly, so a narrower key would make every lookup
+  // a type error at the call site for no gain.
   const index = useMemo(
-    () => new Map(custom.map(c => [c.id, c])),
+    () => new Map<SpendCategory, CategoryMeta>(custom.map(c => [c.id, c])),
     [custom],
   );
 

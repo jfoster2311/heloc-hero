@@ -21,6 +21,7 @@ const USER_TABLES = [
   "transaction_meta",
   "transaction_categories",
   "category_budgets",
+  "custom_categories",
   "transactions",
   "plaid_accounts",
   "linked_accounts",

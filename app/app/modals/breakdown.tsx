@@ -14,8 +14,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useCallback } from 'react';
-import ModalScreen from '../../components/ui/ModalScreen';
-import { Segmented } from '../../components/ui/ModalScreen';
+import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
 import DonutRing, { buildSegments } from '../../components/ui/DonutRing';
 import TransactionRow from '../../components/ui/TransactionRow';
 import CategoryDetailSheet, {
