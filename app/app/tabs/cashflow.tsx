@@ -53,6 +53,7 @@ import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
+import { EMPTY_TRANSACTION_META } from '../../hooks/useTransactionMeta';
 import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import {
   PERIODS, periodRange, summarizePeriod,
@@ -502,6 +503,13 @@ export default function CashFlowScreen() {
                 hint={summary.basis === 'live'
                   ? 'modelled by the strategy, so it is not in the ring above'
                   : 'modelled by the strategy, so it is not in the spend above'}
+                // Only offered with transactions to search. Without them there
+                // is nothing to detect and the row would promise a screen that
+                // can only say so.
+                onPress={summary.basis === 'live'
+                  ? () => { hapticLight(); router.push('/modals/mortgage-payment' as never); }
+                  : undefined}
+                action="Check"
               />
             )}
 
@@ -522,6 +530,32 @@ export default function CashFlowScreen() {
                 plannedMonthly={surplus}
                 basis={summary.basis}
               />
+            )}
+
+            {/* ── Begin ─────────────────────────────────────────────────────
+                Sits directly under the four figures, aligned with the amounts
+                above it, because this is the moment it answers: the user has
+                just read what came in, what went out and what is left, and the
+                next question is what to do about it. The Budget widget below
+                carries the same destination — a card someone may have already
+                scrolled past by the time they have finished reading this one. */}
+            {summary.basis === 'live' && totalCeiling === null && (
+              <TouchableOpacity
+                style={styles.beginRow}
+                onPress={() => { hapticLight(); router.push('/modals/budget' as never); }}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Start a budget — control your spend"
+              >
+                <View style={styles.beginBody}>
+                  <Text style={styles.beginTitle}>Start a budget</Text>
+                  <Text style={styles.beginSub}>Control your spend</Text>
+                </View>
+                <View style={styles.beginGo}>
+                  <Text style={styles.beginGoText}>Begin</Text>
+                  <Ionicons name="arrow-forward" size={15} color={Colors.white} />
+                </View>
+              </TouchableOpacity>
             )}
           </Card>
         )}
@@ -696,7 +730,7 @@ export default function CashFlowScreen() {
         onCreateCategory={f.categories.create}
         categorySaving={f.categories.saving}
         categoryError={f.categories.error}
-        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
+        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : EMPTY_TRANSACTION_META}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}
         onRecategorize={overrides.setCategory}
@@ -755,7 +789,7 @@ function PeriodToggle({ value, onChange }: {
  * same reason: it is the largest mark on the card, and a mint one would read as
  * approval of the spending rather than a measurement of it.
  */
-function SummaryRow({ icon, label, value, hint, total, barPct }: {
+function SummaryRow({ icon, label, value, hint, total, barPct, onPress, action }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: number;
@@ -763,10 +797,22 @@ function SummaryRow({ icon, label, value, hint, total, barPct }: {
   total?: boolean;
   /** Share of income, 0–100. Omitted where there is no income to divide by. */
   barPct?: number;
+  /** Makes the row a target. The label beside it says what it opens. */
+  onPress?: () => void;
+  action?: string;
 }) {
   const negative = value < 0;
+  const Row = onPress ? TouchableOpacity : View;
   return (
-    <View style={styles.sumRow}>
+    <Row
+      style={styles.sumRow}
+      onPress={onPress}
+      activeOpacity={0.75}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress
+        ? `${label}, ${negative ? 'minus ' : ''}$${fmt(Math.abs(value))}. ${action ?? ''}`
+        : undefined}
+    >
       <View style={[styles.sumIcon, total && styles.sumIconTotal]}>
         <Ionicons
           name={icon}
@@ -807,7 +853,14 @@ function SummaryRow({ icon, label, value, hint, total, barPct }: {
 
         {hint ? <Text style={styles.sumHint}>{hint}</Text> : null}
       </View>
-    </View>
+
+      {onPress && (
+        <View style={styles.sumAction}>
+          {action ? <Text style={styles.sumActionText}>{action}</Text> : null}
+          <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+        </View>
+      )}
+    </Row>
   );
 }
 
@@ -1058,6 +1111,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   sumHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  sumAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  sumActionText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+  },
   sumValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
   sumValueMuted: { color: Colors.gray500 },
   sumValueTotal: {
@@ -1089,6 +1148,38 @@ const styles = StyleSheet.create({
   basisLive: { backgroundColor: Colors.mint50 },
   basisText: { flex: 1, fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
   basisTextLive: { color: Colors.mint700 },
+
+  beginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    minHeight: 60,
+    marginTop: Spacing[4],
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.mint50,
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+  },
+  beginBody: { flex: 1, gap: 2 },
+  beginTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+    color: Colors.mint700,
+  },
+  beginSub: { fontSize: Typography.xs, color: Colors.textSecondary },
+  beginGo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 40,
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.mint600,
+  },
+  beginGoText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.white },
 
   tieBackText: {
     fontSize: Typography.xs,

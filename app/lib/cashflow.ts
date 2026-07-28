@@ -150,6 +150,8 @@ export interface DeriveOptions {
    * computed from — with nothing on screen to explain the gap.
    */
   hiddenIds?: Set<string>;
+  /** Confirmed mortgage payments. Held out for the same reason as above. */
+  mortgagePaymentIds?: Set<string>;
 }
 
 export function deriveCashflow(
@@ -166,11 +168,13 @@ export function deriveCashflow(
   // Only depository accounts describe living costs. Transactions on the
   // mortgage or HELOC item are payments and draws, which the strategy models
   // directly — reading them as spending would count the same dollars twice.
-  const hidden = opts.hiddenIds ?? new Set<string>();
+  const hidden   = opts.hiddenIds ?? new Set<string>();
+  const mortgage = opts.mortgagePaymentIds ?? new Set<string>();
   const inWindow = transactions.filter(t =>
     !t.pending &&
     t.account_type === 'savings' &&
     !hidden.has(t.transaction_id) &&
+    !mortgage.has(t.transaction_id) &&
     withinRange(t.date, start, endExclusive),
   );
 
@@ -313,13 +317,28 @@ export interface TransactionClassification {
  */
 export interface ClassifyOptions {
   hiddenIds?: Set<string>;
+  /**
+   * Rows the user confirmed are their mortgage payment.
+   *
+   * Excluded for a different reason from everything else here: not because the
+   * money did not leave, but because `computeProjection` already subtracts the
+   * payment, so counting it as spending too would subtract it twice and
+   * understate the surplus by a mortgage payment a month.
+   *
+   * Plaid's own `LOAN_PAYMENTS_MORTGAGE_PAYMENT` label catches some of these
+   * already (see EXCLUDED_DETAILED). This covers the ones it misses, and only
+   * ever on the user's say-so — inferring it would risk excluding an ordinary
+   * expense, which overstates surplus and oversizes a draw against a house.
+   */
+  mortgagePaymentIds?: Set<string>;
 }
 
 export function classifyTransactions(
   transactions: TransactionRow[],
   opts: ClassifyOptions = {},
 ): TransactionClassification {
-  const hidden = opts.hiddenIds ?? new Set<string>();
+  const hidden   = opts.hiddenIds ?? new Set<string>();
+  const mortgage = opts.mortgagePaymentIds ?? new Set<string>();
   // Same gate as deriveCashflow: only depository rows describe living costs.
   // Mortgage and HELOC activity is the strategy's own machinery, not spending.
   const usable = transactions.filter(t => !t.pending && t.account_type === 'savings');
@@ -343,6 +362,7 @@ export function classifyTransactions(
 
     const isTransfer =
       transferIds.has(t.transaction_id) ||
+      mortgage.has(t.transaction_id) ||
       (t.category_primary !== null && TRANSFER_PRIMARY.has(t.category_primary)) ||
       (t.category_detailed !== null && EXCLUDED_DETAILED.has(t.category_detailed));
 

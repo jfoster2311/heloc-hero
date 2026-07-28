@@ -17,14 +17,37 @@ export interface TransactionMeta {
   hidden: boolean;
   note: string | null;
   recurring: boolean;
+  /** The user confirmed this is their mortgage payment. */
+  mortgagePayment: boolean;
 }
 
-const EMPTY: TransactionMeta = { hidden: false, note: null, recurring: false };
+/**
+ * A row with nothing recorded against it.
+ *
+ * Exported because three screens need it for the closed-sheet case, and each
+ * had inlined its own literal — which meant adding a field here broke all three
+ * at once and would have silently defaulted differently if any of them had used
+ * a spread instead.
+ */
+export const EMPTY_TRANSACTION_META: TransactionMeta = {
+  hidden: false, note: null, recurring: false, mortgagePayment: false,
+};
+
+const EMPTY = EMPTY_TRANSACTION_META;
 
 export interface UseTransactionMetaResult {
   meta: Record<string, TransactionMeta>;
   /** Rows excluded from every total. Pass to classifyTransactions. */
   hiddenIds: Set<string>;
+  /**
+   * Rows the user confirmed are their mortgage payment.
+   *
+   * Also excluded, but kept apart from `hiddenIds` because the reason differs
+   * and the UI has to be able to say which: a hidden row is a duplicate the
+   * user suppressed, a mortgage row is money the projection already accounts
+   * for. Reporting both as "hidden" would make the second look like a bug.
+   */
+  mortgagePaymentIds: Set<string>;
   loading: boolean;
   /** Transaction id currently being written. */
   saving: string | null;
@@ -33,6 +56,8 @@ export interface UseTransactionMetaResult {
   setHidden: (transactionId: string, hidden: boolean) => Promise<void>;
   setNote: (transactionId: string, note: string) => Promise<void>;
   setRecurring: (transactionId: string, recurring: boolean) => Promise<void>;
+  /** Confirm (or un-confirm) a whole group of rows as the mortgage payment. */
+  setMortgagePayments: (transactionIds: string[], isMortgage: boolean) => Promise<void>;
 }
 
 interface MetaRow {
@@ -40,6 +65,7 @@ interface MetaRow {
   hidden: boolean;
   note: string | null;
   recurring: boolean;
+  mortgage_payment: boolean;
 }
 
 export function useTransactionMeta(
@@ -62,7 +88,7 @@ export function useTransactionMeta(
       }
       const { data, error: err } = await supabase
         .from('transaction_meta')
-        .select('transaction_id, hidden, note, recurring')
+        .select('transaction_id, hidden, note, recurring, mortgage_payment')
         .eq('user_id', userId);
 
       if (cancelled) return;
@@ -84,6 +110,7 @@ export function useTransactionMeta(
             hidden: row.hidden,
             note: row.note,
             recurring: row.recurring,
+            mortgagePayment: row.mortgage_payment,
           };
         }
         setMeta(map);
@@ -99,6 +126,12 @@ export function useTransactionMeta(
   const hiddenIds = useMemo(() => {
     const set = new Set<string>();
     for (const [id, m] of Object.entries(meta)) if (m.hidden) set.add(id);
+    return set;
+  }, [meta]);
+
+  const mortgagePaymentIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [id, m] of Object.entries(meta)) if (m.mortgagePayment) set.add(id);
     return set;
   }, [meta]);
 
@@ -136,6 +169,7 @@ export function useTransactionMeta(
           hidden: next.hidden,
           note: next.note,
           recurring: next.recurring,
+          mortgage_payment: next.mortgagePayment,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'transaction_id' },
@@ -154,9 +188,59 @@ export function useTransactionMeta(
     setSaving(null);
   }, [userId, meta]);
 
+  /**
+   * Confirm a whole payee group at once.
+   *
+   * One statement rather than a loop of `write` calls: the user is answering
+   * "is this payee my mortgage", which is one decision covering every
+   * occurrence, and writing them one at a time would leave a half-confirmed
+   * group behind if the connection dropped midway — some months excluded from
+   * spending and some not, which is worse than either answer.
+   */
+  const setMortgagePayments = useCallback(async (
+    transactionIds: string[],
+    isMortgage: boolean,
+  ) => {
+    if (!userId || transactionIds.length === 0) return;
+    const previous = meta;
+
+    setMeta(prev => {
+      const next = { ...prev };
+      for (const id of transactionIds) {
+        next[id] = { ...(prev[id] ?? EMPTY), mortgagePayment: isMortgage };
+      }
+      return next;
+    });
+    setSaving(transactionIds[0]);
+    setError(null);
+
+    const { error: err } = await supabase
+      .from('transaction_meta')
+      .upsert(
+        transactionIds.map(id => ({
+          transaction_id: id,
+          user_id: userId,
+          hidden:    previous[id]?.hidden ?? false,
+          note:      previous[id]?.note ?? null,
+          recurring: previous[id]?.recurring ?? false,
+          mortgage_payment: isMortgage,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: 'transaction_id' },
+      );
+
+    if (!alive.current) return;
+    if (err) {
+      setMeta(previous);
+      setError("Couldn't save that. Check your connection and try again.");
+    }
+    setSaving(null);
+  }, [userId, meta]);
+
   return {
     meta,
     hiddenIds,
+    mortgagePaymentIds,
     loading,
     saving,
     error,
@@ -164,5 +248,6 @@ export function useTransactionMeta(
     setHidden:    (id, hidden)    => write(id, { hidden }),
     setNote:      (id, note)      => write(id, { note: note.trim() === '' ? null : note }),
     setRecurring: (id, recurring) => write(id, { recurring }),
+    setMortgagePayments,
   };
 }

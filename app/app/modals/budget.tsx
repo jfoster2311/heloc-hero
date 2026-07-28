@@ -25,6 +25,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
+import { EMPTY_TRANSACTION_META } from '../../hooks/useTransactionMeta';
 import { hapticLight } from '../../lib/haptics';
 import {
   periodRange, summarizePeriod, categoryHistory, trailingAverage,
@@ -305,7 +306,7 @@ export default function BudgetScreen() {
         onCreateCategory={f.categories.create}
         categorySaving={f.categories.saving}
         categoryError={f.categories.error}
-        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
+        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : EMPTY_TRANSACTION_META}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}
         onRecategorize={overrides.setCategory}

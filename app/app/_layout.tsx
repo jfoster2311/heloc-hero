@@ -151,6 +151,10 @@ export default function RootLayout() {
           name="modals/budget"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="modals/mortgage-payment"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
     </LockGate>
   );

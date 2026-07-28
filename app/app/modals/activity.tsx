@@ -19,7 +19,9 @@ import TransactionDetailSheet from '../../components/sheets/TransactionDetailShe
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
-import type { UseTransactionMetaResult } from '../../hooks/useTransactionMeta';
+import {
+  EMPTY_TRANSACTION_META, type UseTransactionMetaResult,
+} from '../../hooks/useTransactionMeta';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import {
   periodRange, summarizePeriod,
@@ -227,7 +229,7 @@ export default function ActivityScreen() {
         onCreateCategory={f.categories.create}
         categorySaving={f.categories.saving}
         categoryError={f.categories.error}
-        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
+        meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : EMPTY_TRANSACTION_META}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}
         onRecategorize={overrides.setCategory}

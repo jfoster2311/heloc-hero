@@ -43,6 +43,8 @@ export function useCashflow(
    * payoff date is computed from still counting it.
    */
   hiddenIds: Set<string> = NO_HIDDEN,
+  /** Confirmed mortgage payments, held out for the same reason. */
+  mortgagePaymentIds: Set<string> = NO_HIDDEN,
   windowMonths = SURPLUS_WINDOW_MONTHS,
 ): UseCashflowResult {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -122,9 +124,9 @@ export function useCashflow(
   // is sized from.
   const derived = useMemo(
     () => (transactions.length > 0
-      ? deriveCashflow(transactions, { windowMonths, hiddenIds })
+      ? deriveCashflow(transactions, { windowMonths, hiddenIds, mortgagePaymentIds })
       : null),
-    [transactions, windowMonths, hiddenIds],
+    [transactions, windowMonths, hiddenIds, mortgagePaymentIds],
   );
 
   return {

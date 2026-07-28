@@ -136,13 +136,13 @@ export function useFinancials(): Financials {
   // through the classification these feed, so a screen that applied hides on its
   // own would show a spend total that no longer reconciled with the surplus.
   const transactionMeta = useTransactionMeta(profile?.id ?? null);
-  const { hiddenIds } = transactionMeta;
+  const { hiddenIds, mortgagePaymentIds } = transactionMeta;
   const categories = useCategories(profile?.id ?? null);
 
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
   const { derived, transactions, awaitingBackfill } =
-    useCashflow(profile?.id ?? null, accounts.length > 0, hiddenIds);
+    useCashflow(profile?.id ?? null, accounts.length > 0, hiddenIds, mortgagePaymentIds);
 
   return useMemo(
     () => derive(
@@ -319,10 +319,10 @@ function derive(
     transactions,
     transactionMeta,
     categories,
-    transactionClassification: classifyTransactions(
-      transactions,
-      { hiddenIds: transactionMeta.hiddenIds },
-    ),
+    transactionClassification: classifyTransactions(transactions, {
+      hiddenIds: transactionMeta.hiddenIds,
+      mortgagePaymentIds: transactionMeta.mortgagePaymentIds,
+    }),
     cashflowGap,
     awaitingTransactions,
 
