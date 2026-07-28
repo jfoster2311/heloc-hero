@@ -374,6 +374,17 @@ export default function CashFlowScreen() {
             nothing to break down, and a ring invented from one typed expense
             total would be a picture of a measurement that never happened. */}
         <Card style={styles.ringCard}>
+          <TouchableOpacity
+            style={styles.ringHead}
+            onPress={() => { hapticLight(); router.push('/modals/breakdown' as never); }}
+            accessibilityRole="button"
+            accessibilityLabel="Breakdown"
+            accessibilityHint="Opens the full breakdown by category and merchant"
+          >
+            <Text style={CommonStyles.eyebrow}>BREAKDOWN</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+
           <View style={styles.rangeRow}>
             <Text style={styles.rangeLabel}>{range.rangeLabel}</Text>
             {range.inProgress && <Text style={styles.rangeNote}>· in progress</Text>}
@@ -563,9 +574,16 @@ export default function CashFlowScreen() {
         {/* ── The next two weeks ─────────────────────────────────────────── */}
         {upcoming.length > 0 && (
           <Card>
-            <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>Next 14 days</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.linkHead}
+              onPress={() => { hapticLight(); router.push('/modals/recurring' as never); }}
+              accessibilityRole="button"
+              accessibilityLabel="Next 14 days"
+              accessibilityHint="Opens everything that repeats, in and out"
+            >
+              <Text style={styles.cardTitleInline}>Next 14 days</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
             <UpcomingMoney items={upcoming} />
           </Card>
         )}
@@ -575,12 +593,23 @@ export default function CashFlowScreen() {
             runs on. It earns its place by showing how steady that number is. */}
         {f.derivedCashflow?.usable && f.derivedCashflow.months.length > 0 && (
           <Card>
-            <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>Surplus by month</Text>
-              <Text style={styles.cardStatus}>
-                {f.derivedCashflow.coverageMonths} months from your accounts
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.linkHead}
+              onPress={() => { hapticLight(); router.push('/modals/reports' as never); }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                `Surplus by month, ${f.derivedCashflow.coverageMonths} months from your accounts`
+              }
+              accessibilityHint="Opens the six-month trend report"
+            >
+              <View style={styles.linkHeadBody}>
+                <Text style={styles.cardTitleInline}>Surplus by month</Text>
+                <Text style={styles.cardStatusInline}>
+                  {f.derivedCashflow.coverageMonths} months from your accounts
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
             <SurplusChart months={f.derivedCashflow.months} />
             <Text style={styles.chartNote}>
               Income minus spending, before your mortgage payment. Transfers between your own
@@ -1039,6 +1068,30 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[3],
   },
   cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
+
+  /** Card header that is itself the way into the full screen. */
+  linkHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[2],
+    minHeight: 44,
+    marginBottom: Spacing[2],
+  },
+  linkHeadBody: { flex: 1, gap: 1 },
+  cardTitleInline: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  cardStatusInline: { fontSize: Typography.xs, color: Colors.textMuted },
+  ringHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignSelf: 'stretch',
+    minHeight: 44,
+  },
 
   // ── Period toggle ────────────────────────────────────────────────────────
   toggle: { flexDirection: 'row', gap: Spacing[2] },
