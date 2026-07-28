@@ -13,47 +13,115 @@
 // showing. A category breakdown cannot be derived from a single typed expense
 // total, so when the basis is estimated there are simply no categories, and the
 // screen says so instead of drawing a plausible-looking split.
+import type { Ionicons } from '@expo/vector-icons';
 import type { TransactionRow, TransactionClassification } from './cashflow';
 
 // ─── Taxonomy ─────────────────────────────────────────────────────────────────
 
 /**
- * Eight buckets, and no more.
+ * Fourteen buckets, plus whatever the user adds.
  *
- * A taxonomy the user has to scroll is one they will not maintain, and the
- * purpose here is not accounting — it is answering "what is eating the surplus"
- * accurately enough to act on. Anything Plaid cannot place confidently lands in
- * `other`, which the user can retag; a wrong-but-specific guess is worse than an
- * honest "Other", because it looks authoritative.
+ * ── This reverses a decision, deliberately ─────────────────────────────────
+ * This file used to say "eight buckets, and no more", on the reasoning that a
+ * taxonomy the user has to scroll is one they will not maintain. That reasoning
+ * was sound for what the module then was: a breakdown that existed only to
+ * explain the surplus figure, where the question was "what is eating it" and
+ * eight answers was plenty.
+ *
+ * It stops being sound once the user can set a ceiling per category. A budget is
+ * something people compare against how they already think about their money, and
+ * "Housing" holding both the mortgage escrow and a Netflix subscription is not a
+ * budget anyone will keep. The cost of the longer list is real, and it is paid
+ * where it should be: the list is never all on screen at once — the ring folds
+ * to four arcs plus a named tail, the budget screen sorts budgeted categories
+ * first, and the picker is the only place all of them appear.
+ *
+ * ── The ids are not the labels, and must not change ────────────────────────
+ * `housing` is labelled "Household" and `dining` is labelled "Drinks & Dining".
+ * Renaming the IDS to match would have been tidier and would have silently
+ * orphaned every row already in transaction_categories and category_budgets,
+ * which are keyed by these strings. Labels are display; ids are storage.
+ *
+ * Anything Plaid cannot place confidently still lands in `other`, which the user
+ * can retag. A wrong-but-specific guess is worse than an honest "Other", because
+ * it looks authoritative.
  */
-export type SpendCategory =
-  | 'housing' | 'auto' | 'groceries' | 'dining'
-  | 'shopping' | 'bills' | 'health' | 'other';
+export type BuiltinCategory =
+  | 'housing' | 'dining' | 'subscriptions' | 'auto' | 'entertainment'
+  | 'shopping' | 'groceries' | 'financial' | 'business' | 'personal'
+  | 'health' | 'travel' | 'bills' | 'other';
+
+/**
+ * A category the user made, keyed by its row id.
+ *
+ * Prefixed rather than stored bare so that a custom category can never collide
+ * with a builtin, and so any string in the system can be told apart at a glance
+ * without consulting a table — which matters because these ids are written into
+ * two tables and read back by code that may not have the registry to hand.
+ */
+export type CustomCategoryId = `custom:${string}`;
+
+export type SpendCategory = BuiltinCategory | CustomCategoryId;
+
+export function isCustom(id: SpendCategory): id is CustomCategoryId {
+  return id.startsWith('custom:');
+}
 
 export interface CategoryMeta {
   id: SpendCategory;
   label: string;
-  icon: 'home-outline' | 'car-outline' | 'basket-outline' | 'restaurant-outline'
-      | 'bag-handle-outline' | 'receipt-outline' | 'fitness-outline'
-      | 'ellipsis-horizontal-circle-outline';
+  icon: keyof typeof Ionicons.glyphMap;
+  /** True for user-created categories, which can be renamed and deleted. */
+  custom?: boolean;
 }
 
+/**
+ * Order is the order they appear in every picker, and it is not alphabetical.
+ *
+ * Roughly by how much of a typical household budget each one carries, so the
+ * categories most people need are reachable without scrolling. `other` is
+ * pinned last because it is a fallback, not a rank.
+ */
 export const SPEND_CATEGORIES: CategoryMeta[] = [
-  { id: 'housing',   label: 'Housing',           icon: 'home-outline' },
-  { id: 'auto',      label: 'Auto & Transport',  icon: 'car-outline' },
-  { id: 'groceries', label: 'Groceries',         icon: 'basket-outline' },
-  { id: 'dining',    label: 'Dining',            icon: 'restaurant-outline' },
-  { id: 'shopping',  label: 'Shopping',          icon: 'bag-handle-outline' },
-  { id: 'bills',     label: 'Bills & Utilities', icon: 'receipt-outline' },
-  { id: 'health',    label: 'Health',            icon: 'fitness-outline' },
-  { id: 'other',     label: 'Other',             icon: 'ellipsis-horizontal-circle-outline' },
+  { id: 'housing',       label: 'Household',          icon: 'home-outline' },
+  { id: 'groceries',     label: 'Groceries',          icon: 'basket-outline' },
+  { id: 'bills',         label: 'Bills & Utilities',  icon: 'receipt-outline' },
+  { id: 'auto',          label: 'Auto & Transport',   icon: 'car-outline' },
+  { id: 'dining',        label: 'Drinks & Dining',    icon: 'restaurant-outline' },
+  { id: 'shopping',      label: 'Shopping',           icon: 'bag-handle-outline' },
+  { id: 'subscriptions', label: 'Subscriptions',      icon: 'repeat-outline' },
+  { id: 'health',        label: 'Health & Wellness',  icon: 'fitness-outline' },
+  { id: 'personal',      label: 'Personal Care',      icon: 'cut-outline' },
+  { id: 'entertainment', label: 'Entertainment',      icon: 'film-outline' },
+  { id: 'travel',        label: 'Travel & Vacation',  icon: 'airplane-outline' },
+  { id: 'financial',     label: 'Financial',          icon: 'shield-checkmark-outline' },
+  { id: 'business',      label: 'Business Expense',   icon: 'briefcase-outline' },
+  { id: 'other',         label: 'Other',              icon: 'ellipsis-horizontal-circle-outline' },
 ];
 
+const OTHER = SPEND_CATEGORIES[SPEND_CATEGORIES.length - 1];
 const META = new Map<SpendCategory, CategoryMeta>(SPEND_CATEGORIES.map(c => [c.id, c]));
 
+/**
+ * Builtin lookup only.
+ *
+ * A custom id resolves to "Other" here, which is wrong-but-safe: it is the
+ * fallback every unplaceable row already uses, so a screen that forgot to thread
+ * the registry degrades to a real category rather than to a crash or to a blank
+ * row. Screens that can show custom categories must use `useCategories`'
+ * `metaFor` instead — see hooks/useCategories.ts.
+ */
 export function categoryMeta(id: SpendCategory): CategoryMeta {
-  return META.get(id) ?? SPEND_CATEGORIES[SPEND_CATEGORIES.length - 1];
+  return META.get(id) ?? OTHER;
 }
+
+/** The icons a user may pick when they create their own category. */
+export const CUSTOM_CATEGORY_ICONS: (keyof typeof Ionicons.glyphMap)[] = [
+  'pricetag-outline', 'gift-outline', 'paw-outline', 'school-outline',
+  'barbell-outline', 'construct-outline', 'boat-outline', 'bicycle-outline',
+  'musical-notes-outline', 'book-outline', 'leaf-outline', 'people-outline',
+  'game-controller-outline', 'wine-outline', 'flower-outline', 'hammer-outline',
+];
 
 /**
  * Plaid's detailed Personal Finance Category → our bucket.
@@ -83,6 +151,29 @@ const BY_DETAILED: Record<string, SpendCategory> = {
 
   // Gyms are a health commitment people evaluate as one.
   PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS: 'health',
+
+  // ── Subscriptions ──────────────────────────────────────────────────────
+  // The one bucket worth splitting out by hand, because it is the one people
+  // open a budgeting app to find. Plaid has no "subscriptions" concept; these
+  // are the detailed codes that are recurring by nature. Anything else
+  // recurring stays where it lands and the user retags it.
+  ENTERTAINMENT_TV_AND_MOVIES:           'subscriptions',
+  ENTERTAINMENT_MUSIC_AND_AUDIO:         'subscriptions',
+  RENT_AND_UTILITIES_INTERNET_AND_CABLE: 'subscriptions',
+  GENERAL_SERVICES_ONLINE_SUBSCRIPTIONS: 'subscriptions',
+
+  // ── Personal care vs. health ───────────────────────────────────────────
+  // Split deliberately: a haircut and a prescription are not the same
+  // decision, and merging them was the old taxonomy's biggest compromise.
+  PERSONAL_CARE_HAIR_AND_BEAUTY: 'personal',
+  PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING: 'personal',
+
+  // Financial — the costs of holding money, not of living.
+  BANK_FEES_ATM_FEES:              'financial',
+  BANK_FEES_FOREIGN_TRANSACTION_FEES: 'financial',
+  BANK_FEES_OVERDRAFT_FEES:        'financial',
+  BANK_FEES_INTEREST_CHARGE:       'financial',
+  GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING: 'financial',
 };
 
 const BY_PRIMARY: Record<string, SpendCategory> = {
@@ -92,15 +183,19 @@ const BY_PRIMARY: Record<string, SpendCategory> = {
   RENT_AND_UTILITIES:  'bills',       // telephone, gas, electricity, internet
   MEDICAL:             'health',
   HOME_IMPROVEMENT:    'housing',
-  PERSONAL_CARE:       'health',
-  TRAVEL:              'other',
-  ENTERTAINMENT:       'other',
+  PERSONAL_CARE:       'personal',
+  TRAVEL:              'travel',
+  ENTERTAINMENT:       'entertainment',
+  BANK_FEES:           'financial',
   GENERAL_SERVICES:    'other',
   GOVERNMENT_AND_NON_PROFIT: 'other',
-  BANK_FEES:           'other',
   // Car and student loans are real costs of living and belong in the totals.
   // Only the mortgage is held out, and that happens before this map is reached.
   LOAN_PAYMENTS:       'other',
+  // Deliberately NOT mapped to `business`: Plaid has no business-expense
+  // category, and inferring one from merchant type would be guessing about the
+  // user's tax position. `business` exists for the user to file rows into
+  // themselves, which is the only way it can be right.
 };
 
 /** Plaid's guess, before any user override. */

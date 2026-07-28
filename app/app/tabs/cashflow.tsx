@@ -55,7 +55,7 @@ import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
 import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import {
-  PERIODS, categoryMeta, periodRange, summarizePeriod,
+  PERIODS, periodRange, summarizePeriod,
   previousRange, cumulativeSpend, dailyBreakdown, categoryHistory, trailingAverage,
   type PeriodId, type SpendCategory, type CategorizedTxn, type DayCell,
 } from '../../lib/spending';
@@ -252,9 +252,9 @@ export default function CashFlowScreen() {
 
   /** Opens a category sheet from an id, used by both the ring list and budget. */
   const openCategoryById = useCallback((id: SpendCategory) => {
-    const meta = categoryMeta(id);
+    const meta = f.categories.metaFor(id);
     setOpenCategory({ type: 'expense', category: id, label: meta.label, icon: meta.icon });
-  }, []);
+  }, [f.categories]);
 
   return (
     <View style={CommonStyles.screenContainer}>
@@ -348,6 +348,7 @@ export default function CashFlowScreen() {
           <LatestActivity
             rows={recent}
             metaFor={txnMeta.get}
+            categoryFor={f.categories.metaFor}
             onOpenRow={setOpenTxn}
             onOpenAll={() => router.push('/modals/activity' as never)}
           />
@@ -665,6 +666,7 @@ export default function CashFlowScreen() {
         inherited={openCategory?.category ? budgets.isInherited(openCategory.category) : false}
         rows={openCategoryRows}
         metaFor={txnMeta.get}
+        categoryFor={f.categories.metaFor}
         inProgress={monthRange.inProgress}
         saving={budgets.saving !== null}
         onClose={() => setOpenCategory(null)}
@@ -682,12 +684,18 @@ export default function CashFlowScreen() {
       <DayDetailSheet
         day={openDay}
         metaFor={txnMeta.get}
+        categoryFor={f.categories.metaFor}
         onClose={() => setOpenDay(null)}
         onOpenTransaction={row => { setOpenDay(null); setOpenTxn(row); }}
       />
 
       <TransactionDetailSheet
         row={openTxn}
+        categories={f.categories.all}
+        categoryFor={f.categories.metaFor}
+        onCreateCategory={f.categories.create}
+        categorySaving={f.categories.saving}
+        categoryError={f.categories.error}
         meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}

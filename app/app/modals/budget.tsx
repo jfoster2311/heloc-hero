@@ -27,8 +27,7 @@ import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
 import { hapticLight } from '../../lib/haptics';
 import {
-  SPEND_CATEGORIES, categoryMeta, periodRange, summarizePeriod,
-  categoryHistory, trailingAverage,
+  periodRange, summarizePeriod, categoryHistory, trailingAverage,
   type SpendCategory, type CategorizedTxn,
 } from '../../lib/spending';
 import { getBarColor, budgetStatus, allocate } from '../../lib/budget';
@@ -93,7 +92,7 @@ export default function BudgetScreen() {
   // so a ceiling can be set before the spending starts rather than only after.
   const rows = useMemo(() => {
     const spentBy = new Map(summary.categories.map(c => [c.id, c]));
-    return SPEND_CATEGORIES.map(meta => ({
+    return f.categories.all.map(meta => ({
       meta,
       amount: spentBy.get(meta.id)?.amount ?? 0,
       count:  spentBy.get(meta.id)?.count ?? 0,
@@ -105,7 +104,7 @@ export default function BudgetScreen() {
       if ((a.ceiling !== null) !== (b.ceiling !== null)) return a.ceiling !== null ? -1 : 1;
       return b.amount - a.amount;
     });
-  }, [summary.categories, budgets.budgets]);
+  }, [summary.categories, budgets.budgets, f.categories.all]);
 
   const openCategoryRows = useMemo(
     () => openCategory?.category
@@ -130,9 +129,9 @@ export default function BudgetScreen() {
   );
 
   const openById = useCallback((id: SpendCategory) => {
-    const meta = categoryMeta(id);
+    const meta = f.categories.metaFor(id);
     setOpenCategory({ type: 'expense', category: id, label: meta.label, icon: meta.icon });
-  }, []);
+  }, [f.categories]);
 
   const openAmount = openCategory?.category
     ? summary.categories.find(c => c.id === openCategory.category)?.amount ?? 0
@@ -284,6 +283,7 @@ export default function BudgetScreen() {
         inherited={openCategory?.category ? budgets.isInherited(openCategory.category) : false}
         rows={openCategoryRows}
         metaFor={txnMeta.get}
+        categoryFor={f.categories.metaFor}
         inProgress={range.inProgress}
         saving={budgets.saving !== null}
         onClose={() => setOpenCategory(null)}
@@ -300,6 +300,11 @@ export default function BudgetScreen() {
 
       <TransactionDetailSheet
         row={openTxn}
+        categories={f.categories.all}
+        categoryFor={f.categories.metaFor}
+        onCreateCategory={f.categories.create}
+        categorySaving={f.categories.saving}
+        categoryError={f.categories.error}
         meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}

@@ -21,15 +21,24 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DetailSheet, { SheetSection, SheetRow } from '../ui/DetailSheet';
+import NewCategoryForm from '../ui/NewCategoryForm';
 import { Colors, Typography, Spacing, Radius, Semantic } from '../../lib/theme';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
-import { SPEND_CATEGORIES, categoryMeta, type SpendCategory, type CategorizedTxn } from '../../lib/spending';
+import type { SpendCategory, CategorizedTxn, CategoryMeta } from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
 
 export interface TransactionDetailSheetProps {
   /** Null closes the sheet. */
   row: CategorizedTxn | null;
   meta: TransactionMeta;
+  /** Every category the user can file this under, builtin and their own. */
+  categories: CategoryMeta[];
+  /** Resolves an id to a label and glyph. Total — see hooks/useCategories. */
+  categoryFor: (id: SpendCategory) => CategoryMeta;
+  /** Creating a category from the picker. Null hides the affordance. */
+  onCreateCategory?: (label: string, icon: string) => Promise<SpendCategory | null>;
+  categorySaving?: boolean;
+  categoryError?: string | null;
   /** True while any write for this row is in flight. */
   saving: boolean;
   /** "Chase — Savings", when known. Rendered at the foot as provenance. */
@@ -42,10 +51,12 @@ export interface TransactionDetailSheetProps {
 }
 
 export default function TransactionDetailSheet({
-  row, meta, saving, accountLabel,
+  row, meta, categories, categoryFor, saving, accountLabel,
+  onCreateCategory, categorySaving, categoryError,
   onClose, onRecategorize, onSetHidden, onSetNote, onSetRecurring,
 }: TransactionDetailSheetProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [editingNote, setEditingNote] = useState(false);
 
@@ -56,6 +67,7 @@ export default function TransactionDetailSheet({
     setNoteDraft(meta.note ?? '');
     setEditingNote(false);
     setPickerOpen(false);
+    setCreating(false);
   }, [row?.txn.transaction_id, meta.note]);
 
   if (!row) {
@@ -68,7 +80,7 @@ export default function TransactionDetailSheet({
 
   const t = row.txn;
   const inflow = t.amount < 0;
-  const cat = categoryMeta(row.category);
+  const cat = categoryFor(row.category);
 
   const commitNote = () => {
     setEditingNote(false);
@@ -121,35 +133,67 @@ export default function TransactionDetailSheet({
       </View>
 
       {pickerOpen && !inflow && (
-        <View style={styles.picker}>
-          {SPEND_CATEGORIES.map(c => {
-            const active = c.id === row.category;
-            return (
+        creating && onCreateCategory ? (
+          <NewCategoryForm
+            saving={categorySaving ?? false}
+            error={categoryError ?? null}
+            onCancel={() => setCreating(false)}
+            onCreate={async (label, icon) => {
+              const id = await onCreateCategory(label, icon);
+              // Only close and file the transaction if the category actually
+              // exists. A failed create that closed the form anyway would look
+              // like it worked and leave the row where it was.
+              if (!id) return;
+              setCreating(false);
+              setPickerOpen(false);
+              await onRecategorize(t.transaction_id, id);
+            }}
+          />
+        ) : (
+          <View style={styles.picker}>
+            {categories.map(c => {
+              const active = c.id === row.category;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.pickerChip, active && styles.pickerChipActive]}
+                  disabled={active}
+                  onPress={async () => {
+                    hapticSelection();
+                    setPickerOpen(false);
+                    await onRecategorize(t.transaction_id, c.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Categorise as ${c.label}`}
+                >
+                  <Ionicons
+                    name={c.icon}
+                    size={14}
+                    color={active ? Colors.mint700 : Colors.textSecondary}
+                  />
+                  <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
+                    {c.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {onCreateCategory && (
               <TouchableOpacity
-                key={c.id}
-                style={[styles.pickerChip, active && styles.pickerChipActive]}
-                disabled={active}
-                onPress={async () => {
-                  hapticSelection();
-                  setPickerOpen(false);
-                  await onRecategorize(t.transaction_id, c.id);
-                }}
+                style={[styles.pickerChip, styles.pickerChipNew]}
+                onPress={() => { hapticLight(); setCreating(true); }}
                 accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`Categorise as ${c.label}`}
+                accessibilityLabel="Create a new category"
               >
-                <Ionicons
-                  name={c.icon}
-                  size={14}
-                  color={active ? Colors.mint700 : Colors.textSecondary}
-                />
-                <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
-                  {c.label}
+                <Ionicons name="add" size={15} color={Colors.mint700} />
+                <Text style={[styles.pickerChipText, styles.pickerChipTextActive]}>
+                  New category
                 </Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
+            )}
+          </View>
+        )
       )}
 
       {/* ── What the bank reported ─────────────────────────────────────────
@@ -317,6 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   pickerChipActive: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
+  pickerChipNew: { borderStyle: 'dashed', borderColor: Colors.mint600 },
   pickerChipText: {
     fontSize: Typography.xs,
     fontWeight: Typography.medium,

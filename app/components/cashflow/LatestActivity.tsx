@@ -12,7 +12,7 @@ import { Card } from '../ui/primitives';
 import TransactionRow from '../ui/TransactionRow';
 import { Colors, Typography, Spacing, CommonStyles } from '../../lib/theme';
 import { hapticLight } from '../../lib/haptics';
-import { categoryMeta, type CategorizedTxn } from '../../lib/spending';
+import type { CategorizedTxn, CategoryMeta, SpendCategory } from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
 
 /** Four is the whole point of a preview. More and it stops being one. */
@@ -22,12 +22,13 @@ export interface LatestActivityProps {
   /** Already sorted newest-first by the caller. */
   rows: CategorizedTxn[];
   metaFor: (transactionId: string) => TransactionMeta;
+  categoryFor: (id: SpendCategory) => CategoryMeta;
   onOpenRow: (row: CategorizedTxn) => void;
   onOpenAll: () => void;
 }
 
 export default function LatestActivity({
-  rows, metaFor, onOpenRow, onOpenAll,
+  rows, metaFor, categoryFor, onOpenRow, onOpenAll,
 }: LatestActivityProps) {
   const preview = rows.slice(0, PREVIEW_COUNT);
 
@@ -65,12 +66,12 @@ export default function LatestActivity({
                 name={r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
                 meta={formatDay(r.txn.date)}
                 amount={r.txn.amount}
-                icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(r.category).icon}
+                icon={inflow ? 'arrow-down-circle-outline' : categoryFor(r.category).icon}
                 hidden={m.hidden}
                 recurring={m.recurring}
                 overridden={!inflow && r.overridden}
                 pending={r.txn.pending}
-                accessibilityExtra={inflow ? 'money in' : categoryMeta(r.category).label}
+                accessibilityExtra={inflow ? 'money in' : categoryFor(r.category).label}
                 onPress={() => { hapticLight(); onOpenRow(r); }}
               />
             );

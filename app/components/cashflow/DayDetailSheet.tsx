@@ -9,19 +9,22 @@ import DetailSheet from '../ui/DetailSheet';
 import TransactionRow from '../ui/TransactionRow';
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 import { hapticLight } from '../../lib/haptics';
-import { categoryMeta, type DayCell, type CategorizedTxn } from '../../lib/spending';
+import type {
+  DayCell, CategorizedTxn, CategoryMeta, SpendCategory,
+} from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
 
 export interface DayDetailSheetProps {
   /** Null closes the sheet. */
   day: DayCell | null;
   metaFor: (transactionId: string) => TransactionMeta;
+  categoryFor: (id: SpendCategory) => CategoryMeta;
   onClose: () => void;
   onOpenTransaction: (row: CategorizedTxn) => void;
 }
 
 export default function DayDetailSheet({
-  day, metaFor, onClose, onOpenTransaction,
+  day, metaFor, categoryFor, onClose, onOpenTransaction,
 }: DayDetailSheetProps) {
   if (!day) {
     return (
@@ -59,9 +62,9 @@ export default function DayDetailSheet({
               <TransactionRow
                 key={r.txn.transaction_id}
                 name={r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
-                meta={inflow ? 'Money back' : categoryMeta(r.category).label}
+                meta={inflow ? 'Money back' : categoryFor(r.category).label}
                 amount={r.txn.amount}
-                icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(r.category).icon}
+                icon={inflow ? 'arrow-down-circle-outline' : categoryFor(r.category).icon}
                 hidden={m.hidden}
                 recurring={m.recurring}
                 overridden={!inflow && r.overridden}

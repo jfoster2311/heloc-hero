@@ -14,6 +14,7 @@ import { useAuth } from './useAuth';
 import { useAccounts } from './useAccounts';
 import { useCashflow } from './useCashflow';
 import { useTransactionMeta, type UseTransactionMetaResult } from './useTransactionMeta';
+import { useCategories, type UseCategoriesResult } from './useCategories';
 import { computeProjection, genericProjection } from '../lib/projections';
 import {
   resolveHelocRate, deriveCreditLimit, termsAreStale, drawPeriodStatus,
@@ -95,6 +96,14 @@ export interface Financials {
    * remount. One instance, one answer to "is this counted".
    */
   transactionMeta: UseTransactionMetaResult;
+  /**
+   * The spending taxonomy — builtins plus the user's own categories.
+   *
+   * Mounted once here for the same reason as `transactionMeta`: a category
+   * created on one screen has to appear in the picker on every other, and two
+   * independent copies of the list would not agree until a remount.
+   */
+  categories: UseCategoriesResult;
   /** How far the figures in use sit from what the transactions say. */
   cashflowGap: CashflowGap | null;
   awaitingTransactions: boolean;
@@ -128,6 +137,7 @@ export function useFinancials(): Financials {
   // own would show a spend total that no longer reconciled with the surplus.
   const transactionMeta = useTransactionMeta(profile?.id ?? null);
   const { hiddenIds } = transactionMeta;
+  const categories = useCategories(profile?.id ?? null);
 
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
@@ -138,12 +148,12 @@ export function useFinancials(): Financials {
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
-      transactionMeta,
+      transactionMeta, categories,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
-      transactionMeta,
+      transactionMeta, categories,
     ],
   );
 }
@@ -162,6 +172,7 @@ function derive(
   transactions: TransactionRow[],
   awaitingTransactions: boolean,
   transactionMeta: UseTransactionMetaResult,
+  categories: UseCategoriesResult,
 ): Financials {
   const hasLinkedAccounts = accounts.length > 0;
   const lastSyncedAt = newestSync(accounts);
@@ -307,6 +318,7 @@ function derive(
     derivedCashflow,
     transactions,
     transactionMeta,
+    categories,
     transactionClassification: classifyTransactions(
       transactions,
       { hiddenIds: transactionMeta.hiddenIds },

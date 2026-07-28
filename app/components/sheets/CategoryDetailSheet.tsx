@@ -24,7 +24,9 @@ import TrendBarChart from '../ui/TrendBarChart';
 import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../lib/haptics';
 import { budgetStatus, suggestCeiling } from '../../lib/budget';
-import { categoryMeta, type SpendCategory, type CategorizedTxn, type MonthPoint } from '../../lib/spending';
+import type {
+  SpendCategory, CategorizedTxn, MonthPoint, CategoryMeta,
+} from '../../lib/spending';
 import { parseNumeric } from '../../lib/parseNumeric';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
 
@@ -53,6 +55,7 @@ export interface CategoryDetailSheetProps {
   inherited: boolean;
   rows: CategorizedTxn[];
   metaFor: (transactionId: string) => TransactionMeta;
+  categoryFor: (id: SpendCategory) => CategoryMeta;
   /** True while the month shown is still running, so the total is partial. */
   inProgress: boolean;
   saving: boolean;
@@ -66,7 +69,7 @@ export interface CategoryDetailSheetProps {
 export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
   const {
     target, monthLabel, amount, history, trailingAverage, ceiling, inherited,
-    rows, metaFor, inProgress, saving,
+    rows, metaFor, categoryFor, inProgress, saving,
     onClose, onSaveCeiling, onClearCeiling, onOpenTransaction,
   } = props;
 
@@ -271,7 +274,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
                   name={r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
                   meta={formatDay(r.txn.date)}
                   amount={r.txn.amount}
-                  icon={categoryMeta(r.category).icon}
+                  icon={categoryFor(r.category).icon}
                   hidden={m.hidden}
                   recurring={m.recurring}
                   overridden={r.overridden}

@@ -22,8 +22,8 @@ import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import type { UseTransactionMetaResult } from '../../hooks/useTransactionMeta';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import {
-  categoryMeta, periodRange, summarizePeriod,
-  type CategorizedTxn,
+  periodRange, summarizePeriod,
+  type CategorizedTxn, type CategoryMeta, type SpendCategory,
 } from '../../lib/spending';
 import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
 
@@ -74,7 +74,7 @@ export default function ActivityScreen() {
     const filtered = q
       ? all.filter(r =>
           (r.txn.merchant_name ?? r.txn.name ?? '').toLowerCase().includes(q) ||
-          (r.txn.amount > 0 && categoryMeta(r.category).label.toLowerCase().includes(q)))
+          (r.txn.amount > 0 && f.categories.metaFor(r.category).label.toLowerCase().includes(q)))
       : all;
 
     const sorted = [...filtered];
@@ -84,7 +84,7 @@ export default function ActivityScreen() {
       case 'largest': sorted.sort((a, b) => b.txn.amount - a.txn.amount); break;
     }
     return sorted;
-  }, [all, query, sort]);
+  }, [all, query, sort, f.categories]);
 
   // Day headings only make sense on a date-ordered list. Sorting by amount and
   // keeping them would produce a heading per row, which is not a grouping.
@@ -209,19 +209,24 @@ export default function ActivityScreen() {
             <View key={g.date} style={styles.group}>
               <Text style={styles.groupHead}>{formatGroupDay(g.date)}</Text>
               <View style={styles.list}>
-                {g.rows.map(r => <Row key={r.txn.transaction_id} row={r} meta={txnMeta} onOpen={setOpenTxn} />)}
+                {g.rows.map(r => <Row key={r.txn.transaction_id} row={r} meta={txnMeta} categoryFor={f.categories.metaFor} onOpen={setOpenTxn} />)}
               </View>
             </View>
           ))
         ) : (
           <View style={styles.list}>
-            {rows.map(r => <Row key={r.txn.transaction_id} row={r} meta={txnMeta} onOpen={setOpenTxn} />)}
+            {rows.map(r => <Row key={r.txn.transaction_id} row={r} meta={txnMeta} categoryFor={f.categories.metaFor} onOpen={setOpenTxn} />)}
           </View>
         )}
       </ModalScreen>
 
       <TransactionDetailSheet
         row={openTxn}
+        categories={f.categories.all}
+        categoryFor={f.categories.metaFor}
+        onCreateCategory={f.categories.create}
+        categorySaving={f.categories.saving}
+        categoryError={f.categories.error}
         meta={openTxn ? txnMeta.get(openTxn.txn.transaction_id) : { hidden: false, note: null, recurring: false }}
         saving={openTxn ? txnMeta.saving === openTxn.txn.transaction_id : false}
         onClose={() => setOpenTxn(null)}
@@ -234,9 +239,10 @@ export default function ActivityScreen() {
   );
 }
 
-function Row({ row, meta, onOpen }: {
+function Row({ row, meta, categoryFor, onOpen }: {
   row: CategorizedTxn;
   meta: UseTransactionMetaResult;
+  categoryFor: (id: SpendCategory) => CategoryMeta;
   onOpen: (r: CategorizedTxn) => void;
 }) {
   const m = meta.get(row.txn.transaction_id);
@@ -246,9 +252,9 @@ function Row({ row, meta, onOpen }: {
   return (
     <TransactionRow
       name={row.txn.merchant_name ?? row.txn.name ?? 'Transaction'}
-      meta={inflow ? 'Money in' : categoryMeta(row.category).label}
+      meta={inflow ? 'Money in' : categoryFor(row.category).label}
       amount={row.txn.amount}
-      icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(row.category).icon}
+      icon={inflow ? 'arrow-down-circle-outline' : categoryFor(row.category).icon}
       hidden={m.hidden}
       recurring={m.recurring}
       overridden={!inflow && row.overridden}
