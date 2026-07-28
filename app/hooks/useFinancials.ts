@@ -13,6 +13,7 @@ import { useMemo } from 'react';
 import { useAuth } from './useAuth';
 import { useAccounts } from './useAccounts';
 import { useCashflow } from './useCashflow';
+import { useTransactionMeta } from './useTransactionMeta';
 import { computeProjection, genericProjection } from '../lib/projections';
 import {
   resolveHelocRate, deriveCreditLimit, termsAreStale, drawPeriodStatus,
@@ -109,19 +110,27 @@ export function useFinancials(): Financials {
     mortgageAccount, helocAccount, savingsAccount,
   } = useAccounts(profile?.id ?? null);
 
+  // Rows the user marked as duplicates. Read HERE, at the top of the shared
+  // derivation, rather than in the Cash flow tab — every figure below is summed
+  // through the classification these feed, so a screen that applied hides on its
+  // own would show a spend total that no longer reconciled with the surplus.
+  const { hiddenIds } = useTransactionMeta(profile?.id ?? null);
+
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
   const { derived, transactions, awaitingBackfill } =
-    useCashflow(profile?.id ?? null, accounts.length > 0);
+    useCashflow(profile?.id ?? null, accounts.length > 0, hiddenIds);
 
   return useMemo(
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
+      hiddenIds,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
+      hiddenIds,
     ],
   );
 }
@@ -139,6 +148,7 @@ function derive(
   derivedCashflow: DerivedCashflow | null,
   transactions: TransactionRow[],
   awaitingTransactions: boolean,
+  hiddenIds: Set<string>,
 ): Financials {
   const hasLinkedAccounts = accounts.length > 0;
   const lastSyncedAt = newestSync(accounts);
@@ -283,7 +293,7 @@ function derive(
     liquidCash,
     derivedCashflow,
     transactions,
-    transactionClassification: classifyTransactions(transactions),
+    transactionClassification: classifyTransactions(transactions, { hiddenIds }),
     cashflowGap,
     awaitingTransactions,
 

@@ -5,10 +5,13 @@
 // until they choose to adopt them. That choice is the product — the app's job
 // here is to notice a discrepancy and ask, not to quietly substitute its own
 // arithmetic for what someone told it about their life.
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase, invokeFunction } from '../lib/supabase';
 import { deriveCashflow, type DerivedCashflow, type TransactionRow } from '../lib/cashflow';
 import { SURPLUS_WINDOW_MONTHS, TXN_SYNC_INTERVAL_HOURS } from '../lib/config';
+
+/** Rows the user hid as duplicates. Held out of the trailing average too. */
+const NO_HIDDEN: Set<string> = new Set();
 
 export interface UseCashflowResult {
   derived: DerivedCashflow | null;
@@ -31,9 +34,17 @@ export interface UseCashflowResult {
 export function useCashflow(
   userId: string | null | undefined,
   enabled: boolean,
+  /**
+   * Rows the user marked as duplicates.
+   *
+   * Passed in rather than read here so this hook keeps one job. It matters that
+   * the trailing average honours a hide: if it did not, hiding a duplicated
+   * $4,000 charge would fix the Cash flow tab's total and leave the surplus the
+   * payoff date is computed from still counting it.
+   */
+  hiddenIds: Set<string> = NO_HIDDEN,
   windowMonths = SURPLUS_WINDOW_MONTHS,
 ): UseCashflowResult {
-  const [derived, setDerived] = useState<DerivedCashflow | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [awaitingBackfill, setAwaitingBackfill] = useState(false);
@@ -42,7 +53,6 @@ export function useCashflow(
 
   const load = useCallback(async (forceSync = false) => {
     if (!userId || !enabled) {
-      setDerived(null);
       setTransactions([]);
       setLoading(false);
       return;
@@ -77,7 +87,6 @@ export function useCashflow(
 
     if (err) {
       setError(err.message);
-      setDerived(null);
       setTransactions([]);
       setLoading(false);
       return;
@@ -86,7 +95,6 @@ export function useCashflow(
     setError(null);
     const rows = (data ?? []) as unknown as TransactionRow[];
     setTransactions(rows);
-    setDerived(deriveCashflow(rows, { windowMonths }));
 
     // Distinguish "this user has no spending" from "Plaid hasn't sent it yet".
     // Without that, a freshly linked account looks like a broken feature.
@@ -106,6 +114,18 @@ export function useCashflow(
   }, [userId, enabled, windowMonths]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Derived from the rows in state rather than computed inside `load`, so that
+  // hiding a transaction re-derives immediately. Computing it at fetch time
+  // would leave the trailing average holding a row the user had just excluded
+  // until the next sync — and the figure it feeds is the one every projection
+  // is sized from.
+  const derived = useMemo(
+    () => (transactions.length > 0
+      ? deriveCashflow(transactions, { windowMonths, hiddenIds })
+      : null),
+    [transactions, windowMonths, hiddenIds],
+  );
 
   return {
     derived,
