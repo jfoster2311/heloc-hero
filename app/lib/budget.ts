@@ -126,6 +126,7 @@ export type Direction = 'higherIsBetter' | 'lowerIsBetter';
 export type ChangeSubject =
   | SpendCategory        // every spending bucket: less is better
   | 'income'
+  | 'spending'           // the aggregate of every bucket
   | 'surplus'
   | 'extraPrincipal'     // money onto the mortgage principal
   | 'interestPaid'       // interest accrued on the line

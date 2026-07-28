@@ -783,6 +783,110 @@ export function merchantTotals(rows: CategorizedTxn[]): MerchantTotal[] {
   return Array.from(groups.values()).sort((a, b) => b.amount - a.amount);
 }
 
+/** The grouping key `merchantTotals` uses. Exported so callers can match rows. */
+export function merchantKey(t: TransactionRow): string {
+  return (t.merchant_name ?? t.name ?? '')
+    .toLowerCase()
+    .replace(/\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Everything known about one payee, for the merchant sheet. */
+export interface MerchantDetail {
+  key: string;
+  name: string;
+  /** Month by month, for the trend chart. */
+  history: MonthPoint[];
+  /** Every row for this payee inside the loaded window, newest first. */
+  rows: CategorizedTxn[];
+  /** Charges in the month currently in view. */
+  countThisMonth: number;
+  /** Mean charge across everything loaded. */
+  averageAmount: number;
+  /** Calendar-year totals, keyed by year. */
+  byYear: { year: number; total: number }[];
+}
+
+/**
+ * One payee's whole history.
+ *
+ * The year totals are the reason this exists as its own function rather than
+ * being assembled in a screen. A $2.50 charge is beneath notice on any single
+ * month's breakdown; the same charge four times a week is $520 a year, and for
+ * a strategy whose entire premise is redirecting surplus onto principal, that
+ * is the pattern worth surfacing. It only becomes visible when the rows are
+ * rolled up across a longer horizon than any other screen uses.
+ */
+export function merchantDetail(args: {
+  transactions: TransactionRow[];
+  classification: TransactionClassification;
+  overrides: Record<string, SpendCategory>;
+  /** The normalised key from `merchantTotals`. */
+  key: string;
+  /** How many months the trend chart spans, including the current one. */
+  months: number;
+  now?: Date;
+}): MerchantDetail | null {
+  const { transactions, classification, overrides, key, months, now = new Date() } = args;
+
+  const matching = transactions.filter(t =>
+    !t.pending &&
+    t.account_type === 'savings' &&
+    !classification.excludedIds.has(t.transaction_id) &&
+    t.amount > 0 &&
+    merchantKey(t) === key,
+  );
+  if (matching.length === 0) return null;
+
+  const points: MonthPoint[] = [];
+  const currentKey = monthKey(now);
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const k = monthKey(d);
+    points.push({
+      key: k,
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      amount: 0,
+      current: k === currentKey,
+    });
+  }
+  const index = new Map(points.map((p, i) => [p.key, i]));
+
+  const years = new Map<number, number>();
+  let countThisMonth = 0;
+
+  for (const t of matching) {
+    const i = index.get(t.date.slice(0, 7));
+    if (i !== undefined) points[i].amount += t.amount;
+    if (t.date.slice(0, 7) === currentKey) countThisMonth++;
+    const year = Number(t.date.slice(0, 4));
+    years.set(year, (years.get(year) ?? 0) + t.amount);
+  }
+
+  const sorted = [...matching].sort((a, b) => b.date.localeCompare(a.date));
+  const total = matching.reduce((s, t) => s + t.amount, 0);
+
+  return {
+    key,
+    name: sorted[0].merchant_name ?? sorted[0].name ?? 'Merchant',
+    history: points,
+    rows: sorted.map(t => {
+      const override = overrides[t.transaction_id];
+      return {
+        txn: t,
+        category: override ?? defaultCategory(t),
+        overridden: override !== undefined,
+      };
+    }),
+    countThisMonth,
+    averageAmount: total / matching.length,
+    byYear: Array.from(years.entries())
+      .map(([year, yearTotal]) => ({ year, total: yearTotal }))
+      .sort((a, b) => b.year - a.year),
+  };
+}
+
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
