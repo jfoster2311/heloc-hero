@@ -444,3 +444,226 @@ export function cumulativeSpend(args: {
 
   return { values, days, elapsed, total: values[elapsed - 1] ?? 0 };
 }
+
+// ─── Day-by-day ───────────────────────────────────────────────────────────────
+
+/**
+ * One cell of the calendar heat grid.
+ *
+ * `spend` and `credit` are separate rather than netted. A day with a $200
+ * purchase and a $200 refund is not the same day as one where nothing happened,
+ * and netting them to zero would paint it as if it were.
+ */
+export interface DayCell {
+  /** YYYY-MM-DD. */
+  date: string;
+  /** Day of month, 1-based. */
+  day: number;
+  /** Money out, positive. */
+  spend: number;
+  /** Money in that is not income — a refund or a credit. Positive. */
+  credit: number;
+  /** Transactions behind this cell, for the day-detail sheet. */
+  rows: CategorizedTxn[];
+  /**
+   * True for days that have not happened yet.
+   *
+   * Rendered as an inert placeholder rather than a $0 cell, because those are
+   * different claims: one says nothing was spent, the other says the day has not
+   * arrived. A month of "$0" cells stretching to the 31st reads as a month of
+   * perfect restraint rather than a month that is half over.
+   */
+  future: boolean;
+  /** Grid padding before the 1st, so the month starts on the right weekday. */
+  weekday: number;
+}
+
+/**
+ * Every day of a period, with what landed on it.
+ *
+ * Built from the same filters as `summarizePeriod` and `cumulativeSpend` — not
+ * pending, savings only, nothing the classification excluded. The heat grid and
+ * the total printed above it are read together, so they must be summed from the
+ * same rows or the card contradicts itself.
+ */
+export function dailyBreakdown(args: {
+  transactions: TransactionRow[];
+  classification: TransactionClassification;
+  overrides: Record<string, SpendCategory>;
+  range: PeriodRange;
+  now?: Date;
+}): DayCell[] {
+  const { transactions, classification, overrides, range, now = new Date() } = args;
+  const today = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+
+  const cells = new Map<string, DayCell>();
+  const cursor = new Date(range.start);
+  while (cursor < range.endExclusive) {
+    const key = iso(cursor);
+    cells.set(key, {
+      date: key,
+      day: cursor.getDate(),
+      spend: 0,
+      credit: 0,
+      rows: [],
+      future: key > today,
+      weekday: cursor.getDay(),
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  for (const t of transactions) {
+    if (t.pending || t.account_type !== 'savings') continue;
+    if (classification.excludedIds.has(t.transaction_id)) continue;
+    const cell = cells.get(t.date);
+    if (!cell) continue;
+
+    if (t.amount > 0) {
+      cell.spend += t.amount;
+      const override = overrides[t.transaction_id];
+      cell.rows.push({
+        txn: t,
+        category: override ?? defaultCategory(t),
+        overridden: override !== undefined,
+      });
+    } else {
+      // Income is not a refund. Only inflows the classification did NOT call
+      // income land here, which is exactly the refund/credit case — counting a
+      // paycheck as a credit would put a "+$2,450" on payday and make the
+      // heat grid look like the best spending day of the month.
+      if (!classification.incomeIds.has(t.transaction_id)) {
+        cell.credit += Math.abs(t.amount);
+        const override = overrides[t.transaction_id];
+        cell.rows.push({
+          txn: t,
+          category: override ?? defaultCategory(t),
+          overridden: override !== undefined,
+        });
+      }
+    }
+  }
+
+  return Array.from(cells.values());
+}
+
+// ─── Trailing history ─────────────────────────────────────────────────────────
+
+/** One month of one category's spending, for the mini trend charts. */
+export interface MonthPoint {
+  /** YYYY-MM. */
+  key: string;
+  /** "Jul" — short, because these sit under 40px-wide bars. */
+  label: string;
+  amount: number;
+  /** True for the month currently being viewed. Drives the selection state. */
+  current: boolean;
+}
+
+/**
+ * The last N whole months of one category, plus the month in view.
+ *
+ * The current month is included and marked rather than held out, because the
+ * question the chart answers is "is this month unusual", and you cannot see that
+ * without the month itself on the axis. It IS partial, and the caller is
+ * expected to say so — the chart cannot, and a short final bar that goes
+ * unexplained reads as an improvement rather than as a month still running.
+ *
+ * Passing `category: null` gives total spend per month, which is what the
+ * whole-budget and merchant charts want.
+ */
+export function categoryHistory(args: {
+  transactions: TransactionRow[];
+  classification: TransactionClassification;
+  overrides: Record<string, SpendCategory>;
+  category: SpendCategory | null;
+  /** How many months to show, including the current one. */
+  months: number;
+  now?: Date;
+}): MonthPoint[] {
+  const { transactions, classification, overrides, category, months, now = new Date() } = args;
+
+  const points: MonthPoint[] = [];
+  const currentKey = monthKey(now);
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    points.push({
+      key,
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      amount: 0,
+      current: key === currentKey,
+    });
+  }
+  const index = new Map(points.map((p, i) => [p.key, i]));
+
+  for (const t of transactions) {
+    if (t.pending || t.account_type !== 'savings') continue;
+    if (classification.excludedIds.has(t.transaction_id)) continue;
+    if (t.amount <= 0) continue;                     // spend only
+    const i = index.get(t.date.slice(0, 7));
+    if (i === undefined) continue;
+    if (category !== null) {
+      const resolved = overrides[t.transaction_id] ?? defaultCategory(t);
+      if (resolved !== category) continue;
+    }
+    points[i].amount += t.amount;
+  }
+
+  return points;
+}
+
+/**
+ * The trailing average behind a "last 12 months avg." stat.
+ *
+ * Whole months only, and the current one excluded — it is always partial, and
+ * averaging it in drags the figure down, which is the direction that makes a
+ * suggested ceiling too tight. Returns null rather than 0 when there is no
+ * history: an average of nothing is not zero dollars a month.
+ */
+export function trailingAverage(points: MonthPoint[]): number | null {
+  const whole = points.filter(p => !p.current);
+  if (whole.length === 0) return null;
+  return whole.reduce((sum, p) => sum + p.amount, 0) / whole.length;
+}
+
+// ─── Merchants ────────────────────────────────────────────────────────────────
+
+/** A payee, rolled up across the period. */
+export interface MerchantTotal {
+  /** Normalised key used for grouping. */
+  key: string;
+  /** As it appears on the statement. */
+  name: string;
+  amount: number;
+  count: number;
+}
+
+/**
+ * Who the money went to, most-spent first.
+ *
+ * Grouped on a normalised name because statements append store numbers, dates
+ * and reference codes — "SQ *BLUE BOTTLE 4471" and "SQ *BLUE BOTTLE 8892" are
+ * one coffee habit, and leaving them separate is what makes a frequency list
+ * useless. Digits are stripped for the key only; the label keeps whichever form
+ * the bank sent, so nothing on screen is a name the user has never seen.
+ */
+export function merchantTotals(rows: CategorizedTxn[]): MerchantTotal[] {
+  const groups = new Map<string, MerchantTotal>();
+  for (const r of rows) {
+    const raw = r.txn.merchant_name ?? r.txn.name ?? '';
+    const key = raw.toLowerCase().replace(/\d+/g, '').replace(/\s+/g, ' ').trim();
+    if (!key) continue;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.amount += r.txn.amount;
+      existing.count  += 1;
+    } else {
+      groups.set(key, { key, name: raw, amount: r.txn.amount, count: 1 });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => b.amount - a.amount);
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}

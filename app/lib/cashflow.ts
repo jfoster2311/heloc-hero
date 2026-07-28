@@ -140,6 +140,16 @@ export interface DeriveOptions {
   /** How many whole months back to average. */
   windowMonths: number;
   now?: Date;
+  /**
+   * Rows the user marked as duplicates.
+   *
+   * Threaded in here as well as through `classifyTransactions` so the trailing
+   * average and the Cash flow tab's measured total cannot disagree about the
+   * same rows. If only one of the two honoured a hide, the tab would show a
+   * spend figure that no longer reconciled with the surplus the payoff date is
+   * computed from — with nothing on screen to explain the gap.
+   */
+  hiddenIds?: Set<string>;
 }
 
 export function deriveCashflow(
@@ -156,9 +166,11 @@ export function deriveCashflow(
   // Only depository accounts describe living costs. Transactions on the
   // mortgage or HELOC item are payments and draws, which the strategy models
   // directly — reading them as spending would count the same dollars twice.
+  const hidden = opts.hiddenIds ?? new Set<string>();
   const inWindow = transactions.filter(t =>
     !t.pending &&
     t.account_type === 'savings' &&
+    !hidden.has(t.transaction_id) &&
     withinRange(t.date, start, endExclusive),
   );
 
@@ -280,11 +292,34 @@ export interface TransactionClassification {
   excludedIds: Set<string>;
   /** Inflows that behave like income. Everything else in is left uncounted. */
   incomeIds: Set<string>;
+  /**
+   * The subset of `excludedIds` the USER hid, rather than the rules.
+   *
+   * Kept apart so the two can be reported differently. "12 transfers excluded"
+   * is the app explaining itself; "3 rows you hid" is the user's own edit, and
+   * only the second one is theirs to undo.
+   */
+  hiddenIds: Set<string>;
+}
+
+/**
+ * Rows the user marked as duplicates.
+ *
+ * This is the one hand-hold callers get into the classification, and it is
+ * narrow on purpose: hiding removes a row from EVERY total in the app, so it
+ * must enter through the same door as the automatic exclusions rather than being
+ * filtered out somewhere downstream. A screen that subtracted hidden rows on its
+ * own would print a spend total that no longer matched the surplus.
+ */
+export interface ClassifyOptions {
+  hiddenIds?: Set<string>;
 }
 
 export function classifyTransactions(
   transactions: TransactionRow[],
+  opts: ClassifyOptions = {},
 ): TransactionClassification {
+  const hidden = opts.hiddenIds ?? new Set<string>();
   // Same gate as deriveCashflow: only depository rows describe living costs.
   // Mortgage and HELOC activity is the strategy's own machinery, not spending.
   const usable = transactions.filter(t => !t.pending && t.account_type === 'savings');
@@ -294,8 +329,18 @@ export function classifyTransactions(
 
   const excludedIds = new Set<string>();
   const incomeIds   = new Set<string>();
+  const hiddenIds   = new Set<string>();
 
   for (const t of usable) {
+    // The user's own call comes first and is absolute. A row they marked as a
+    // duplicate is not income and not spending — it is the same money already
+    // counted on another row, and counting it again is the bug they are fixing.
+    if (hidden.has(t.transaction_id)) {
+      excludedIds.add(t.transaction_id);
+      hiddenIds.add(t.transaction_id);
+      continue;
+    }
+
     const isTransfer =
       transferIds.has(t.transaction_id) ||
       (t.category_primary !== null && TRANSFER_PRIMARY.has(t.category_primary)) ||
@@ -312,7 +357,7 @@ export function classifyTransactions(
     }
   }
 
-  return { excludedIds, incomeIds };
+  return { excludedIds, incomeIds, hiddenIds };
 }
 
 /**
