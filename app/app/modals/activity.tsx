@@ -19,7 +19,7 @@ import TransactionDetailSheet from '../../components/sheets/TransactionDetailShe
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
-import { useTransactionMeta } from '../../hooks/useTransactionMeta';
+import type { UseTransactionMetaResult } from '../../hooks/useTransactionMeta';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import {
   categoryMeta, periodRange, summarizePeriod,
@@ -39,7 +39,8 @@ export default function ActivityScreen() {
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
-  const txnMeta = useTransactionMeta(profile?.id);
+  // One instance for the whole app — see the note in useFinancials.
+  const txnMeta = f.transactionMeta;
 
   const [sort, setSort] = useState<Sort>('newest');
   const [query, setQuery] = useState('');
@@ -59,13 +60,22 @@ export default function ActivityScreen() {
     [f.transactions, f.transactionClassification, overrides.overrides, range, f.income, f.expenses],
   );
 
+  // Outflows and inflows together. They are separate on the summary so a
+  // paycheck cannot land in the category breakdown, but this screen is where a
+  // user checks the app against their statement, and a list missing their
+  // deposits would read as the app having lost them.
+  const all = useMemo(
+    () => [...summary.rows, ...summary.inflows],
+    [summary.rows, summary.inflows],
+  );
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? summary.rows.filter(r =>
+      ? all.filter(r =>
           (r.txn.merchant_name ?? r.txn.name ?? '').toLowerCase().includes(q) ||
-          categoryMeta(r.category).label.toLowerCase().includes(q))
-      : summary.rows;
+          (r.txn.amount > 0 && categoryMeta(r.category).label.toLowerCase().includes(q)))
+      : all;
 
     const sorted = [...filtered];
     switch (sort) {
@@ -74,7 +84,7 @@ export default function ActivityScreen() {
       case 'largest': sorted.sort((a, b) => b.txn.amount - a.txn.amount); break;
     }
     return sorted;
-  }, [summary.rows, query, sort]);
+  }, [all, query, sort]);
 
   // Day headings only make sense on a date-ordered list. Sorting by amount and
   // keeping them would produce a heading per row, which is not a grouping.
@@ -226,19 +236,22 @@ export default function ActivityScreen() {
 
 function Row({ row, meta, onOpen }: {
   row: CategorizedTxn;
-  meta: ReturnType<typeof useTransactionMeta>;
+  meta: UseTransactionMetaResult;
   onOpen: (r: CategorizedTxn) => void;
 }) {
   const m = meta.get(row.txn.transaction_id);
+  // An inflow carries a placeholder category so the two arrays share a shape.
+  // Rendering it would label a paycheck "Other".
+  const inflow = row.txn.amount < 0;
   return (
     <TransactionRow
       name={row.txn.merchant_name ?? row.txn.name ?? 'Transaction'}
-      meta={categoryMeta(row.category).label}
+      meta={inflow ? 'Money in' : categoryMeta(row.category).label}
       amount={row.txn.amount}
-      icon={categoryMeta(row.category).icon}
+      icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(row.category).icon}
       hidden={m.hidden}
       recurring={m.recurring}
-      overridden={row.overridden}
+      overridden={!inflow && row.overridden}
       pending={row.txn.pending}
       onPress={() => { hapticLight(); onOpen(row); }}
     />

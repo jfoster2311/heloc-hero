@@ -52,7 +52,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
-import { useTransactionMeta } from '../../hooks/useTransactionMeta';
 import { useBudgets } from '../../hooks/useBudgets';
 import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import {
@@ -78,7 +77,10 @@ export default function CashFlowScreen() {
     error: historyError, refresh: refreshHistory,
   } = useDumpHistory(profile?.id);
   const overrides = useCategoryOverrides(profile?.id);
-  const txnMeta = useTransactionMeta(profile?.id);
+  // One instance for the whole app, from useFinancials. Mounting the hook again
+  // here would give this screen its own copy of "what is hidden", and the totals
+  // above the list would go on counting a row the list had already dimmed.
+  const txnMeta = f.transactionMeta;
 
   const [period, setPeriod] = useState<PeriodId>('month');
   const [openCategory, setOpenCategory] = useState<CategoryDetailTarget | null>(null);
@@ -201,10 +203,15 @@ export default function CashFlowScreen() {
     };
   }, [summary.basis, f.transactions, f.transactionClassification, overrides.overrides, range]);
 
-  // Newest first, for the activity widget and the full list behind it.
+  // Newest first, for the activity widget and the full list behind it. Inflows
+  // are merged back in here: they are held out of `rows` so a paycheck cannot
+  // land in the category breakdown, but a list of recent activity missing the
+  // largest deposit of the month would look broken to the one person who can
+  // check it against their statement.
   const recent = useMemo(
-    () => [...summary.rows].sort((a, b) => b.txn.date.localeCompare(a.txn.date)),
-    [summary.rows],
+    () => [...summary.rows, ...summary.inflows]
+      .sort((a, b) => b.txn.date.localeCompare(a.txn.date)),
+    [summary.rows, summary.inflows],
   );
 
   const totalCeiling = useMemo(() => {

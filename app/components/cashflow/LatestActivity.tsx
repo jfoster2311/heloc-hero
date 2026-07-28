@@ -55,18 +55,22 @@ export default function LatestActivity({
         <View style={styles.list}>
           {preview.map(r => {
             const m = metaFor(r.txn.transaction_id);
+            // An inflow has no spending category — summarizePeriod puts a
+            // placeholder on it so the shapes match, and displaying that
+            // placeholder would label a paycheck "Other".
+            const inflow = r.txn.amount < 0;
             return (
               <TransactionRow
                 key={r.txn.transaction_id}
                 name={r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
                 meta={formatDay(r.txn.date)}
                 amount={r.txn.amount}
-                icon={categoryMeta(r.category).icon}
+                icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(r.category).icon}
                 hidden={m.hidden}
                 recurring={m.recurring}
-                overridden={r.overridden}
+                overridden={!inflow && r.overridden}
                 pending={r.txn.pending}
-                accessibilityExtra={categoryMeta(r.category).label}
+                accessibilityExtra={inflow ? 'money in' : categoryMeta(r.category).label}
                 onPress={() => { hapticLight(); onOpenRow(r); }}
               />
             );

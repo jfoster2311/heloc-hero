@@ -24,7 +24,6 @@ import TransactionDetailSheet from '../../components/sheets/TransactionDetailShe
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
-import { useTransactionMeta } from '../../hooks/useTransactionMeta';
 import { useBudgets } from '../../hooks/useBudgets';
 import { hapticLight } from '../../lib/haptics';
 import {
@@ -41,7 +40,8 @@ export default function BudgetScreen() {
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
-  const txnMeta = useTransactionMeta(profile?.id);
+  // One instance for the whole app — see the note in useFinancials.
+  const txnMeta = f.transactionMeta;
 
   const [openCategory, setOpenCategory] = useState<CategoryDetailTarget | null>(null);
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);

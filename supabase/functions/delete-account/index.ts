@@ -14,6 +14,13 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 // `transactions` is listed first and deliberately: it is the most sensitive
 // thing the app stores, and "Delete my data" has to be true about it.
 const USER_TABLES = [
+  // The annotation tables come before `transactions`, which they cascade from.
+  // Either order works, but this way each is a real delete rather than a no-op
+  // that happens to be covered — the point of listing tables explicitly is that
+  // the sweep does not depend on the cascade being right.
+  "transaction_meta",
+  "transaction_categories",
+  "category_budgets",
   "transactions",
   "plaid_accounts",
   "linked_accounts",

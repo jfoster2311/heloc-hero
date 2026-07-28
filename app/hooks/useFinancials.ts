@@ -13,7 +13,7 @@ import { useMemo } from 'react';
 import { useAuth } from './useAuth';
 import { useAccounts } from './useAccounts';
 import { useCashflow } from './useCashflow';
-import { useTransactionMeta } from './useTransactionMeta';
+import { useTransactionMeta, type UseTransactionMetaResult } from './useTransactionMeta';
 import { computeProjection, genericProjection } from '../lib/projections';
 import {
   resolveHelocRate, deriveCreditLimit, termsAreStale, drawPeriodStatus,
@@ -83,6 +83,18 @@ export interface Financials {
   transactions: TransactionRow[];
   /** Which rows are transfers and which inflows are income. One shared answer. */
   transactionClassification: TransactionClassification;
+  /**
+   * The user's own annotations, and the writers for them.
+   *
+   * Exposed rather than mounted per screen, and that is a correctness
+   * requirement rather than a convenience. Every figure here is summed through
+   * a classification built from `hiddenIds`. A screen calling
+   * `useTransactionMeta` again would get a SECOND, independent copy of that
+   * state — so hiding a row would dim it in that screen's list while the totals
+   * above it, derived from this hook's copy, went on counting it until the next
+   * remount. One instance, one answer to "is this counted".
+   */
+  transactionMeta: UseTransactionMetaResult;
   /** How far the figures in use sit from what the transactions say. */
   cashflowGap: CashflowGap | null;
   awaitingTransactions: boolean;
@@ -114,7 +126,8 @@ export function useFinancials(): Financials {
   // derivation, rather than in the Cash flow tab — every figure below is summed
   // through the classification these feed, so a screen that applied hides on its
   // own would show a spend total that no longer reconciled with the surplus.
-  const { hiddenIds } = useTransactionMeta(profile?.id ?? null);
+  const transactionMeta = useTransactionMeta(profile?.id ?? null);
+  const { hiddenIds } = transactionMeta;
 
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
@@ -125,12 +138,12 @@ export function useFinancials(): Financials {
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
-      hiddenIds,
+      transactionMeta,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
       loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
-      hiddenIds,
+      transactionMeta,
     ],
   );
 }
@@ -148,7 +161,7 @@ function derive(
   derivedCashflow: DerivedCashflow | null,
   transactions: TransactionRow[],
   awaitingTransactions: boolean,
-  hiddenIds: Set<string>,
+  transactionMeta: UseTransactionMetaResult,
 ): Financials {
   const hasLinkedAccounts = accounts.length > 0;
   const lastSyncedAt = newestSync(accounts);
@@ -293,7 +306,11 @@ function derive(
     liquidCash,
     derivedCashflow,
     transactions,
-    transactionClassification: classifyTransactions(transactions, { hiddenIds }),
+    transactionMeta,
+    transactionClassification: classifyTransactions(
+      transactions,
+      { hiddenIds: transactionMeta.hiddenIds },
+    ),
     cashflowGap,
     awaitingTransactions,
 

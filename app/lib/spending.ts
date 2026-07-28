@@ -238,7 +238,23 @@ export interface PeriodSummary {
   /** Income − spend. Before the mortgage payment, which is modelled separately. */
   net: number;
   categories: CategoryTotal[];
+  /**
+   * Money OUT, categorised. This is what the ring and the category sheets read.
+   *
+   * Inflows are deliberately not in here. A category sheet filters this array by
+   * category, and an inflow has no meaningful spending category — a paycheck
+   * landing in "Other" would sit in the breakdown as if it were an expense.
+   */
   rows: CategorizedTxn[];
+  /**
+   * Money IN — income and credits both.
+   *
+   * Kept separate for the reason above, but kept at all because an activity
+   * list that showed only outflows would be missing the paycheck, and a user
+   * scanning for a transaction they remember has no idea the list is filtered.
+   * The `category` on these rows is a placeholder and must not be displayed.
+   */
+  inflows: CategorizedTxn[];
   /** Rows Plaid could not place, sitting in Other until the user tags them. */
   untaggedCount: number;
 }
@@ -270,6 +286,7 @@ export function summarizePeriod(args: {
       net:    (entered.monthlyIncome - entered.monthlyExpenses) * range.months,
       categories: [],
       rows: [],
+      inflows: [],
       untaggedCount: 0,
     };
   }
@@ -279,11 +296,17 @@ export function summarizePeriod(args: {
   let untaggedCount = 0;
   const totals = new Map<SpendCategory, { amount: number; count: number }>();
   const rows: CategorizedTxn[] = [];
+  const inflows: CategorizedTxn[] = [];
 
   for (const t of inWindow) {
     if (t.amount < 0) {
       // Plaid's sign convention: negative is money in.
       if (classification.incomeIds.has(t.transaction_id)) income += Math.abs(t.amount);
+      // Listed whether or not it counted as income. An inflow this module could
+      // not classify is still a row the user saw on their statement, and
+      // omitting it from the activity list would make the list look wrong to
+      // the one person able to check it.
+      inflows.push({ txn: t, category: 'other', overridden: false });
       continue;
     }
     spend += t.amount;
@@ -321,6 +344,7 @@ export function summarizePeriod(args: {
     net: income - spend,
     categories,
     rows,
+    inflows,
     untaggedCount,
   };
 }

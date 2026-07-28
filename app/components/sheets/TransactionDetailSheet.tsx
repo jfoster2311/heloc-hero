@@ -93,23 +93,34 @@ export default function TransactionDetailSheet({
         </Text>
         {t.pending && <Text style={styles.pending}>Pending — this may still change</Text>}
 
-        <TouchableOpacity
-          style={styles.catPill}
-          onPress={() => { hapticLight(); setPickerOpen(o => !o); }}
-          accessibilityRole="button"
-          accessibilityLabel={`Category: ${cat.label}. Tap to change.`}
-        >
-          <Ionicons name={cat.icon} size={15} color={Colors.mint700} />
-          <Text style={styles.catPillText}>{cat.label}</Text>
-          <Ionicons
-            name={pickerOpen ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color={Colors.mint700}
-          />
-        </TouchableOpacity>
+        {/* Money in has no spending category, so there is nothing to pick. The
+            row still carries a placeholder one so the arrays it travels in
+            share a shape; offering it here would invite someone to file their
+            paycheck under Groceries. */}
+        {inflow ? (
+          <View style={[styles.catPill, styles.catPillStatic]}>
+            <Ionicons name="arrow-down-circle-outline" size={15} color={Colors.mint700} />
+            <Text style={styles.catPillText}>Money in</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.catPill}
+            onPress={() => { hapticLight(); setPickerOpen(o => !o); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Category: ${cat.label}. Tap to change.`}
+          >
+            <Ionicons name={cat.icon} size={15} color={Colors.mint700} />
+            <Text style={styles.catPillText}>{cat.label}</Text>
+            <Ionicons
+              name={pickerOpen ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={Colors.mint700}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {pickerOpen && (
+      {pickerOpen && !inflow && (
         <View style={styles.picker}>
           {SPEND_CATEGORIES.map(c => {
             const active = c.id === row.category;
@@ -286,6 +297,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.mint200,
   },
+  catPillStatic: { paddingHorizontal: Spacing[4] },
   catPillText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,

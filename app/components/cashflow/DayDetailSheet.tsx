@@ -53,16 +53,18 @@ export default function DayDetailSheet({
         <View style={styles.list}>
           {rows.map(r => {
             const m = metaFor(r.txn.transaction_id);
+            // Credits carry a placeholder category — see summarizePeriod.
+            const inflow = r.txn.amount < 0;
             return (
               <TransactionRow
                 key={r.txn.transaction_id}
                 name={r.txn.merchant_name ?? r.txn.name ?? 'Transaction'}
-                meta={categoryMeta(r.category).label}
+                meta={inflow ? 'Money back' : categoryMeta(r.category).label}
                 amount={r.txn.amount}
-                icon={categoryMeta(r.category).icon}
+                icon={inflow ? 'arrow-down-circle-outline' : categoryMeta(r.category).icon}
                 hidden={m.hidden}
                 recurring={m.recurring}
-                overridden={r.overridden}
+                overridden={!inflow && r.overridden}
                 pending={r.txn.pending}
                 onPress={() => { hapticLight(); onOpenTransaction(r); }}
               />
