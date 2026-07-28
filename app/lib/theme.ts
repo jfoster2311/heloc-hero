@@ -199,6 +199,76 @@ export const CategoryRamp = {
 /** How many arcs the ring may draw before the rest becomes `neutral`. */
 export const CATEGORY_RAMP_MAX = CategoryRamp.steps.length;
 
+/**
+ * The three states that would be hue in a conventional fintech palette.
+ *
+ * Budgeting UI leans hard on colour: red for over-budget, blue for "linked to an
+ * account", grey for "this is the bar you tapped". This app has one hue, so each
+ * of those gets a named slot here rather than a colour picked at the call site.
+ *
+ * Two things this buys, and they are the whole reason the indirection exists:
+ *
+ *   1. Every over-ceiling mark in the app resolves through `overCeiling`. There
+ *      is exactly one place to change if the palette policy ever changes, and
+ *      exactly one place to read if you want to know what the policy IS.
+ *   2. It documents the intent that the colour cannot. `warning: '#6B7280'`
+ *      looks like a mistake; `overCeiling` with this comment does not.
+ *
+ * ── Why these values and not red/blue ──────────────────────────────────────
+ * CLAUDE.md forbids red, amber, blue and purple in production UI, and the
+ * reasoning holds under a budgeting feature: this app shows people numbers about
+ * their house, and a red bar reads as an error when the user has simply spent
+ * more than they planned. So severity is carried the way it is carried
+ * everywhere else here — by saturation, by an explicit word, and by an icon.
+ *
+ * The rule that makes this work: NOTHING may be signalled by these tokens
+ * alone. An over-ceiling row is grey AND says "over". A linked-account row has a
+ * ring AND an accessibility label. Remove the colour entirely and every state on
+ * screen is still legible — which is also what makes it survive colour-blindness
+ * and greyscale, so it is not merely a policy workaround.
+ */
+export const Semantic = {
+  /**
+   * A category whose spend has passed the ceiling the user set.
+   *
+   * Muted grey, never red, and never the mint used for on-track — those two must
+   * not be adjacent values of one scale, or "nearly over" and "over" become a
+   * judgement about a shade. Always paired with the word "over".
+   */
+  overCeiling: Colors.gray500,
+  /** The track a ceiling bar is drawn in, over-budget or not. */
+  ceilingTrack: Colors.gray100,
+  /** On track, and below the ceiling. The one positive mark on a budget row. */
+  underCeiling: Colors.mint600,
+
+  /**
+   * Marks a row as tied to a specific linked account.
+   *
+   * Drawn as a ring rather than a filled dot: a filled mint dot at this size is
+   * the same mark the app uses for "on track", and the two appearing in one row
+   * would collide. The ring is a different SHAPE, which is what carries it.
+   */
+  linkedAccount: Colors.mint600,
+
+  /**
+   * "This is the bar/month you tapped" — carries no value judgement.
+   *
+   * Deliberately neutral and deliberately NOT part of the green scale: a
+   * selection drawn in mint would read as approval of whatever is selected. An
+   * outline, so it layers over a bar whose own fill already means something.
+   */
+  selected: Colors.gray400,
+
+  /**
+   * A row excluded from every total — a duplicate the user has hidden.
+   *
+   * Opacity, not colour, because the row is not a different KIND of thing; it is
+   * the same thing, not counted. Paired with an eye-off icon so the state is
+   * still visible to someone who cannot see the dimming.
+   */
+  hiddenOpacity: 0.4,
+} as const;
+
 // Deep-green aurora used by the full-bleed dark screens and every hero block.
 // Layered rather than a single ramp: a dark vertical base, a mint glow raked
 // across it, and a pale wash at the very top. Grain sits over the whole stack.
