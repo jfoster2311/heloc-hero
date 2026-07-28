@@ -46,7 +46,8 @@ export const PRO_FEATURES: string[] = [
   'Link your mortgage, HELOC and savings for live balances',
   'Alerts on your phone when it is time to move money',
   'Cycle tracking with your real dump history and streak',
-  'HELOC Hero Score™ from your actual accounts',
+  // No ™ — the mark is not registered and nothing else in the app claims one.
+  'HELOC Hero score, kept current from your linked accounts',
   'Payoff projections that follow your live balances',
 ];
 

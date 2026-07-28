@@ -1,19 +1,19 @@
 // app/onboarding/credit-score.tsx
+// The bands live in lib/helocScore.ts, with the score that reads them. They used
+// to be declared here too, with different midpoints for the same labels — so
+// someone picking "Very good" at onboarding and re-picking it later on the score
+// screen would watch their score move without changing their answer.
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import { useOnboardingStore } from '../../lib/onboardingStore';
+import { CREDIT_RANGES, FREE_CREDIT_REPORT_URL } from '../../lib/helocScore';
 
 import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
 
-const RANGES = [
-  { label: 'Exceptional', range: '800+',       value: 820, color: Colors.mint700 },
-  { label: 'Very Good',   range: '740–799',    value: 760, color: Colors.mint600 },
-  { label: 'Good',        range: '670–739',    value: 700, color: Colors.mint400 },
-  { label: 'Fair',        range: '580–669',    value: 620, color: Colors.mint400 },
-  { label: 'Poor',        range: 'Below 580',  value: 550, color: Colors.gray400 },
-];
+const RANGES = CREDIT_RANGES;
 
 export default function CreditScoreStep() {
   const router = useRouter();
@@ -27,15 +27,18 @@ export default function CreditScoreStep() {
     router.push('/onboarding/reveal');
   }
 
-  const selectedRange = RANGES.find(r => r.value === selected);
-
   return (
     <OnboardingStep
       step={4}
       totalSteps={4}
       title="Estimate your credit score"
-      subtitle="This helps calculate your HELOC Hero Score™ and HELOC approval odds."
-      whyWeAsk="We use this to estimate HELOC approval odds — never shared."
+      // Was "helps calculate your HELOC Hero Score™ and HELOC approval odds".
+      // We do not estimate approval odds — there is no underwriting model behind
+      // anything here, and lib/helocScore.ts is careful to say so. Promising it
+      // at onboarding and disclaiming it later is the drift this app has been
+      // caught in before.
+      subtitle="It's one of four things your HELOC Hero score looks at. An estimate is fine."
+      whyWeAsk="Only feeds your HELOC Hero score. We never pull your credit, and it is never shared."
       onBack={() => { prevStep(); router.back(); }}
       onNext={handleFinish}
       nextLabel="See My Results →"
@@ -48,36 +51,44 @@ export default function CreditScoreStep() {
       ) : null}
 
       <View style={styles.rangeList}>
-        {RANGES.map(r => (
-          <TouchableOpacity
-            key={r.value}
-            style={[
-              styles.rangeItem,
-              selected === r.value && { borderColor: r.color, backgroundColor: `${r.color}12` },
-            ]}
-            onPress={() => setSelected(r.value)}
-          >
-            <View style={[styles.rangeDot, { backgroundColor: r.color }]} />
-            <View style={styles.rangeText}>
-              <Text style={styles.rangeLabel}>{r.label}</Text>
-              <Text style={styles.rangeScore}>{r.range}</Text>
-            </View>
-            {selected === r.value && (
-              <View style={[styles.selectedBadge, { backgroundColor: r.color }]}>
-                <Text style={styles.selectedBadgeText}>Selected</Text>
+        {RANGES.map(r => {
+          const active = selected === r.value;
+          return (
+            <TouchableOpacity
+              key={r.value}
+              style={[styles.rangeItem, active && styles.rangeItemActive]}
+              onPress={() => setSelected(r.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${r.label}, ${r.range}`}
+            >
+              <View style={styles.rangeText}>
+                <Text style={styles.rangeLabel}>{r.label}</Text>
+                <Text style={styles.rangeScore}>{r.range}</Text>
               </View>
-            )}
-          </TouchableOpacity>
-        ))}
+              {active && (
+                <Ionicons name="checkmark-circle" size={22} color={Colors.mint600} />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {selectedRange && (
-        <View style={[styles.hint, { borderLeftColor: selectedRange.color }]}>
-          <Text style={styles.hintText}>
-            Don't know your exact score? Check Credit Karma or your bank app for a free estimate.
-          </Text>
-        </View>
-      )}
+      {/* Where to actually get it, and an honest statement that we do not.
+          "Check Credit Karma" pointed at a commercial product; this is the
+          statutory free-report site. */}
+      <TouchableOpacity
+        style={styles.hint}
+        onPress={() => Linking.openURL(FREE_CREDIT_REPORT_URL)}
+        accessibilityRole="link"
+        accessibilityLabel="Get your credit report free at annualcreditreport.com"
+      >
+        <Text style={styles.hintText}>
+          Don&apos;t know it? Your bank or card issuer probably shows a score, or get your
+          report free at annualcreditreport.com. We never pull your credit — this is your
+          estimate, and it only feeds your HELOC Hero score.
+        </Text>
+      </TouchableOpacity>
     </OnboardingStep>
   );
 }
@@ -103,13 +114,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     backgroundColor: Colors.gray50,
     gap: Spacing[3],
+    minHeight: 64,
   },
-  rangeDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    flexShrink: 0,
-  },
+  rangeItemActive: { borderColor: Colors.mint600, backgroundColor: Colors.mint50 },
   rangeText: { flex: 1 },
   rangeLabel: {
     fontSize: Typography.base,
@@ -121,21 +128,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 2,
   },
-  selectedBadge: {
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-  selectedBadgeText: {
-    color: Colors.white,
-    fontSize: Typography.xs,
-    fontWeight: Typography.semibold,
-  },
   hint: {
     backgroundColor: Colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     borderLeftWidth: 3,
+    borderLeftColor: Colors.mint200,
   },
   hintText: {
     fontSize: Typography.sm,

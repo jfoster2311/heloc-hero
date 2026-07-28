@@ -17,7 +17,7 @@
 // transaction lists, rate history, per-account balances: every one is a real
 // thing a user might want, and none is what this screen is for. Ranking is the
 // feature.
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -31,11 +31,15 @@ import WatchRow from '../../components/ui/WatchRow';
 import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
 import InterestTicker from '../../components/InterestTicker';
+import GettingStarted from '../../components/GettingStarted';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useDumpHistory } from '../../hooks/useDumpHistory';
 import { useCycleReminders } from '../../hooks/useCycleReminders';
+import { useBudgets } from '../../hooks/useBudgets';
+import { computeHelocScore } from '../../lib/helocScore';
+import { buildChecklist } from '../../lib/onboardingChecklist';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { computeRealized } from '../../lib/realized';
 import { computeSafeToSweep } from '../../lib/sweep';
@@ -52,8 +56,44 @@ export default function DashboardScreen() {
   const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
   const f = useFinancials();
-  const { totalDumped } = useDumpHistory(profile?.id);
+  const { totalDumped, count: dumpCount } = useDumpHistory(profile?.id);
   const [moveDismissed, setMoveDismissed] = useState(false);
+
+  // Both read straight off state that already exists. Nothing about progress is
+  // stored — see lib/onboardingChecklist.ts for why a `completed_steps` column
+  // would be the app lying about the user's own progress.
+  const budgetMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const budgets = useBudgets(profile?.id, budgetMonth);
+
+  const score = useMemo(
+    () => computeHelocScore({
+      monthlyIncome:   f.income,
+      monthlyExpenses: f.expenses,
+      monthlyPayment:  f.payment,
+      helocBalance:    f.helocDrawn,
+      helocLimit:      f.helocLimit,
+      creditScore:     profile?.credit_score ?? null,
+      homeValue:       f.homeValue,
+      mortgageBalance: f.mortgageBalance,
+    }),
+    [f.income, f.expenses, f.payment, f.helocDrawn, f.helocLimit,
+     profile?.credit_score, f.homeValue, f.mortgageBalance],
+  );
+
+  const checklist = useMemo(
+    () => buildChecklist({
+      hasProjection:     f.hasRealData,
+      hasLinkedAccounts: f.hasLinkedAccounts,
+      hasBudget:         budgets.hasAny,
+      score:             score.total,
+      hasHeloc:          (f.helocLimit ?? 0) > 0,
+      dumpCount,
+    }),
+    [f.hasRealData, f.hasLinkedAccounts, budgets.hasAny, score.total, f.helocLimit, dumpCount],
+  );
 
   const realized = computeRealized({
     totalMoved:      totalDumped,
@@ -273,6 +313,21 @@ export default function DashboardScreen() {
               </Text>
               <Text style={styles.staleAction}>Retry</Text>
             </TouchableOpacity>
+          )}
+
+          {/* ── CARD 0 — Getting started ────────────────────────────────
+              Above Safe to Move, and only until it is finished. Someone who
+              has not yet run a scenario or opened a line has no use for a
+              recommendation about how much to move; the ordering follows what
+              the user can actually act on. It returns null once all six steps
+              are done, so the steady state of this screen is unchanged. */}
+          {!f.loading && (
+            <GettingStarted
+              checklist={checklist}
+              score={score.total}
+              scoreHeadline={score.headline}
+              scoreIncomplete={score.incomplete}
+            />
           )}
 
           {/* ── CARD 1 — Safe to Move ──────────────────────────────────── */}

@@ -155,6 +155,10 @@ export default function RootLayout() {
           name="modals/mortgage-payment"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="modals/heloc-score"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
     </LockGate>
   );

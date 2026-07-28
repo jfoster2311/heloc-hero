@@ -26,6 +26,14 @@ interface BudgetRow {
 export interface UseBudgetsResult {
   /** Ceilings resolved for the month passed in. */
   budgets: BudgetMap;
+  /**
+   * True when the user has set a ceiling in ANY month, not just this one.
+   *
+   * The onboarding checklist asks "have you made a budget", which is a question
+   * about the user, not about July. Answering it from `budgets` would un-tick
+   * the step every time they looked at a month they had not touched.
+   */
+  hasAny: boolean;
   loading: boolean;
   /** Category currently being written, for a per-row spinner. */
   saving: SpendCategory | null;
@@ -175,5 +183,9 @@ export function useBudgets(
     setSaving(null);
   }, [userId, month, rows]);
 
-  return { budgets, loading, saving, error, setCeiling, clearCeiling, isInherited };
+  return {
+    budgets,
+    hasAny: rows.length > 0,
+    loading, saving, error, setCeiling, clearCeiling, isInherited,
+  };
 }
