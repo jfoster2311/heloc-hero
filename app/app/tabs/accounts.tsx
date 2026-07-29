@@ -145,6 +145,30 @@ export default function AccountsScreen() {
   // projection rather than 1M/6M/1Y of the past.
   const [horizon, setHorizon] = useState<number | null>(null);
 
+  // What the LTV is measured against. Every one of these values is user-entered,
+  // so "a home value you entered" was never false — but naming the actual basis
+  // is the difference between a caption a user can check and one they cannot.
+  // An online estimate and a recent appraisal deserve different confidence, and
+  // only the user knows which they gave us.
+  const homeValueBasis = profile?.home_value_source
+    ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source].toLowerCase()
+    : 'the home value you entered';
+
+  // Spans that would render the same chart as "All" are not offered. When the
+  // projection runs 8 years, a "10 yr" pill draws an identical curve to "All"
+  // and the only thing the user learns from tapping it is that the control does
+  // nothing. `null` always survives the filter — it is the whole curve.
+  const horizons = useMemo(() => {
+    const total = equitySeries?.accelerated.length ?? 0;
+    return HORIZONS.filter(h => h.months === null || h.months < total);
+  }, [equitySeries]);
+
+  // A selection can outlive the pill that made it: pay the mortgage down and the
+  // projection shortens, and a stored "10 yr" would window the chart with no
+  // pill lit to explain why. Falling back to the full curve keeps the control
+  // and the chart describing the same thing.
+  const activeHorizon = horizons.some(h => h.months === horizon) ? horizon : null;
+
   // ── Setup summaries — one line each, the detail behind the editor ──────────
   const helocValue = (() => {
     if (f.helocLimit === null && f.helocRateAssumed) return 'Add your HELOC terms';
@@ -262,7 +286,7 @@ export default function AccountsScreen() {
               </HeroValue>
               <HeroCaption>
                 {f.equity !== null && f.combinedLTV !== null
-                  ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value on a home value you entered`
+                  ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value, against ${homeValueBasis}`
                   : 'Add your home value to see equity and combined LTV'}
               </HeroCaption>
             </>
@@ -274,20 +298,28 @@ export default function AccountsScreen() {
                 series={equitySeries}
                 payoffDate={f.projection.acceleratedPayoffDate}
                 hasRealData={f.hasRealData}
-                horizonMonths={horizon}
+                horizonMonths={activeHorizon}
               />
 
               {/* Spans of the projection ahead, NOT ranges of history. The
                   labels say "1 yr" rather than "1M/6M/1Y" precisely so they
-                  cannot be misread as a look back at where equity has been. */}
+                  cannot be misread as a look back at where equity has been.
+
+                  A lone "All" pill is no control at all, so the row waits until
+                  there is a genuine choice to make. */}
+              {horizons.length > 1 && (
               <View style={styles.horizonRow}>
-                {HORIZONS.map(h => {
-                  const active = horizon === h.months;
+                {horizons.map(h => {
+                  const active = activeHorizon === h.months;
                   return (
                     <TouchableOpacity
                       key={h.label}
                       style={[styles.horizonPill, active && styles.horizonPillActive]}
                       onPress={() => { hapticLight(); setHorizon(h.months); }}
+                      // The pill reads better at 32pt on the hero than at 44,
+                      // and iOS ships its own segmented control at that height.
+                      // Slop buys back the HIG target without the bulk.
+                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       accessibilityLabel={h.a11y}
@@ -299,6 +331,7 @@ export default function AccountsScreen() {
                   );
                 })}
               </View>
+              )}
             </View>
           )}
         </Hero>
