@@ -24,7 +24,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect } from 'react';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
-import { Card } from '../../components/ui/primitives';
+import { Card, SectionLabel } from '../../components/ui/primitives';
+import Slider from '../../components/ui/Slider';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, computeCyclingSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
@@ -78,7 +79,26 @@ const GENERIC_DEFAULTS: CalculatorInputs = {
   monthlySurplus:  600,
   helocRate:       8.5,
   helocLimit:      25000, // size of the line drawn each cycle (capped at 12× surplus)
+  lumpSum:         0,     // no windfall assumed — the user adds one if they have one
 };
+
+/**
+ * Slider geometry for the two levers.
+ *
+ * `soft` is the track's nominal top end, not a limit on the figure: both fields
+ * are also typed into, and the track grows to fit a larger number rather than
+ * clamping it. A user who enters $8,000 of surplus must not have it silently
+ * dragged down to $5,000 by a control they never touched.
+ */
+const SURPLUS_TRACK   = { soft: 5000,  step: 50 };
+const INJECTION_TRACK = { soft: 20000, step: 500 };
+
+/** Rounds the track up to a clean multiple so the labelled end stays readable. */
+function trackMax(value: number, soft: number, step: number) {
+  if (value <= soft) return soft;
+  const grain = step * 20;
+  return Math.ceil(value / grain) * grain;
+}
 
 function firstBalance(accounts: any[], type: string): number | null {
   const linked = accounts.find((a: any) => a.account_type === type);
@@ -115,6 +135,10 @@ export default function CalculatorScreen() {
       monthlySurplus:  Math.max(0, income - expenses - payment) || GENERIC_DEFAULTS.monthlySurplus,
       helocRate:       GENERIC_DEFAULTS.helocRate,
       helocLimit:      profile?.heloc_credit_limit || GENERIC_DEFAULTS.helocLimit,
+      // Never prefilled. A windfall is a thing the user knows about and we do
+      // not, and starting the screen with an assumed $5,000 bonus would inflate
+      // the payoff date on first load with money nobody has.
+      lumpSum:         0,
     };
   }, [canPrefill, accounts, profile]);
 
@@ -259,6 +283,13 @@ export default function CalculatorScreen() {
 
   const hasGain = !!projection && projection.monthsSaved > 0;
 
+  // The injection paid the mortgage off outright, so there is no payoff to
+  // accelerate. Reachable whenever the balance is smaller than the injection —
+  // a $15,000 balance against a $20,000 windfall — and without this the screen
+  // fell into the "cycling doesn't help, add more surplus" branch, which is a
+  // strange thing to tell someone whose mortgage is gone.
+  const clearedOutright = !!projection && projection.originalMonths === 0;
+
   return (
     <View style={CommonStyles.screenContainer}>
       <KeyboardAvoidingView
@@ -278,7 +309,15 @@ export default function CalculatorScreen() {
             <Text style={styles.heroEyebrow}>YOUR PROJECTED PAYOFF</Text>
 
             {status === 'ok' && projection ? (
-              hasGain ? (
+              clearedOutright ? (
+                <>
+                  <HeroValue>Paid off</HeroValue>
+                  <HeroCaption>
+                    Your one-time injection covers the whole remaining balance, so
+                    there is nothing left to accelerate.
+                  </HeroCaption>
+                </>
+              ) : hasGain ? (
                 <>
                   <HeroValue>{formatMonths(projection.acceleratedMonths)}</HeroValue>
                   <HeroCaption>
@@ -360,6 +399,108 @@ export default function CalculatorScreen() {
               isLast
             />
           </Card>
+
+          {/* ── YOUR LEVERS ─────────────────────────────────────────────────
+              The two variables a user actually wants to push on, given a track
+              instead of a keypad. Both are already editable as numbers above and
+              under Advanced; these are the same fields, so dragging and typing
+              stay in sync rather than being two sources of truth.
+
+              Sliders earn their place on exactly these two and nowhere else on
+              the screen: they are the inputs where the QUESTION is "how does this
+              move the answer", which is a sweep, not a value. Balance and rate
+              are facts a user looks up and types once — a slider would make
+              precise figures fiddly to enter and imply they were guesses. */}
+          <SectionLabel>YOUR LEVERS</SectionLabel>
+          <Card>
+            <LeverRow
+              title="Monthly surplus"
+              sub="Swept to the line each month — the fuel the strategy runs on"
+              value={inputs.monthlySurplus}
+              onChange={v => updateField('monthlySurplus', v)}
+              soft={SURPLUS_TRACK.soft}
+              step={SURPLUS_TRACK.step}
+              a11y="Monthly surplus swept to the HELOC"
+            />
+            <LeverRow
+              title="One-time injection"
+              sub="A bonus, tax refund or sale, applied to principal today"
+              value={inputs.lumpSum ?? 0}
+              onChange={v => updateField('lumpSum', v)}
+              soft={INJECTION_TRACK.soft}
+              step={INJECTION_TRACK.step}
+              a11y="One-time lump sum applied to principal"
+              isLast
+            />
+
+            {/* The single most misreadable thing on this screen, said plainly.
+                Without it, dragging the injection slider looks like it barely
+                helps — when in fact it helps a great deal, just not because of
+                cycling. See the note in prepare(). */}
+            {(inputs.lumpSum ?? 0) > 0 && (
+              <Text style={styles.leverNote}>
+                The injection is applied to both paths below, because the money is
+                yours whether or not you cycle. It pulls both payoff dates in — so
+                expect &ldquo;interest saved&rdquo; to go{' '}
+                <Text style={styles.leverNoteEm}>down</Text> as you add more: a
+                smaller balance simply leaves cycling less to save. You are better
+                off, and the strategy is doing less of the work.
+              </Text>
+            )}
+          </Card>
+
+          {/* ── THE REALITY CHECK ───────────────────────────────────────────
+              Both paths stated in full rather than only their difference, so the
+              figure the hero leads with can be checked against the two numbers
+              it came from.
+
+              The standard path's interest is GREY, not red. It is not an error
+              or a warning — it is what a normal mortgage costs, and the palette
+              rule exists precisely so this screen cannot editorialise with
+              colour about a decision the user has not made yet. */}
+          {projection && status === 'ok' && (
+            <>
+              <SectionLabel>THE REALITY CHECK</SectionLabel>
+              <Card>
+                <View style={styles.compareRow}>
+                  <View style={styles.compareCol}>
+                    <Text style={styles.compareTitle}>Standard path</Text>
+                    <Text style={styles.compareTime}>
+                      {formatMonths(projection.originalMonths)}
+                    </Text>
+                    <Text style={styles.compareCostPlain}>
+                      {money(projection.originalInterest)} interest
+                    </Text>
+                  </View>
+
+                  <View style={styles.vsBadge}>
+                    <Text style={styles.vsText}>VS</Text>
+                  </View>
+
+                  <View style={[styles.compareCol, styles.compareColEnd]}>
+                    <Text style={styles.compareTitle}>Cycling</Text>
+                    <Text style={styles.compareTime}>
+                      {formatMonths(projection.acceleratedMonths)}
+                    </Text>
+                    <Text style={styles.compareCostAccent}>
+                      {money(projection.acceleratedInterest)} interest
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.compareFoot}>
+                  {clearedOutright
+                    ? 'Both paths are already clear: the injection covers the whole balance, so ' +
+                      'neither schedule has anything left to run.'
+                    : hasGain
+                      ? `Cycling costs you HELOC interest and still lands ${money(projection.interestSaved)} ` +
+                        'ahead — that cost is already inside the figure on the right.'
+                      : 'At these numbers cycling does not get ahead. The HELOC interest costs more ' +
+                        'than the earlier principal saves, which is the honest answer for this input.'}
+                </Text>
+              </Card>
+            </>
+          )}
 
           {/* ── Advanced disclosure ────────────────────────────────────────── */}
           <Card>
@@ -739,7 +880,55 @@ const termStyles = StyleSheet.create({
     color: Colors.textPrimary,
     paddingVertical: Spacing[2],
   },
+
 });
+
+/**
+ * One draggable lever: title, live value, track.
+ *
+ * The value readout is the accent on this row and sits above the track rather
+ * than beside the thumb — a figure that travels with the thumb is unreadable
+ * mid-drag, which is the exact moment the user is looking at it.
+ */
+function LeverRow({
+  title, sub, value, onChange, soft, step, a11y, isLast,
+}: {
+  title: string;
+  sub: string;
+  value: number;
+  onChange: (v: number) => void;
+  soft: number;
+  step: number;
+  a11y: string;
+  isLast?: boolean;
+}) {
+  const max = trackMax(value, soft, step);
+
+  return (
+    <View style={[styles.lever, isLast && styles.leverLast]}>
+      <View style={styles.leverHead}>
+        <View style={styles.leverHeadText}>
+          <Text style={styles.leverTitle}>{title}</Text>
+          <Text style={styles.leverSub}>{sub}</Text>
+        </View>
+        <Text style={styles.leverValue}>{money(value)}</Text>
+      </View>
+      <Slider
+        value={value}
+        onChange={onChange}
+        min={0}
+        max={max}
+        step={step}
+        minLabel="$0"
+        // Says "+" only when the track has not already grown past its nominal
+        // end, so the label never claims a ceiling the control does not have.
+        maxLabel={max > soft ? money(max) : `${money(soft)}+`}
+        formatValue={money}
+        accessibilityLabel={a11y}
+      />
+    </View>
+  );
+}
 
 /**
  * A numeric field that keeps the user's raw keystrokes while they type.
@@ -1053,5 +1242,97 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: Spacing[2],
+  },
+  // ── Levers ────────────────────────────────────────────────────────────────
+  lever: {
+    paddingVertical: Spacing[4],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
+  },
+  leverLast: { borderBottomWidth: 0, paddingBottom: Spacing[2] },
+  leverHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    marginBottom: Spacing[1],
+  },
+  leverHeadText: { flex: 1 },
+  leverTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.textPrimary,
+  },
+  leverSub: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
+  leverValue: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.extrabold,
+    color: Colors.mint600,
+  },
+  leverNoteEm: { fontWeight: Typography.bold, color: Colors.textPrimary },
+  leverNote: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+
+  // ── Reality check ─────────────────────────────────────────────────────────
+  compareRow: { flexDirection: 'row', alignItems: 'center' },
+  compareCol: { flex: 1 },
+  compareColEnd: { alignItems: 'flex-end' },
+  compareTitle: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.bold,
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: Spacing[2],
+  },
+  compareTime: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.extrabold,
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  // Grey, not red. The cost of a normal mortgage is not an error state, and the
+  // palette has no red in it precisely so this screen cannot lean on alarm to
+  // sell a strategy.
+  compareCostPlain: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
+    color: Colors.gray500,
+  },
+  compareCostAccent: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
+    color: Colors.mint600,
+  },
+  vsBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.mint50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: Spacing[3],
+  },
+  vsText: {
+    fontSize: 10,
+    fontWeight: Typography.extrabold,
+    color: Colors.mint700,
+    letterSpacing: 0.5,
+  },
+  compareFoot: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: Spacing[4],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
   },
 });

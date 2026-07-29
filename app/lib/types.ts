@@ -164,6 +164,14 @@ export interface PayoffProjection {
   interestSaved: number;
   originalPayoffDate: Date;
   acceleratedPayoffDate: Date;
+  /**
+   * Total interest each path pays, for stating the two side by side rather than
+   * only their difference. `acceleratedInterest` INCLUDES the HELOC interest the
+   * strategy costs, which is what makes the pair comparable — a cycling figure
+   * that counted only mortgage interest would look better than it is.
+   */
+  originalInterest: number;
+  acceleratedInterest: number;
 }
 
 export interface CalculatorInputs {
@@ -174,6 +182,14 @@ export interface CalculatorInputs {
   helocRate: number;
   /** Optional HELOC credit limit; capped internally at 12× surplus */
   helocLimit?: number;
+  /**
+   * A one-time principal payment applied today — a bonus, a tax refund, a sale.
+   *
+   * Applied to BOTH the baseline and the cycling run. See the note in
+   * `prepare()`: the cash exists whether or not anyone cycles, so crediting
+   * cycling with a tax refund would overstate what the strategy contributes.
+   */
+  lumpSum?: number;
 }
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────

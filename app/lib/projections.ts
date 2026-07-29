@@ -144,7 +144,26 @@ function runCycling(
 
 /** Shared setup, so the projection and its series can never disagree. */
 function prepare(inputs: CalculatorInputs) {
-  const { mortgageBalance, mortgageRate, monthlyPayment, monthlySurplus, helocRate, helocLimit } = inputs;
+  const {
+    mortgageRate, monthlyPayment, monthlySurplus, helocRate, helocLimit, lumpSum,
+  } = inputs;
+
+  // ── The one-time injection reduces the OPENING BALANCE of both paths ───────
+  // Not just the cycling run, and that asymmetry is the whole point of doing it
+  // here in the shared setup rather than inside runCycling.
+  //
+  // A bonus or a tax refund is cash the user has whether or not they ever open
+  // a HELOC. Applying it only to the accelerated path would fold "I got $20k"
+  // into the measured benefit of cycling, and the interest-saved figure — which
+  // is the number this app is built to state — would climb every time the user
+  // dragged the injection slider, crediting the strategy for money that arrived
+  // on its own. Both paths get the cash; the delta stays honest about what
+  // cycling itself contributes.
+  //
+  // It lands as an immediate principal payment, so it also feeds `diverges`
+  // below: knocking the balance down can be exactly what makes a payment that
+  // previously could not cover the interest start amortizing.
+  const mortgageBalance = Math.max(0, inputs.mortgageBalance - Math.max(0, lumpSum ?? 0));
 
   // Maximum dump per cycle: user's helocLimit, capped at 12× surplus.
   // 12× ensures replenishment within ~12 months even after HELOC interest.
@@ -177,6 +196,11 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
       interestSaved:         0,
       originalPayoffDate:    cap,
       acceleratedPayoffDate: cap,
+      // Not zero, which would render as "$0 interest" on the comparison — the
+      // most flattering possible reading of a loan that never amortizes. NaN-free
+      // and clearly unusable is the honest shape for a capped result.
+      originalInterest:      Number.POSITIVE_INFINITY,
+      acceleratedInterest:   Number.POSITIVE_INFINITY,
     };
   }
 
@@ -203,6 +227,10 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
     interestSaved,
     originalPayoffDate,
     acceleratedPayoffDate,
+    originalInterest:    Math.round(base.interest),
+    // Includes HELOC interest: runCycling adds it to the same accumulator, which
+    // is the only reason the two figures can sit next to each other honestly.
+    acceleratedInterest: Math.round(acc.interest),
   };
 }
 
