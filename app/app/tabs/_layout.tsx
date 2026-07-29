@@ -16,10 +16,16 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticSelection } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
+import { useTheme } from '../../lib/themeContext';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  // The bar is the one surface on screen in every single tab, so it was also the
+  // most visible thing still painted from the static light palette: in dark mode
+  // a white pill floated over five dark screens. Nothing else had to change for
+  // that to be wrong everywhere at once.
+  const { colors, mode } = useTheme();
 
   return (
     <>
@@ -29,8 +35,8 @@ export default function TabsLayout() {
       <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor:   Colors.mint600,
-        tabBarInactiveTintColor: Colors.gray400,
+        tabBarActiveTintColor:   colors.mint600,
+        tabBarInactiveTintColor: colors.gray400,
         tabBarStyle: {
           position: 'absolute',
           left: Spacing[4],
@@ -42,8 +48,13 @@ export default function TabsLayout() {
           paddingHorizontal: Spacing[2],
           borderRadius: Radius.full,
           borderTopWidth: 0,
-          backgroundColor: Colors.surface,
+          backgroundColor: colors.surface,
           ...Shadows.lifted,
+          // A drop shadow is what lifts the pill off the page in light mode, and
+          // it does almost nothing on a dark canvas — dark-on-dark has no
+          // contrast to cast. A hairline does that job instead, so the bar keeps
+          // an edge rather than dissolving into the screen behind it.
+          ...(mode === 'dark' ? { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border } : null),
         },
         tabBarItemStyle: { borderRadius: Radius.full },
         tabBarLabelStyle: {

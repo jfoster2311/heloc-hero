@@ -19,7 +19,7 @@
 // disagree, the copy is the bug. Thresholds are interpolated from config rather
 // than typed as prose, so they cannot drift out of sync again.
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, ScrollView,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,7 +30,8 @@ import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { SectionLabel } from '../../components/ui/primitives';
 import { hapticLight } from '../../lib/haptics';
 import { UTILIZATION, BUFFER } from '../../lib/config';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** Thresholds read from config so the copy cannot outlive the numbers. */
 const REPLENISH_PCT = Math.round(UTILIZATION.replenishThreshold * 100);
@@ -216,12 +217,14 @@ const FAQ = [
 
 export default function LearnScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
 
   return (
-    <View style={CommonStyles.screenContainer}>
+    <View style={common.screenContainer}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
@@ -246,7 +249,7 @@ export default function LearnScreen() {
             has not: this is guidance, shown to everyone, always. */}
         <View style={styles.ruleCard}>
           <View style={styles.ruleIcon}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={Colors.mint700} />
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.mint700} />
           </View>
           <View style={styles.ruleBody}>
             <Text style={styles.ruleTitle}>Surplus, not salary</Text>
@@ -271,11 +274,11 @@ export default function LearnScreen() {
             never offered. */}
         <SectionLabel>CORE MECHANICS</SectionLabel>
         {CONCEPTS.map(c => (
-          <View key={c.n} style={[CommonStyles.card, styles.conceptCard]}>
+          <View key={c.n} style={[common.card, styles.conceptCard]}>
             <View style={styles.conceptHead}>
               <Text style={styles.conceptNumber}>{c.n}</Text>
               <View style={styles.conceptIcon}>
-                <Ionicons name={c.icon} size={18} color={Colors.mint700} />
+                <Ionicons name={c.icon} size={18} color={colors.mint700} />
               </View>
             </View>
             <Text style={styles.conceptTitle}>{c.title}</Text>
@@ -292,7 +295,7 @@ export default function LearnScreen() {
             // jump below it stay two separate accessibility elements. Nesting
             // them would let TouchableOpacity's implicit `accessible` group the
             // link into the card and put it out of VoiceOver's reach entirely.
-            <View key={article.id} style={[CommonStyles.card, styles.articleCard]}>
+            <View key={article.id} style={[common.card, styles.articleCard]}>
               <TouchableOpacity
                 style={styles.articleToggle}
                 onPress={() => {
@@ -312,7 +315,7 @@ export default function LearnScreen() {
                   <Ionicons
                     name={open ? 'chevron-up' : 'chevron-down'}
                     size={18}
-                    color={Colors.textMuted}
+                    color={colors.textMuted}
                   />
                 </View>
                 <Text style={styles.articleTitle}>{article.title}</Text>
@@ -332,7 +335,7 @@ export default function LearnScreen() {
                   accessibilityLabel={article.action.label}
                 >
                   <Text style={styles.articleActionText}>{article.action.label}</Text>
-                  <Ionicons name="arrow-forward" size={15} color={Colors.mint700} />
+                  <Ionicons name="arrow-forward" size={15} color={colors.mint700} />
                 </TouchableOpacity>
               )}
             </View>
@@ -346,7 +349,7 @@ export default function LearnScreen() {
           return (
             <TouchableOpacity
               key={item.q}
-              style={[CommonStyles.card, styles.faqCard]}
+              style={[common.card, styles.faqCard]}
               onPress={() => {
                 hapticLight();
                 setExpandedFaq(open ? null : i);
@@ -362,7 +365,7 @@ export default function LearnScreen() {
                 <Ionicons
                   name={open ? 'remove-circle-outline' : 'add-circle-outline'}
                   size={20}
-                  color={Colors.mint600}
+                  color={colors.mint600}
                 />
               </View>
               {open && <Text style={styles.faqAnswer}>{item.a}</Text>}
@@ -372,7 +375,7 @@ export default function LearnScreen() {
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
-          <Ionicons name="information-circle-outline" size={16} color={Colors.textMuted} />
+          <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
           <Text style={styles.disclaimerText}>
             HELOC Hero provides financial education and tools, not financial advice. Projected
             savings and payoff dates are estimates based on the figures you enter, not guarantees.
@@ -385,7 +388,7 @@ export default function LearnScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   heroTitle: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
@@ -401,27 +404,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   categoryBadge: {
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
-  categoryText: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.medium },
+  categoryText: { fontSize: Typography.xs, color: t.colors.mint700, fontWeight: Typography.medium },
   articleTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     lineHeight: 22,
   },
   articleBody: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 22,
     marginTop: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
     paddingTop: Spacing[3],
   },
   articleAction: {
@@ -434,7 +437,7 @@ const styles = StyleSheet.create({
   articleActionText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
   faqCard: { gap: Spacing[2] },
   faqHeader: {
@@ -447,29 +450,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.base,
     fontWeight: Typography.medium,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     lineHeight: 22,
   },
   faqAnswer: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 22,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
     paddingTop: Spacing[3],
   },
   disclaimer: {
     flexDirection: 'row',
     gap: Spacing[2],
     padding: Spacing[4],
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     marginTop: Spacing[2],
   },
   disclaimerText: {
     flex: 1,
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
   },
   // ── The surplus rule ──────────────────────────────────────────────────────
@@ -478,15 +481,15 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   ruleIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -494,11 +497,11 @@ const styles = StyleSheet.create({
   ruleTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     marginBottom: Spacing[1],
   },
-  ruleText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
-  ruleEm: { fontWeight: Typography.bold, color: Colors.textPrimary },
+  ruleText: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
+  ruleEm: { fontWeight: Typography.bold, color: t.colors.textPrimary },
 
   // ── Core mechanics ────────────────────────────────────────────────────────
   conceptCard: { gap: Spacing[1] },
@@ -513,22 +516,22 @@ const styles = StyleSheet.create({
   conceptNumber: {
     fontSize: 30,
     fontWeight: Typography.extrabold,
-    color: Colors.borderSubtle,
+    color: t.colors.borderSubtle,
     letterSpacing: -1,
   },
   conceptIcon: {
     width: 36,
     height: 36,
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
   },
   conceptTitle: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  conceptBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  conceptBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
 
-});
+}));
