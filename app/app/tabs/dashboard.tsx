@@ -574,6 +574,25 @@ export default function DashboardScreen() {
                       </Text>
                     </View>
                   )}
+
+                  {/* The other half of the loop, and until now the half with no
+                      screen: the dump was loggable, the sweep was not. This opens
+                      the handoff — the app sizes the transfer against the bills
+                      actually due, the user makes it at their bank, the app
+                      records it. Hidden when there is no drawn balance to repay,
+                      because then there is nothing to sweep toward. */}
+                  {(f.helocDrawn ?? 0) > 0 && (
+                    <TouchableOpacity
+                      style={styles.sweepAction}
+                      onPress={() => { hapticLight(); router.push('/modals/log-sweep' as never); }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Work out and record a sweep to your line"
+                    >
+                      <Ionicons name="arrow-up-circle-outline" size={17} color={colors.accentInk} />
+                      <Text style={styles.sweepActionText}>Sweep to your line</Text>
+                      <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
             </Card>
@@ -967,6 +986,22 @@ const useStyles = createThemedStyles(t => ({
     marginTop: Spacing[3],
   },
   sweepEmpty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  sweepAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    minHeight: 44,
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: t.colors.borderSubtle,
+  },
+  sweepActionText: {
+    flex: 1,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.accentInk,
+  },
   sweepNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',

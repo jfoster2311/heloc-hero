@@ -197,6 +197,10 @@ function RootLayoutInner() {
           name="modals/account-details"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="modals/log-sweep"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
     </LockGate>
   );
