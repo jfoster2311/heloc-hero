@@ -20,6 +20,25 @@ import {
 } from '../../lib/appLock';
 import { loadDemo, clearDemo } from '../../lib/seedDemo';
 import { getDevProMode, setDevProMode, subscribeDevPro, type DevProMode } from '../../lib/devPro';
+import { useThemePreference, type ThemePreference } from '../../lib/themeContext';
+import { hapticSelection } from '../../lib/haptics';
+
+/**
+ * System is first and is the default, because it is not the same as Light.
+ * Someone on System follows their phone when it switches at sunset; someone on
+ * Light has said they want light regardless. Offering only two options would
+ * silently override a system-wide accessibility choice.
+ */
+const APPEARANCE_OPTIONS: {
+  value: ThemePreference;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  a11y: string;
+}[] = [
+  { value: 'system', label: 'System', icon: 'phone-portrait-outline', a11y: 'Match my phone' },
+  { value: 'light',  label: 'Light',  icon: 'sunny-outline',          a11y: 'Always light' },
+  { value: 'dark',   label: 'Dark',   icon: 'moon-outline',           a11y: 'Always dark' },
+];
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
 
@@ -39,6 +58,7 @@ const DEV_PRO_LABELS: Record<DevProMode, string> = {
 export default function SettingsModal() {
   const router = useRouter();
   const { profile, tier } = useAuth();
+  const { preference, setPreference } = useThemePreference();
   const [automation, setAutomation] = useState<Partial<AutomationSettings>>(
     DEFAULT_AUTOMATION_SETTINGS,
   );
@@ -322,6 +342,38 @@ export default function SettingsModal() {
           <Text style={styles.inlineError}>Not saved: {automationError}</Text>
         )}
 
+        {/* Appearance */}
+        <SectionHeader
+          title="Appearance"
+          subtitle="Cash flow follows this today. The rest of the app is still light."
+        />
+        <View style={styles.card}>
+          <View style={[styles.row, styles.rowLast, styles.appearanceRow]}>
+            {APPEARANCE_OPTIONS.map(opt => {
+              const active = preference === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.appearancePill, active && styles.appearancePillActive]}
+                  onPress={() => { hapticSelection(); setPreference(opt.value); }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={opt.a11y}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={16}
+                    color={active ? Colors.white : Colors.textSecondary}
+                  />
+                  <Text style={[styles.appearanceText, active && styles.appearanceTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Support */}
         <SectionHeader title="Support" />
         <View style={styles.card}>
@@ -562,6 +614,29 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.gray100,
   },
   rowLast: { borderBottomWidth: 0 },
+  appearanceRow: { gap: Spacing[2] },
+  appearancePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[1],
+    minHeight: 44,
+    paddingHorizontal: Spacing[2],
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  appearancePillActive: {
+    backgroundColor: Colors.mint800,
+    borderColor: Colors.mint800,
+  },
+  appearanceText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
+    color: Colors.textSecondary,
+  },
+  appearanceTextActive: { color: Colors.white, fontWeight: Typography.semibold },
   rowIcon: { marginRight: Spacing[3] },
   rowLabel: { flex: 1, fontSize: Typography.base, color: Colors.textPrimary },
   rowValue: { fontSize: Typography.sm, color: Colors.textMuted, marginRight: Spacing[1] },
