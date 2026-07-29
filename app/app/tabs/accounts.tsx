@@ -16,7 +16,7 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Alert, Share, ActivityIndicator,
+  RefreshControl, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -33,7 +33,6 @@ import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
-import { invokeFunction } from '../../lib/supabase';
 import { computeEquitySeries } from '../../lib/projections';
 import { daysSinceVerified } from '../../lib/helocTerms';
 import { HOME_VALUE_SOURCE_LABEL, STALE_SYNC_HOURS } from '../../lib/config';
@@ -65,43 +64,7 @@ export default function AccountsScreen() {
   const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
   const f = useFinancials();
-  const [unlinking, setUnlinking] = useState<PlaidAccountType | null>(null);
-
   const canLink = isPro;
-
-  async function handleDisconnect(account: LinkedAccount) {
-    Alert.alert(
-      `Disconnect ${account.institution_name ?? 'this institution'}?`,
-      'We will revoke our access at your bank and delete the balances we hold. ' +
-      'Anything you entered by hand stays. You can reconnect at any time.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disconnect',
-          style: 'destructive',
-          onPress: async () => {
-            if (!profile?.id) return;
-            setUnlinking(account.account_type);
-            try {
-              await invokeFunction('plaid-unlink', {
-                userId: profile.id,
-                accountType: account.account_type,
-              });
-              await f.refresh();
-            } catch (err) {
-              Alert.alert(
-                'Could not disconnect',
-                `${err instanceof Error ? err.message : 'Unknown error'}\n\n` +
-                'Your account is still connected. Please try again.',
-              );
-            } finally {
-              setUnlinking(null);
-            }
-          },
-        },
-      ],
-    );
-  }
 
   /** Same contract as the dashboard: the buzz reports what actually happened. */
   async function handleRefresh() {
@@ -443,10 +406,10 @@ export default function AccountsScreen() {
             <ConnectionCard
               key={account.id}
               account={account}
-              busy={unlinking === account.account_type}
               onRefresh={f.refresh}
-              onReconnect={() => router.push('/modals/link-account')}
-              onDisconnect={() => handleDisconnect(account)}
+              onManage={() => router.push(
+                `/modals/account-details?type=${encodeURIComponent(account.account_type)}` as never,
+              )}
             />
           ))}
 
@@ -612,17 +575,26 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
  * produces a wrong recommendation, "synced 4 days ago" is not a debug detail,
  * it is the caveat on everything else the app said today.
  */
-function ConnectionCard({ account, busy, onRefresh, onReconnect, onDisconnect }: {
+function ConnectionCard({ account, onRefresh, onManage }: {
   account: LinkedAccount;
-  busy: boolean;
   onRefresh: () => void;
-  onReconnect: () => void;
-  onDisconnect: () => void;
+  onManage: () => void;
 }) {
   const health = connectionHealth(account.accounts_updated_at);
   return (
     <Card>
-      <View style={styles.connHead}>
+      {/* The header opens the connection's own screen. Reconnect and Disconnect
+          used to sit in the action row below; they are mutations, so they moved
+          to the modal, leaving the tab reading and Refresh — which changes
+          nothing — where it was. */}
+      <TouchableOpacity
+        style={styles.connHead}
+        onPress={() => { hapticLight(); onManage(); }}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Manage ${account.institution_name ?? typeLabel(account.account_type)}`}
+        accessibilityHint="Opens balances, sync and disconnect for this connection"
+      >
         <InstitutionAvatar
           name={account.institution_name}
           accountType={account.account_type}
@@ -635,7 +607,8 @@ function ConnectionCard({ account, busy, onRefresh, onReconnect, onDisconnect }:
           <Text style={styles.connType}>{typeLabel(account.account_type)}</Text>
         </View>
         <Chip label={health.label} tone={health.tone} />
-      </View>
+        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+      </TouchableOpacity>
 
       {account.accounts.map(a => (
         <View key={a.account_id} style={styles.subAccount}>
@@ -657,11 +630,11 @@ function ConnectionCard({ account, busy, onRefresh, onReconnect, onDisconnect }:
       <Text style={styles.syncLine}>{health.detail}</Text>
 
       <View style={styles.connActions}>
-        <ConnAction label="Refresh"    icon="refresh-outline" onPress={onRefresh} />
-        <ConnAction label="Reconnect"  icon="repeat-outline"  onPress={onReconnect} />
-        {busy
-          ? <View style={styles.connAction}><ActivityIndicator size="small" color={Colors.gray400} /></View>
-          : <ConnAction label="Disconnect" icon="unlink-outline" onPress={onDisconnect} />}
+        {/* Refresh keeps its place: it mutates nothing, and it is the one action
+            someone wants without leaving the list. Disconnect's spinner went with
+            it to the modal, which owns that call and its own pending state. */}
+        <ConnAction label="Refresh" icon="refresh-outline" onPress={onRefresh} />
+        <ConnAction label="Manage" icon="settings-outline" onPress={onManage} />
       </View>
     </Card>
   );
