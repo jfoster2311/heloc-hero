@@ -20,8 +20,9 @@
 // decimal places to look busy. It refreshes on a slow interval and on every
 // foreground, which is when someone is actually reading it.
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, AppState } from 'react-native';
-import { Colors, Typography, Spacing, Tracking } from '../lib/theme';
+import { View, Text, AppState } from 'react-native';
+import { Typography, Spacing, Tracking } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 
 const REFRESH_MS = 15_000;
 
@@ -46,6 +47,7 @@ function dayElapsed(now: Date): number {
 export default function InterestTicker({
   totalMoved, mortgageRate, helocDrawn, helocRate,
 }: Props) {
+  const styles = useStyles();
   const [now, setNow] = useState(() => new Date());
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -112,30 +114,30 @@ function money(n: number) {
   return `$${abs.toFixed(2)}`;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   wrap: {
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
     padding: Spacing[4],
     gap: Spacing[1],
   },
   eyebrow: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     letterSpacing: Tracking.label,
   },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing[2] },
   value: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     letterSpacing: Tracking.heading,
   },
   // Negative is muted grey, never red — see the palette policy in lib/theme.
-  valueMuted: { color: Colors.gray500 },
-  suffix: { fontSize: Typography.xs, color: Colors.textMuted },
-  detail: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
-});
+  valueMuted: { color: t.colors.gray500 },
+  suffix: { fontSize: Typography.xs, color: t.colors.textMuted },
+  detail: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
+}));

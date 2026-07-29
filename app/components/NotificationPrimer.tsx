@@ -15,13 +15,14 @@
 //      figures. HELOC Hero has no payment rail: nothing "runs", nothing moves
 //      money, and the copy must not imply otherwise.
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { permissionStatus, requestPermission } from '../lib/notify';
 import { supabase } from '../lib/supabase';
 import { hapticLight } from '../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 
 const PRIMER_SHOWN_KEY = '@heloc_hero:notification_primer_shown';
 
@@ -36,6 +37,8 @@ interface Props {
 }
 
 export default function NotificationPrimer({ eligible, userId }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -96,7 +99,7 @@ export default function NotificationPrimer({ eligible, userId }: Props) {
         <View style={styles.sheet}>
           <View style={styles.iconRow}>
             <View style={styles.iconBg}>
-              <Ionicons name="notifications-outline" size={32} color={Colors.mint600} />
+              <Ionicons name="notifications-outline" size={32} color={colors.mint600} />
             </View>
           </View>
 
@@ -134,14 +137,14 @@ export default function NotificationPrimer({ eligible, userId }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: Spacing[6],
@@ -155,34 +158,34 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   title: {
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'center',
   },
   body: {
     fontSize: Typography.base,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
   fine: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     textAlign: 'center',
     lineHeight: 18,
   },
   primaryBtn: {
     width: '100%',
     minHeight: 44,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     paddingVertical: Spacing[4],
     alignItems: 'center',
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   primaryBtnText: {
-    color: Colors.white,
+    color: t.colors.white,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },
@@ -201,6 +204,6 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: {
     fontSize: Typography.base,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
   },
-});
+}));

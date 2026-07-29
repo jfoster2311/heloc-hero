@@ -15,7 +15,7 @@
 //    of the balance and rate above it, so it is right without being asked for.
 //  · Exactly one accent element: the payoff number. Everything else is muted.
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, ScrollView,
   TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
   InputAccessoryView, Keyboard,
 } from 'react-native';
@@ -31,7 +31,8 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, computeCyclingSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { CalculatorInputs } from '../../lib/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -112,6 +113,8 @@ function money(n: number): string {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CalculatorScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, tier } = useAuth();
@@ -291,7 +294,7 @@ export default function CalculatorScreen() {
   const clearedOutright = !!projection && projection.originalMonths === 0;
 
   return (
-    <View style={CommonStyles.screenContainer}>
+    <View style={common.screenContainer}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -521,7 +524,7 @@ export default function CalculatorScreen() {
                 <Ionicons
                   name={showAdvanced ? 'chevron-up' : 'chevron-down'}
                   size={18}
-                  color={Colors.textMuted}
+                  color={colors.textMuted}
                 />
               </View>
             </TouchableOpacity>
@@ -605,12 +608,12 @@ export default function CalculatorScreen() {
                 accessibilityState={{ expanded: showAssumptions }}
                 accessibilityLabel={showAssumptions ? 'Hide how this is calculated' : 'How this is calculated'}
               >
-                <Ionicons name="information-circle-outline" size={16} color={Colors.mint600} />
+                <Ionicons name="information-circle-outline" size={16} color={colors.mint600} />
                 <Text style={styles.assumeToggleText}>How this is calculated</Text>
                 <Ionicons
                   name={showAssumptions ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color={Colors.mint600}
+                  color={colors.mint600}
                 />
               </TouchableOpacity>
               {showAssumptions && (
@@ -645,7 +648,7 @@ export default function CalculatorScreen() {
                     <Ionicons
                       name={showSchedule ? 'chevron-up' : 'chevron-down'}
                       size={16}
-                      color={Colors.mint600}
+                      color={colors.mint600}
                     />
                   </TouchableOpacity>
 
@@ -716,7 +719,7 @@ export default function CalculatorScreen() {
                   of these estimates.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.mint600} />
+              <Ionicons name="chevron-forward" size={18} color={colors.mint600} />
             </TouchableOpacity>
           )}
 
@@ -781,6 +784,8 @@ function TermPicker({ years, onChange, disabled, isLast }: {
   disabled?: boolean;
   isLast?: boolean;
 }) {
+  const termStyles = useTermStyles();
+  const inputStyles = useInputStyles();
   // Raw keystrokes while focused; the parsed integer is what drives the math.
   // Same reason as NumericField — formatting mid-entry eats characters.
   const [draft, setDraft] = useState<string | null>(null);
@@ -840,7 +845,7 @@ function TermPicker({ years, onChange, disabled, isLast }: {
   );
 }
 
-const termStyles = StyleSheet.create({
+const useTermStyles = createThemedStyles(t => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
   chip: {
     flex: 1,
@@ -849,18 +854,18 @@ const termStyles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.gray50,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.gray50,
   },
-  chipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  chipActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
   chipDisabled: { opacity: 0.45 },
   chipText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
-  chipTextActive: { color: Colors.white },
-  unit: { fontSize: Typography.xs, color: Colors.textMuted },
+  chipTextActive: { color: t.colors.white },
+  unit: { fontSize: Typography.xs, color: t.colors.textMuted },
   customBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -869,19 +874,19 @@ const termStyles = StyleSheet.create({
     paddingHorizontal: Spacing[2],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.gray50,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.gray50,
   },
   customInput: {
     minWidth: 26,
     textAlign: 'center',
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     paddingVertical: Spacing[2],
   },
 
-});
+}));
 
 /**
  * One draggable lever: title, live value, track.
@@ -902,6 +907,7 @@ function LeverRow({
   a11y: string;
   isLast?: boolean;
 }) {
+  const styles = useStyles();
   const max = trackMax(value, soft, step);
 
   return (
@@ -951,6 +957,8 @@ function NumericField({
   keyboardType?: 'numeric' | 'decimal-pad';
   isLast?: boolean;
 }) {
+  const { colors } = useTheme();
+  const inputStyles = useInputStyles();
   // Every field on this screen is a number pad, and iOS number pads have no
   // return key — so there was no affordance for putting the keyboard away at
   // all. Tapping the page worked, but only because keyboardShouldPersistTaps
@@ -980,7 +988,7 @@ function NumericField({
           keyboardType={keyboardType ?? 'numeric'}
           inputAccessoryViewID={Platform.OS === 'ios' ? KEYPAD_ACCESSORY_ID : undefined}
           placeholder="0"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           selectTextOnFocus
           accessibilityLabel={label}
         />
@@ -990,18 +998,18 @@ function NumericField({
   );
 }
 
-const inputStyles = StyleSheet.create({
+const useInputStyles = createThemedStyles(t => ({
   group: { marginBottom: Spacing[4] },
   groupLast: { marginBottom: 0 },
   label: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     marginBottom: Spacing[1],
   },
   hint: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginBottom: Spacing[2],
     lineHeight: 16,
   },
@@ -1009,27 +1017,28 @@ const inputStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: Radius.md,
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     paddingHorizontal: Spacing[3],
   },
   affix: {
     fontSize: Typography.base,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     paddingVertical: Spacing[3],
   },
   input: {
     flex: 1,
     fontSize: Typography.base,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[2],
     minHeight: 44,
   },
-});
+}));
 
 function BreakdownRow({ label, value, isLast }: {
   label: string; value: string; isLast?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <View style={[styles.breakdownRow, isLast && styles.breakdownRowLast]}>
       <Text style={styles.breakdownLabel}>{label}</Text>
@@ -1040,7 +1049,7 @@ function BreakdownRow({ label, value, isLast }: {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
 
   // ── Hero ──────────────────────────────────────────────────────────────────
@@ -1074,7 +1083,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: Spacing[3],
   },
 
@@ -1088,10 +1097,10 @@ const styles = StyleSheet.create({
   advancedTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   advancedRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  advancedSummary: { fontSize: Typography.xs, color: Colors.textMuted },
+  advancedSummary: { fontSize: Typography.xs, color: t.colors.textMuted },
   advancedBody: { marginTop: Spacing[4] },
 
   // ── Breakdown ─────────────────────────────────────────────────────────────
@@ -1102,14 +1111,14 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
+    borderBottomColor: t.colors.gray100,
   },
   breakdownRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
-  breakdownLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  breakdownLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary },
   breakdownValue: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
 
   // ── Year-by-year schedule ─────────────────────────────────────────────────
@@ -1121,34 +1130,34 @@ const styles = StyleSheet.create({
     minHeight: 44,
     marginTop: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
   scheduleToggleText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
   scheduleWrap: { marginTop: Spacing[1] },
   scheduleSummary: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 17,
     marginBottom: Spacing[3],
   },
   scheduleScroll: {
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
   mHead: {
     flexDirection: 'row',
     paddingVertical: Spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.colors.border,
   },
   mHeadCell: {
     fontSize: 11,
     fontWeight: Typography.bold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -1157,16 +1166,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray50,
+    borderBottomColor: t.colors.gray50,
   },
-  mRowDump: { backgroundColor: Colors.mint50 },
-  mCell: { fontSize: Typography.xs, color: Colors.textSecondary },
-  mDump: { color: Colors.mint700, fontWeight: Typography.semibold },
+  mRowDump: { backgroundColor: t.colors.mint50 },
+  mCell: { fontSize: Typography.xs, color: t.colors.textSecondary },
+  mDump: { color: t.colors.mint700, fontWeight: Typography.semibold },
   colWhen: { width: 60 },
   colNum: { width: 96, textAlign: 'right', paddingLeft: Spacing[3] },
   scheduleNote: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 16,
     marginTop: Spacing[3],
   },
@@ -1180,34 +1189,34 @@ const styles = StyleSheet.create({
     minHeight: 44,
     marginTop: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
   assumeToggleText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
   assumePanel: {
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     gap: Spacing[3],
   },
   assumeItem: { flexDirection: 'row', gap: Spacing[2] },
-  assumeBullet: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
-  assumeText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  assumeBullet: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18 },
+  assumeText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
 
   // ── CTA ───────────────────────────────────────────────────────────────────
   ctaBanner: {
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.lg,
     padding: Spacing[4],
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
   },
-  ctaTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint700 },
-  ctaSub: { fontSize: Typography.xs, color: Colors.mint600, marginTop: 2, lineHeight: 16 },
+  ctaTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.mint700 },
+  ctaSub: { fontSize: Typography.xs, color: t.colors.mint600, marginTop: 2, lineHeight: 16 },
 
   // ── Keypad accessory ──────────────────────────────────────────────────────
   keypadBar: {
@@ -1217,11 +1226,11 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[2],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
   },
-  keypadHint: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted },
+  keypadHint: { flex: 1, fontSize: Typography.xs, color: t.colors.textMuted },
   keypadDone: {
     minHeight: 44,
     justifyContent: 'center',
@@ -1230,15 +1239,15 @@ const styles = StyleSheet.create({
   keypadDoneText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
 
   resetBtn: { alignItems: 'center', paddingVertical: Spacing[3], minHeight: 44, justifyContent: 'center' },
-  resetText: { color: Colors.textMuted, fontSize: Typography.sm },
+  resetText: { color: t.colors.textMuted, fontSize: Typography.sm },
 
   footnote: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: Spacing[2],
@@ -1247,7 +1256,7 @@ const styles = StyleSheet.create({
   lever: {
     paddingVertical: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   leverLast: { borderBottomWidth: 0, paddingBottom: Spacing[2] },
   leverHead: {
@@ -1261,23 +1270,23 @@ const styles = StyleSheet.create({
   leverTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  leverSub: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
+  leverSub: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2 },
   leverValue: {
     fontSize: Typography.lg,
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
-  leverNoteEm: { fontWeight: Typography.bold, color: Colors.textPrimary },
+  leverNoteEm: { fontWeight: Typography.bold, color: t.colors.textPrimary },
   leverNote: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 17,
     marginTop: Spacing[3],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+    borderTopColor: t.colors.borderSubtle,
   },
 
   // ── Reality check ─────────────────────────────────────────────────────────
@@ -1287,7 +1296,7 @@ const styles = StyleSheet.create({
   compareTitle: {
     fontSize: Typography.xs,
     fontWeight: Typography.bold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: Spacing[2],
@@ -1295,7 +1304,7 @@ const styles = StyleSheet.create({
   compareTime: {
     fontSize: Typography.lg,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: 2,
   },
   // Grey, not red. The cost of a normal mortgage is not an error state, and the
@@ -1304,18 +1313,18 @@ const styles = StyleSheet.create({
   compareCostPlain: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.gray500,
+    color: t.colors.gray500,
   },
   compareCostAccent: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
   vsBadge: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: Spacing[3],
@@ -1323,16 +1332,16 @@ const styles = StyleSheet.create({
   vsText: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     letterSpacing: 0.5,
   },
   compareFoot: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 17,
     marginTop: Spacing[4],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+    borderTopColor: t.colors.borderSubtle,
   },
-});
+}));

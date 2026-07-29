@@ -15,9 +15,10 @@
 // The tint is derived from the name so it is stable — Chase is the same shade
 // every launch and across devices — and picked from a fixed palette so it can
 // never land outside the monochrome-green system.
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography } from '../../lib/theme';
+import { Typography } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { PlaidAccountType } from '../../lib/types';
 
 /** Tints from the brand ramp only. Index chosen by a hash of the name. */
@@ -68,6 +69,7 @@ export default function InstitutionAvatar({ name, accountType, size = 40 }: {
   accountType: PlaidAccountType;
   size?: number;
 }) {
+  const styles = useStyles();
   const tint = tintFor(name ?? accountType);
 
   return (
@@ -93,15 +95,15 @@ export default function InstitutionAvatar({ name, accountType, size = 40 }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   avatar: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
   initials: {
     fontWeight: Typography.extrabold,
     letterSpacing: 0.3,
   },
-});
+}));

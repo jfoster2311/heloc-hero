@@ -29,7 +29,7 @@
 // thing a user might want, and none is what this screen is for. Ranking is the
 // feature.
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,9 +63,12 @@ import { monthsBetween, parseDate } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Tracking, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function DashboardScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, tier } = useAuth();
@@ -249,14 +252,14 @@ export default function DashboardScreen() {
   }
 
   return (
-    <View style={CommonStyles.screenContainer}>
+    <View style={common.screenContainer}>
       <NotificationPrimer eligible={canPrimeNotifications} userId={profile?.id ?? null} />
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={colors.mint600} />
         }
       >
         {/* ── HERO — the payoff clock ───────────────────────────────────── */}
@@ -366,7 +369,7 @@ export default function DashboardScreen() {
               accessibilityRole="button"
               accessibilityLabel="Balances may be out of date. Tap to retry."
             >
-              <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
+              <Ionicons name="cloud-offline-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.staleText}>
                 Couldn't reach your balances{f.hasLinkedAccounts ? ' — showing the last we have' : ''}.
               </Text>
@@ -448,7 +451,7 @@ export default function DashboardScreen() {
                 interest saved. Otherwise this card is selling, not advising. */}
             {f.safeToMove.bufferMonthsAfter !== null && (
               <View style={styles.bufferRow}>
-                <Ionicons name="water-outline" size={15} color={Colors.textSecondary} />
+                <Ionicons name="water-outline" size={15} color={colors.textSecondary} />
                 <Text style={styles.bufferText}>
                   {bufferSentence(
                     f.safeToMove.bufferMonthsBefore,
@@ -564,7 +567,7 @@ export default function DashboardScreen() {
                       the dashboard that sells rather than advises. */}
                   {sweep.safeToSpend > 0 && sweep.state !== 'dump_blocked' && (
                     <View style={styles.sweepNote}>
-                      <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
+                      <Ionicons name="information-circle-outline" size={15} color={colors.textSecondary} />
                       <Text style={styles.sweepNoteText}>
                         Putting it on the line instead does not bring the next dump forward —
                         it makes that dump bigger.
@@ -755,6 +758,7 @@ function SweepLine({ label, amount, muted, total }: {
   muted?: boolean;
   total?: boolean;
 }) {
+  const styles = useStyles();
   const negative = amount < 0;
   return (
     <View style={styles.sweepLine}>
@@ -834,7 +838,7 @@ function bufferSentence(before: number | null, after: number): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -879,45 +883,45 @@ const styles = StyleSheet.create({
   // Mirrors NavTile's own box so the row does not resize when the value lands.
   tileSkeleton: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     padding: Spacing[4],
   },
   asOfRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  asOfText: { fontSize: Typography.xs, color: Colors.textMuted },
+  asOfText: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   staleBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[3],
     minHeight: 44,
   },
-  staleText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
-  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
+  staleText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
+  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   safeHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap' },
   safeAmount: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
-  reason: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  reason: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
   bufferRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing[2],
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[3],
   },
-  bufferText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  undoText: { fontSize: Typography.sm, color: Colors.mint600, fontWeight: Typography.medium },
+  bufferText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  undoText: { fontSize: Typography.sm, color: t.colors.mint600, fontWeight: Typography.medium },
 
   sweepMath: { gap: Spacing[2] },
   sweepLine: {
@@ -927,65 +931,65 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     minHeight: 26,
   },
-  sweepLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  sweepLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary },
   sweepLabelTotal: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   sweepAmount: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  sweepAmountMuted: { color: Colors.gray500 },
+  sweepAmountMuted: { color: t.colors.gray500 },
   sweepAmountTotal: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     letterSpacing: Tracking.heading,
   },
   sweepRule: {
     height: 1,
-    backgroundColor: Colors.borderSubtle,
+    backgroundColor: t.colors.borderSubtle,
     marginVertical: Spacing[1],
   },
   sweepValue: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,
   },
   sweepCaption: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     marginTop: Spacing[3],
   },
-  sweepEmpty: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  sweepEmpty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
   sweepNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing[2],
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[3],
     marginTop: Spacing[3],
   },
-  sweepNoteText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  sweepNoteText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
 
   bigValue: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,
   },
-  bigLabel: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: 2 },
+  bigLabel: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20, marginTop: 2 },
   bigTranslation: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     lineHeight: 20,
     marginTop: Spacing[2],
   },
-});
+}));

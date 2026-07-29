@@ -15,7 +15,7 @@
 // The detail lives one tap down, in the modal that owns it, not on this page.
 import { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   RefreshControl, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +38,8 @@ import { daysSinceVerified } from '../../lib/helocTerms';
 import { HOME_VALUE_SOURCE_LABEL, STALE_SYNC_HOURS } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { parseDate } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 
@@ -59,6 +60,8 @@ const HORIZONS: { label: string; months: number | null; a11y: string }[] = [
 ];
 
 export default function AccountsScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, tier } = useAuth();
@@ -208,12 +211,12 @@ export default function AccountsScreen() {
   ];
 
   return (
-    <View style={CommonStyles.screenContainer}>
+    <View style={common.screenContainer}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={colors.mint600} />
         }
       >
         {/* ── HERO — the position, summarised ───────────────────────────── */}
@@ -380,7 +383,7 @@ export default function AccountsScreen() {
           ) : f.error ? (
             <Card>
               <View style={styles.errorBlock}>
-                <Ionicons name="cloud-offline-outline" size={20} color={Colors.textSecondary} />
+                <Ionicons name="cloud-offline-outline" size={20} color={colors.textSecondary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.errorTitle}>Couldn't load your accounts</Text>
                   <Text style={styles.errorBody}>
@@ -547,6 +550,8 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
   onPress: () => void;
   last?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.setupRow, !last && styles.setupRowBorder]}
@@ -555,7 +560,7 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
       accessibilityLabel={`${label}: ${value}`}
     >
       <View style={styles.setupIcon}>
-        <Ionicons name={icon} size={18} color={Colors.textSecondary} />
+        <Ionicons name={icon} size={18} color={colors.textSecondary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.setupLabel}>{label}</Text>
@@ -563,7 +568,7 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
         {flag ? <Text style={styles.setupFlag}>{flag}</Text> : null}
       </View>
       {chip ? <Chip label={chip.label} tone={chip.tone} icon={chip.icon} /> : null}
-      <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+      <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
     </TouchableOpacity>
   );
 }
@@ -580,6 +585,8 @@ function ConnectionCard({ account, onRefresh, onManage }: {
   onRefresh: () => void;
   onManage: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const health = connectionHealth(account.accounts_updated_at);
   return (
     <Card>
@@ -607,7 +614,7 @@ function ConnectionCard({ account, onRefresh, onManage }: {
           <Text style={styles.connType}>{typeLabel(account.account_type)}</Text>
         </View>
         <Chip label={health.label} tone={health.tone} />
-        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
       </TouchableOpacity>
 
       {account.accounts.map(a => (
@@ -643,6 +650,8 @@ function ConnectionCard({ account, onRefresh, onManage }: {
 function ConnAction({ label, icon, onPress }: {
   label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={styles.connAction}
@@ -650,7 +659,7 @@ function ConnAction({ label, icon, onPress }: {
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={15} color={Colors.textSecondary} />
+      <Ionicons name={icon} size={15} color={colors.textSecondary} />
       <Text style={styles.connActionText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -755,7 +764,7 @@ function str(n: number | null): string { return n === null ? '' : String(Math.ro
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   horizonRow: {
     flexDirection: 'row',
     gap: Spacing[2],
@@ -792,11 +801,11 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   errorBody: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: 2,
   },
@@ -804,7 +813,7 @@ const styles = StyleSheet.create({
   errorRetryText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
 
   topBar: {
@@ -834,46 +843,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
     paddingVertical: Spacing[3], minHeight: 56,
   },
-  setupRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
+  setupRowBorder: { borderBottomWidth: 1, borderBottomColor: t.colors.borderSubtle },
   setupIcon: {
     width: 34, height: 34, borderRadius: Radius.sm,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     alignItems: 'center', justifyContent: 'center',
   },
-  setupLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  setupValue: { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 1 },
-  setupValueMuted: { color: Colors.textMuted },
-  setupFlag: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16, marginTop: 3 },
+  setupLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  setupValue: { fontSize: Typography.sm, color: t.colors.textSecondary, marginTop: 1 },
+  setupValueMuted: { color: t.colors.textMuted },
+  setupFlag: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16, marginTop: 3 },
 
   connHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
-  connName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  connType: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 1 },
+  connName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  connType: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 1 },
 
   subAccount: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
-    paddingTop: Spacing[3], borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+    paddingTop: Spacing[3], borderTopWidth: 1, borderTopColor: t.colors.borderSubtle,
   },
-  subName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  subMeta: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
-  subBalance: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
-  subAvail: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
+  subName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textPrimary },
+  subMeta: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
+  subBalance: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  subAvail: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2 },
 
-  syncLine: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  syncLine: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
 
   connActions: {
     flexDirection: 'row', gap: Spacing[2],
-    paddingTop: Spacing[3], borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+    paddingTop: Spacing[3], borderTopWidth: 1, borderTopColor: t.colors.borderSubtle,
   },
   connAction: {
     flex: 1, minHeight: 44,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderRadius: Radius.md, backgroundColor: Colors.gray50,
+    borderRadius: Radius.md, backgroundColor: t.colors.gray50,
   },
-  connActionText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
+  connActionText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textSecondary },
 
   disclaimer: {
-    fontSize: Typography.xs, color: Colors.textMuted,
+    fontSize: Typography.xs, color: t.colors.textMuted,
     lineHeight: 18, textAlign: 'center',
     paddingHorizontal: Spacing[4], paddingVertical: Spacing[4],
   },
-});
+}));

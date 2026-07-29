@@ -9,11 +9,12 @@
 // Once all six steps are done the card returns null. A permanent checklist of
 // ticks is clutter on the screen the app most wants to keep sparse, and the
 // Dashboard's whole premise is ranking rather than holding everything.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Card } from './ui/primitives';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../lib/theme';
+import { Typography, Spacing, Radius } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 import { hapticLight } from '../lib/haptics';
 import { READY_THRESHOLD } from '../lib/helocScore';
 import type { ChecklistState, ChecklistStep } from '../lib/onboardingChecklist';
@@ -31,6 +32,8 @@ export interface GettingStartedProps {
 export default function GettingStarted({
   checklist, score, scoreHeadline, scoreIncomplete,
 }: GettingStartedProps) {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
 
   // Nothing left to prompt. See the header note.
@@ -41,7 +44,7 @@ export default function GettingStarted({
   return (
     <Card>
       <View style={styles.head}>
-        <Text style={CommonStyles.eyebrow}>GETTING STARTED</Text>
+        <Text style={common.eyebrow}>GETTING STARTED</Text>
         <Text style={styles.progress}>
           {checklist.completed} of {checklist.total}
         </Text>
@@ -74,7 +77,7 @@ export default function GettingStarted({
           <Text style={styles.scoreLabel}>HELOC Hero score</Text>
           <Text style={styles.scoreHeadline} numberOfLines={2}>{scoreHeadline}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
       </TouchableOpacity>
 
       <View style={styles.steps}>
@@ -105,6 +108,8 @@ function StepRow({ step, index, highlighted, onPress }: {
   highlighted: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.step, highlighted && styles.stepNext]}
@@ -127,7 +132,7 @@ function StepRow({ step, index, highlighted, onPress }: {
         ]}
       >
         {step.done
-          ? <Ionicons name="checkmark" size={14} color={Colors.white} />
+          ? <Ionicons name="checkmark" size={14} color={colors.white} />
           : <Text style={[styles.markText, step.blocked && styles.markTextBlocked]}>{index}</Text>}
       </View>
 
@@ -151,29 +156,29 @@ function StepRow({ step, index, highlighted, onPress }: {
       </View>
 
       {!step.done && !step.blocked && (
-        <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
       )}
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing[2],
   },
-  progress: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textMuted },
+  progress: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textMuted },
 
   track: {
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     overflow: 'hidden',
     marginBottom: Spacing[4],
   },
-  fill: { height: 5, borderRadius: 3, backgroundColor: Colors.mint600 },
+  fill: { height: 5, borderRadius: 3, backgroundColor: t.colors.mint600 },
 
   scoreRow: {
     flexDirection: 'row',
@@ -183,22 +188,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[3],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
     marginBottom: Spacing[4],
   },
   scoreValue: { flexDirection: 'row', alignItems: 'baseline' },
   scoreNumber: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     letterSpacing: -0.5,
   },
-  scoreOf: { fontSize: Typography.xs, color: Colors.textMuted, marginLeft: 2 },
+  scoreOf: { fontSize: Typography.xs, color: t.colors.textMuted, marginLeft: 2 },
   scoreBody: { flex: 1, gap: 2 },
-  scoreLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  scoreHeadline: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
+  scoreLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  scoreHeadline: { fontSize: 11, color: t.colors.textSecondary, lineHeight: 16 },
 
   steps: { gap: Spacing[1] },
   step: {
@@ -210,25 +215,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[2],
     borderRadius: Radius.md,
   },
-  stepNext: { backgroundColor: Colors.surfaceSunken },
+  stepNext: { backgroundColor: t.colors.surfaceSunken },
 
   mark: {
     width: 26,
     height: 26,
     borderRadius: 13,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markDone: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
-  markBlocked: { borderColor: Colors.gray200 },
-  markText: { fontSize: 12, fontWeight: Typography.bold, color: Colors.textSecondary },
-  markTextBlocked: { color: Colors.textMuted },
+  markDone: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
+  markBlocked: { borderColor: t.colors.gray200 },
+  markText: { fontSize: 12, fontWeight: Typography.bold, color: t.colors.textSecondary },
+  markTextBlocked: { color: t.colors.textMuted },
 
   stepBody: { flex: 1, gap: 1 },
-  stepTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  stepTitleDone: { color: Colors.textSecondary },
-  stepTitleBlocked: { color: Colors.textMuted },
-  stepSub: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
-});
+  stepTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  stepTitleDone: { color: t.colors.textSecondary },
+  stepTitleBlocked: { color: t.colors.textMuted },
+  stepSub: { fontSize: 11, color: t.colors.textMuted, lineHeight: 16 },
+}));
