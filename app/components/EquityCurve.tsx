@@ -29,16 +29,46 @@ interface Props {
   payoffDate: Date;
   /** False when the figures are illustrative rather than the user's own. */
   hasRealData?: boolean;
+  /**
+   * Months of the projection to show. Null or undefined shows all of it.
+   *
+   * ── This window runs FORWARD, and that is not a limitation to work around ──
+   * The obvious version of a range control on a chart like this is 1M / 6M / 1Y
+   * of HISTORY. This app cannot draw that and should not pretend to: no balance
+   * time series is stored anywhere (`plaid_accounts` holds current balances and
+   * nothing else), so a line showing where equity HAS been would be invented
+   * from the one point we have. See the note at the top of this file.
+   *
+   * So the control zooms the projection instead. That is a real thing the user
+   * can steer — "what does the next year look like" versus "show me all of it"
+   * — and every point in it is output from the same model as the payoff date.
+   */
+  horizonMonths?: number | null;
 }
 
-export default function EquityCurve({ series, payoffDate, hasRealData = true }: Props) {
-  const acc = sample(series.accelerated.map(p => p.equity), SAMPLES);
-  const base = sample(series.baseline.map(p => p.equity), SAMPLES);
+export default function EquityCurve({
+  series, payoffDate, hasRealData = true, horizonMonths = null,
+}: Props) {
+  // Windowed BEFORE sampling, so a short horizon gets 40 points across one year
+  // rather than 40 points across thirty and a flat-looking stub.
+  const windowed = horizonMonths !== null && horizonMonths < series.accelerated.length;
+  const accPts  = windowed ? series.accelerated.slice(0, horizonMonths!) : series.accelerated;
+  const basePts = windowed ? series.baseline.slice(0, horizonMonths!)    : series.baseline;
+
+  const acc = sample(accPts.map(p => p.equity), SAMPLES);
+  const base = sample(basePts.map(p => p.equity), SAMPLES);
   if (acc.length < 2) return null;
 
   // "Mortgage-free" and "owns it outright" are different months.
   const settleMonths = series.debtFreeMonth - series.payoffMonth;
   const debtFreeDate = addMonths(payoffDate, settleMonths);
+
+  // What the right-hand end of the drawn line actually is. On a window it is a
+  // waypoint, NOT the debt-free date and NOT `finalEquity` — labelling a
+  // one-year view with the figure from year thirty is the single way this
+  // control could lie, and it would lie in the flattering direction.
+  const endEquity = accPts.length > 0 ? accPts[accPts.length - 1].equity : series.finalEquity;
+  const endDate   = windowed ? addMonths(new Date(), accPts.length) : debtFreeDate;
 
   // Floor sits at zero unless the user is underwater, in which case clipping
   // the negative part would hide the only thing worth seeing.
@@ -50,8 +80,11 @@ export default function EquityCurve({ series, payoffDate, hasRealData = true }: 
       <View
         accessibilityRole="image"
         accessibilityLabel={
-          `Projected equity, rising to ${money(series.finalEquity)} by ` +
-          `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
+          windowed
+            ? `Projected equity over the next ${accPts.length} months, reaching ` +
+              `${money(endEquity)} by ${fmtMonthYear(endDate)}.`
+            : `Projected equity, rising to ${money(series.finalEquity)} by ` +
+              `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
         }
       >
         <LineChart
@@ -74,9 +107,11 @@ export default function EquityCurve({ series, payoffDate, hasRealData = true }: 
       <View style={styles.axis}>
         <Text style={styles.axisText}>Today</Text>
         <View style={styles.axisRight}>
-          <Ionicons name="home" size={11} color={OnDark.accent} />
+          {/* The house icon means "owns it outright", so it only appears on the
+              view that actually runs that far. */}
+          {!windowed && <Ionicons name="home" size={11} color={OnDark.accent} />}
           <Text style={styles.axisTextStrong}>
-            {fmtMonthYear(debtFreeDate)} · {money(series.finalEquity)}
+            {fmtMonthYear(endDate)} · {money(endEquity)}
           </Text>
         </View>
       </View>
@@ -85,11 +120,14 @@ export default function EquityCurve({ series, payoffDate, hasRealData = true }: 
         {hasRealData ? '' : 'Example figures. '}
         Projected, not a guarantee. Holds today&apos;s home value flat and nets out both the
         mortgage and anything drawn on the line.
-        {settleMonths > 0
-          ? ` The mortgage clears in ${fmtMonthYear(payoffDate)} with about ` +
-            `${money(series.helocOutstandingAtPayoff)} still on the line; the curve runs on to ` +
-            `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
-          : ''}
+        {windowed
+          ? ' This is a window on the projection ahead, not a record of where your' +
+            ' equity has been — no balance history is stored.'
+          : settleMonths > 0
+            ? ` The mortgage clears in ${fmtMonthYear(payoffDate)} with about ` +
+              `${money(series.helocOutstandingAtPayoff)} still on the line; the curve runs on to ` +
+              `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
+            : ''}
       </Text>
     </View>
   );

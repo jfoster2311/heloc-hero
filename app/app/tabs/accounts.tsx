@@ -28,6 +28,7 @@ import {
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import WatchRow from '../../components/ui/WatchRow';
 import EquityCurve from '../../components/EquityCurve';
+import Position, { type PositionRow } from '../../components/Position';
 import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
@@ -41,6 +42,22 @@ import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { parseDate } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
+
+/**
+ * Spans of the PROJECTION, not ranges of history.
+ *
+ * A 1M / 6M / 1Y control on a chart like this normally means "the last year",
+ * and that is the one thing this cannot mean: nothing in the app stores a
+ * balance time series, so there is no past to draw. `null` is the full curve to
+ * debt-free, which stays the default because it is the view that answers the
+ * question the screen exists for.
+ */
+const HORIZONS: { label: string; months: number | null; a11y: string }[] = [
+  { label: '1 yr',  months: 12,   a11y: 'Show the next year of the projection' },
+  { label: '5 yr',  months: 60,   a11y: 'Show the next five years of the projection' },
+  { label: '10 yr', months: 120,  a11y: 'Show the next ten years of the projection' },
+  { label: 'All',   months: null, a11y: 'Show the whole projection to debt-free' },
+];
 
 export default function AccountsScreen() {
   const router = useRouter();
@@ -122,11 +139,13 @@ export default function AccountsScreen() {
   const drawEnd = parseDate(profile?.heloc_draw_end_date);
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
 
-  // ── Setup summaries — one line each, the detail behind the editor ──────────
-  const mortgageValue = f.mortgageBalance !== null
-    ? `${money(f.mortgageBalance)}${f.mortgage.rate.value !== null ? ` · ${rate(f.mortgage.rate.value)}` : ''}`
-    : 'Add your mortgage';
+  // ── The projection window ─────────────────────────────────────────────────
+  // Forward only. See the note on `horizonMonths` in EquityCurve — there is no
+  // stored balance history to look back over, so the options are spans of the
+  // projection rather than 1M/6M/1Y of the past.
+  const [horizon, setHorizon] = useState<number | null>(null);
 
+  // ── Setup summaries — one line each, the detail behind the editor ──────────
   const helocValue = (() => {
     if (f.helocLimit === null && f.helocRateAssumed) return 'Add your HELOC terms';
     const parts: string[] = [];
@@ -145,10 +164,58 @@ export default function AccountsScreen() {
         ? 'Set how interest is charged — it decides whether cycling helps'
         : undefined;
 
-  const homeValueLabel = f.homeValue !== null ? money(f.homeValue) : 'Add your home value';
-  const homeSub = f.homeValue !== null && profile?.home_value_source
-    ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
-    : undefined;
+  // ── The position rows ─────────────────────────────────────────────────────
+  // Each taps through to the modal that owns the figure, so this block is a view
+  // of the position AND the index of where to change it — the same handoff the
+  // setup rows below use, not a second set of editors.
+  const assetRows: PositionRow[] = [
+    {
+      key: 'home',
+      icon: 'home-outline',
+      label: 'Your home',
+      sub: profile?.home_value_source
+        ? HOME_VALUE_SOURCE_LABEL[profile.home_value_source]
+        : 'estimated value',
+      amount: f.homeValue,
+      emptyLabel: 'Add value',
+      onPress: () => { hapticLight(); router.push('/modals/home-value' as never); },
+    },
+    {
+      key: 'cash',
+      icon: 'wallet-outline',
+      // Not "available to move". What is safe to move is a judgement that weighs
+      // this against the buffer rules, and it is made on the dashboard.
+      label: 'Cash on hand',
+      sub: f.hasLinkedAccounts ? 'from your linked accounts' : 'from the figures you entered',
+      amount: f.liquidCash > 0 ? f.liquidCash : null,
+      emptyLabel: '—',
+    },
+  ];
+
+  const debtRows: PositionRow[] = [
+    {
+      key: 'mortgage',
+      icon: 'business-outline',
+      label: 'Mortgage',
+      sub: f.mortgage.rate.value !== null
+        ? `${rate(f.mortgage.rate.value)}${f.mortgage.isLive ? ' · live' : ''}`
+        : 'rate not set',
+      amount: f.mortgageBalance,
+      emptyLabel: 'Add',
+      onPress: () => { hapticLight(); router.push('/modals/mortgage-details' as never); },
+    },
+    {
+      key: 'heloc',
+      icon: 'card-outline',
+      label: 'Drawn on your line',
+      sub: f.helocLimit !== null
+        ? `of ${money(f.helocLimit)} · ${f.helocRateAssumed ? 'rate not set' : rate(f.helocRate)}`
+        : 'limit not set',
+      amount: f.helocDrawn,
+      emptyLabel: 'Add',
+      onPress: () => { hapticLight(); router.push('/modals/heloc-terms' as never); },
+    },
+  ];
 
   return (
     <View style={CommonStyles.screenContainer}>
@@ -204,12 +271,53 @@ export default function AccountsScreen() {
                 series={equitySeries}
                 payoffDate={f.projection.acceleratedPayoffDate}
                 hasRealData={f.hasRealData}
+                horizonMonths={horizon}
               />
+
+              {/* Spans of the projection ahead, NOT ranges of history. The
+                  labels say "1 yr" rather than "1M/6M/1Y" precisely so they
+                  cannot be misread as a look back at where equity has been. */}
+              <View style={styles.horizonRow}>
+                {HORIZONS.map(h => {
+                  const active = horizon === h.months;
+                  return (
+                    <TouchableOpacity
+                      key={h.label}
+                      style={[styles.horizonPill, active && styles.horizonPillActive]}
+                      onPress={() => { hapticLight(); setHorizon(h.months); }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={h.a11y}
+                    >
+                      <Text style={[styles.horizonText, active && styles.horizonTextActive]}>
+                        {h.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           )}
         </Hero>
 
         <View style={styles.content}>
+          {/* ── YOUR POSITION ──────────────────────────────────────────────
+              Grouped by what each figure DOES in the strategy rather than by
+              where it came from. The drawn line sits with the mortgage, not
+              against the cash — see the note in components/Position.tsx, which
+              is the same framing the dashboard's unified figure uses. */}
+          {!f.loading && (
+            <>
+              <SectionLabel>YOUR POSITION</SectionLabel>
+              <Position
+                assets={assetRows}
+                debts={debtRows}
+                netLabel="Your equity"
+                onPressNet={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+              />
+            </>
+          )}
+
           {/* ── NEEDS ATTENTION ────────────────────────────────────────────
               The app already ranks what is wrong or stale — prepayment penalty,
               a rate to re-confirm, a draw period closing, spending drifting from
@@ -309,26 +417,22 @@ export default function AccountsScreen() {
             </Card>
           )}
 
-          {/* ── YOUR SETUP ─────────────────────────────────────────────────
-              One row per thing a user entered once. The figure is a summary; the
-              tap opens the editor that owns every detail behind it. */}
-          <SectionLabel>YOUR SETUP</SectionLabel>
+          {/* ── YOUR TERMS ─────────────────────────────────────────────────
+              What is left once the position above carries the balances: the two
+              rows that are about TERMS rather than amounts. Mortgage and home
+              value moved up into Position — they were appearing twice, and the
+              tap target was the same editor both times, which is duplication
+              rather than reinforcement.
+
+              The HELOC keeps a row here even though its balance is above,
+              because this row's job is different: it opens re-confirmation of a
+              variable rate nobody reports, which is a recurring action rather
+              than a place to read a number. */}
+          <SectionLabel>YOUR TERMS</SectionLabel>
           <Card>
             <SetupRow
-              icon="home-outline"
-              label="Mortgage"
-              value={mortgageValue}
-              valueMuted={f.mortgageBalance === null}
-              chip={{
-                label: f.mortgage.isLive ? 'live' : 'entered',
-                tone: f.mortgage.isLive ? 'accent' : 'neutral',
-                icon: f.mortgage.isLive ? 'shield-checkmark-outline' : 'create-outline',
-              }}
-              onPress={() => router.push('/modals/mortgage-details' as never)}
-            />
-            <SetupRow
               icon="card-outline"
-              label="HELOC"
+              label="HELOC terms"
               value={helocValue}
               valueMuted={f.helocLimit === null && f.helocRateAssumed}
               flag={helocFlag}
@@ -341,12 +445,18 @@ export default function AccountsScreen() {
               )}
             />
             <SetupRow
-              icon="pricetags-outline"
-              label="Home value"
-              value={homeValueLabel}
-              valueMuted={f.homeValue === null}
-              flag={homeSub}
-              onPress={() => router.push('/modals/home-value' as never)}
+              icon="business-outline"
+              label="Mortgage terms"
+              value={f.mortgage.termMonths.value !== null
+                ? `${Math.round(f.mortgage.termMonths.value / 12)}-year term`
+                : 'Term, penalty and origination'}
+              valueMuted={f.mortgage.termMonths.value === null}
+              chip={{
+                label: f.mortgage.isLive ? 'live' : 'entered',
+                tone: f.mortgage.isLive ? 'accent' : 'neutral',
+                icon: f.mortgage.isLive ? 'shield-checkmark-outline' : 'create-outline',
+              }}
+              onPress={() => router.push('/modals/mortgage-details' as never)}
             />
             <SetupRow
               icon="options-outline"
@@ -624,6 +734,29 @@ function str(n: number | null): string { return n === null ? '' : String(Math.ro
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  horizonRow: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    marginTop: Spacing[4],
+  },
+  horizonPill: {
+    flex: 1,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: OnDark.hairline,
+  },
+  // Sits on the aurora, so the active state is a light fill rather than the
+  // page's mint — the hero is the one surface where OnDark tokens rule.
+  horizonPillActive: {
+    backgroundColor: OnDark.fillStrong,
+    borderColor: 'transparent',
+  },
+  horizonText: { fontSize: Typography.xs, fontWeight: Typography.medium, color: OnDark.muted },
+  horizonTextActive: { color: OnDark.primary, fontWeight: Typography.semibold },
+
   heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
   skeletonConnection: {
     flexDirection: 'row',
