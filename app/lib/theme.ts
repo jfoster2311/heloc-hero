@@ -32,23 +32,49 @@ export const Colors = {
   info:    '#4ADE80',
 
   // ── Neutrals ─────────────────────────────────────────────────────────────
+  // 50–300 are SURFACES and are green-derived like everything else.
+  // 400/500 are the two deliberate neutrals — see the note on `textMuted`.
   white:   '#FFFFFF',
-  gray50:  '#F7FAF8',
-  gray100: '#EEF4F0',
-  gray200: '#E3ECE6',
-  gray300: '#D1DBD5',
+  gray50:  '#F4FAF6',
+  gray100: '#E8F3EB',
+  gray200: '#DCEDE2',
+  gray300: '#C6DDCE',
   gray400: '#9CA3AF',
   gray500: '#6B7280',
 
   // ── App surfaces ─────────────────────────────────────────────────────────
-  background:    '#F0F7F3',
+  //
+  // ── Why the text ramp is green and the status greys are not ──────────────
+  // Body ink used to be a neutral slate (`#374151`) and muted ink a neutral
+  // grey. Both are now green, so the page has no un-derived neutral in it.
+  //
+  // `gray400`/`gray500` below stay neutral, and that is not an oversight or a
+  // leftover. They are the ONLY things in the app allowed to be neutral, and
+  // they earn it twice over: CLAUDE.md names those exact hexes for negative
+  // numbers, and `Semantic` depends on their neutrality — an over-ceiling bar
+  // drawn in the green ramp would sit adjacent to the on-track green, turning
+  // "nearly over" and "over" into a judgement about a shade, and a selection
+  // drawn in mint would read as approval of whatever is selected. Greening them
+  // would not make the app more monochrome; it would make severity unreadable
+  // and force the red this palette exists to avoid.
+  //
+  // The canvas is NOT `#F0FDF4`. That value is already `mint50` above — the
+  // wash behind every chip and info row — so using it here would paint those
+  // chips in exactly the page colour and delete them. This sits a step deeper,
+  // which preserves the same separation the light theme has always had.
+  background:    '#ECF7EF',
   surface:       '#FFFFFF',
-  surfaceSunken: '#F7FAF8',
+  surfaceSunken: '#F4FAF6',
   border:        '#D8EDE3',
   borderSubtle:  '#E9F2EC',
-  textPrimary:   '#0A0F0D',
-  textSecondary: '#374151',
-  textMuted:     '#9CA3AF',
+  // Measured on white / on the canvas:
+  textPrimary:   '#0C2E1A',  // 14.8:1 / 14.1:1 — deep forest, still authoritative
+  textSecondary: '#2F6242',  //  7.1:1 /  6.8:1 — moss, comfortable at body size
+  // 3.7:1 / 3.5:1. This REPLACES `#9CA3AF`, which measured 2.54:1 on white and
+  // had been failing contrast for as long as it has existed — a pre-existing
+  // bug found while measuring the greens rather than eyeballing them. Still
+  // muted, now legible. Labels and hints only; never a lone value.
+  textMuted:     '#6E8C7B',
 };
 
 /** Text and hairlines for anything sitting on the aurora. */

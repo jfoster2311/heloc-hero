@@ -6,10 +6,21 @@
 // directly beneath it, because a bare number is homework.
 //
 // Below the hero, in this order and no other:
-//   1. Safe to Move    — the decision, in the thumb zone, reasoning always visible
-//   2. Needs attention — the watch feed, sat with the action rather than below it
-//   3. Interest        — the realized reward and its live ticker, and nothing else
-//   4. Door tiles      — equity, surplus, line, saved: each hands off to its tab
+//   1. Your next dump  — how far the replenishment has to go, and what it costs
+//   2. Safe to Move    — the decision, in the thumb zone, reasoning always visible
+//   3. Safe to Sweep   — what is actually free to spend
+//   4. Needs attention — the watch feed, sat with the action rather than below it
+//   5. What you owe    — both debts as the one figure that is falling
+//   6. Interest        — the realized reward, its live ticker, and it in months
+//   7. Door tiles      — equity, surplus, line, saved: each hands off to its tab
+//
+// 1 and 5 exist for the same reason, and it is a motivational one rather than an
+// informational one: this strategy spends most of its life in the quiet months
+// between dumps, where the only visible movement is a HELOC balance going the
+// "wrong" way. The meter makes waiting legible, and the unified figure moves the
+// anchor off the balance that rises and onto the total that falls. Neither
+// invents a number — see lib/strike.ts, which is the threshold math that already
+// gated the cards below.
 //
 // The dashboard ranks; it does not hold everything. The dense multi-stat cards
 // that used to sit here — a full line-of-credit breakdown that only duplicated
@@ -32,6 +43,10 @@ import NotificationPrimer from '../../components/NotificationPrimer';
 import FreedomBoard from '../../components/FreedomBoard';
 import InterestTicker from '../../components/InterestTicker';
 import GettingStarted from '../../components/GettingStarted';
+import NextStrike from '../../components/NextStrike';
+import NetDebt from '../../components/NetDebt';
+import { computeStrike, computeNetDebt } from '../../lib/strike';
+import { calcRemainingBalance } from '../../lib/projections';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -44,7 +59,7 @@ import { useOnboardingStore } from '../../lib/onboardingStore';
 import { computeRealized } from '../../lib/realized';
 import { computeSafeToSweep } from '../../lib/sweep';
 import { formatMonths } from '../../lib/projections';
-import { monthsBetween } from '../../lib/mortgage';
+import { monthsBetween, parseDate } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
@@ -121,6 +136,50 @@ export default function DashboardScreen() {
       b === 'amortizing_heloc' || b === 'draw_ended' ||
       b === 'prepayment_penalty' || b === 'buffer_too_thin'),
   });
+
+  // The replenishment phase, off the same threshold `safeToMove` and
+  // `computeSafeToSweep` gate on — so the meter cannot claim a dump is close
+  // while the card below it says HOLD.
+  const strike = useMemo(
+    () => computeStrike({
+      helocDrawn:         f.helocDrawn,
+      helocLimit:         f.helocLimit,
+      monthlySurplus:     Math.max(0, f.surplus),
+      helocRate:          f.helocRate,
+      replenishThreshold: f.replenishThreshold,
+    }),
+    [f.helocDrawn, f.helocLimit, f.surplus, f.helocRate, f.replenishThreshold],
+  );
+
+  // Both debts as one figure, and where the ORIGINAL note says they would be
+  // today. That last part needs origination principal, term and date; a manually
+  // entered mortgage usually has none of them, so it resolves to null and the
+  // comparison line is dropped rather than guessed at.
+  const netDebt = useMemo(() => {
+    const principal = f.mortgage.originationPrincipal.value;
+    const term      = f.mortgage.termMonths.value;
+    const origin    = f.mortgage.originationDate.value;
+    const rate      = f.mortgage.rate.value;
+    const originDate = origin ? parseDate(origin) : null;
+
+    const scheduledBalance =
+      principal && term && originDate && rate
+        ? calcRemainingBalance(
+            principal, rate, term,
+            Math.max(0, monthsBetween(originDate, new Date())),
+          )
+        : null;
+
+    return computeNetDebt({
+      mortgageBalance: f.mortgageBalance,
+      helocDrawn:      f.helocDrawn,
+      scheduledBalance,
+    });
+  }, [
+    f.mortgage.originationPrincipal.value, f.mortgage.termMonths.value,
+    f.mortgage.originationDate.value, f.mortgage.rate.value,
+    f.mortgageBalance, f.helocDrawn,
+  ]);
 
   const remindersEnabled = isPaidTier(tier);
 
@@ -330,6 +389,22 @@ export default function DashboardScreen() {
             />
           )}
 
+          {/* ── CARD 0.5 — Your next dump ───────────────────────────────
+              Above Safe to Move and NOT instead of it. The two answer different
+              questions: this one is "how far off is the next dump", which is
+              the only thing happening during the months after one, and Safe to
+              Move is "should I, and how much" — the decision, with its
+              reasoning and its liquidity cost. Replacing the second with the
+              first would delete the card that carries the reasoning, on the one
+              screen whose output is a decision about a house. */}
+          {!f.loading && (
+            <NextStrike
+              strike={strike}
+              replenishThreshold={f.replenishThreshold}
+              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+            />
+          )}
+
           {/* ── CARD 1 — Safe to Move ──────────────────────────────────── */}
           {/* The one card that must never speak early. Its inputs are the HELOC
               balance and the savings balance, both of which arrive with the
@@ -519,6 +594,12 @@ export default function DashboardScreen() {
             </Card>
           )}
 
+          {/* ── Both debts as one figure ───────────────────────────────────
+              Sits directly above the reward card, because the two are the same
+              story from opposite ends: this is what is still owed, that is what
+              has already been taken off it. */}
+          {!f.loading && <NetDebt debt={netDebt} />}
+
           {/* ── Interest — the reward, and its live ticker ─────────────────
               Slimmed to the one figure worth a daily look: interest actually
               removed by logged moves, and the ticker that keeps moving between
@@ -539,6 +620,20 @@ export default function DashboardScreen() {
                   ? `interest removed by ${fmtMoney(realized.totalMoved)} of logged moves, net of HELOC interest`
                   : 'No moves logged yet — this fills in from what you actually do'}
               </Text>
+
+              {/* The same saving in the unit the product is actually about.
+                  Dollars of interest are abstract; months are the thing someone
+                  came here for. Both are shown — the translation sits UNDER the
+                  figure it is derived from rather than replacing it, so nobody
+                  has to take the conversion on trust. `monthsOffPayoff` is the
+                  projection's own output, not a rule of thumb applied to the
+                  dollar figure above it. */}
+              {realized.net !== null && realized.monthsOffPayoff > 0 && (
+                <Text style={styles.bigTranslation}>
+                  That is about {formatMonths(realized.monthsOffPayoff)} off your
+                  mortgage — a projected estimate, not a guarantee.
+                </Text>
+              )}
             </View>
 
             {/* The live one. Between dumps this is the only figure on the
@@ -872,4 +967,11 @@ const styles = StyleSheet.create({
     letterSpacing: Tracking.heading,
   },
   bigLabel: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: 2 },
+  bigTranslation: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.mint700,
+    lineHeight: 20,
+    marginTop: Spacing[2],
+  },
 });
