@@ -13,7 +13,7 @@
 // not touch `computeProjection`, and nothing in lib/cashflow.ts reads this file.
 // That separation is deliberate: the payoff date must not move because someone
 // adjusted a grocery budget. Budgets here explain spending; they never model it.
-import { Colors, Semantic } from './theme';
+import { Colors, LightTheme, type SemanticTokens } from './theme';
 import type { SpendCategory } from './spending';
 
 // ─── Ceilings ─────────────────────────────────────────────────────────────────
@@ -85,9 +85,22 @@ export function budgetStatus(spent: number, ceiling: number | null): BudgetStatu
  * colour rather than defaulting to "on track" — a category with no budget is not
  * passing a test it was never given.
  */
-export function getBarColor(spent: number, budget: number | null): string {
-  if (budget === null || budget <= 0) return Colors.gray300;
-  return spent > budget ? Semantic.overCeiling : Semantic.underCeiling;
+export function getBarColor(
+  spent: number,
+  budget: number | null,
+  /**
+   * The palette to resolve against. Optional, defaulting to the light tokens.
+   *
+   * A default rather than a required argument so the screens that have not been
+   * converted to the theme yet keep calling this with two arguments and keep
+   * rendering exactly as they do today. A converted caller passes its own theme
+   * and gets the dark grey/mint pair instead. When the migration finishes, the
+   * default comes off and the parameter becomes required.
+   */
+  theme: { colors: Pick<typeof Colors, 'gray300'>; semantic: SemanticTokens } = LightTheme,
+): string {
+  if (budget === null || budget <= 0) return theme.colors.gray300;
+  return spent > budget ? theme.semantic.overCeiling : theme.semantic.underCeiling;
 }
 
 /**

@@ -10,7 +10,8 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { CUSTOM_CATEGORY_ICONS } from '../../lib/spending';
 
@@ -35,6 +36,8 @@ export interface NewCategoryFormProps {
 export default function NewCategoryForm({
   saving, error, onCreate, onCancel, initial, title, submitLabel,
 }: NewCategoryFormProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [label, setLabel] = useState(initial?.label ?? '');
   const [icon, setIcon] = useState<string>(initial?.icon ?? CUSTOM_CATEGORY_ICONS[0]);
 
@@ -50,7 +53,7 @@ export default function NewCategoryForm({
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >
-          <Ionicons name="close" size={18} color={Colors.textSecondary} />
+          <Ionicons name="close" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -59,7 +62,7 @@ export default function NewCategoryForm({
         value={label}
         onChangeText={setLabel}
         placeholder="Name it — Pets, Childcare, Tithing…"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={colors.textMuted}
         maxLength={30}
         autoFocus
         returnKeyType="done"
@@ -81,7 +84,7 @@ export default function NewCategoryForm({
               <Ionicons
                 name={g}
                 size={19}
-                color={active ? Colors.white : Colors.textSecondary}
+                color={active ? colors.white : colors.textSecondary}
               />
             </TouchableOpacity>
           );
@@ -98,24 +101,24 @@ export default function NewCategoryForm({
         accessibilityLabel="Create this category"
       >
         {saving
-          ? <ActivityIndicator size="small" color={Colors.white} />
+          ? <ActivityIndicator size="small" color={colors.white} />
           : <Text style={styles.createText}>{submitLabel ?? 'Create'}</Text>}
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   wrap: {
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceSunken,
+    backgroundColor: t.colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  title: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   cancel: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   input: {
@@ -123,10 +126,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     fontSize: Typography.sm,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
 
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2] },
@@ -135,22 +138,22 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconBtnActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  iconBtnActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
 
-  error: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  error: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
 
   create: {
     minHeight: 48,
     borderRadius: Radius.full,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  createDisabled: { backgroundColor: Colors.gray300 },
-  createText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.white },
-});
+  createDisabled: { backgroundColor: t.colors.gray300 },
+  createText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.white },
+}));

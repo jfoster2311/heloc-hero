@@ -9,9 +9,8 @@ import {
   type ViewStyle, type StyleProp, type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Colors, Typography, Spacing, Radius, Shadows, Tracking, OnDark,
-} from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, OnDark } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 // ─── Surfaces ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +24,7 @@ interface CardProps {
 }
 
 export function Card({ children, style, onPress, accessibilityLabel, onDark }: CardProps) {
+  const styles = useStyles();
   const body = <View style={[onDark ? styles.cardDark : styles.card, style]}>{children}</View>;
   if (!onPress) return body;
   return (
@@ -45,10 +45,12 @@ export function CardHead({ title, right, icon }: {
   right?: React.ReactNode;
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.cardHead}>
       <View style={styles.cardHeadLeft}>
-        {icon ? <Ionicons name={icon} size={16} color={Colors.textMuted} /> : null}
+        {icon ? <Ionicons name={icon} size={16} color={colors.textMuted} /> : null}
         <Text style={styles.cardTitle}>{title}</Text>
       </View>
       {right}
@@ -61,10 +63,12 @@ export function SectionLabel({ children, style }: {
   children: React.ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
+  const styles = useStyles();
   return <Text style={[styles.sectionLabel, style]}>{children}</Text>;
 }
 
 export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
+  const styles = useStyles();
   return <View style={[styles.divider, style]} />;
 }
 
@@ -76,9 +80,11 @@ export function Chip({ label, icon, tone = 'neutral', onPress }: {
   tone?: 'neutral' | 'accent' | 'onDark';
   onPress?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const isAccent = tone === 'accent';
   const isDark   = tone === 'onDark';
-  const color = isDark ? OnDark.secondary : isAccent ? Colors.mint700 : Colors.textMuted;
+  const color = isDark ? OnDark.secondary : isAccent ? colors.mint700 : colors.textMuted;
   const body = (
     <View style={[styles.chip, isAccent && styles.chipAccent, isDark && styles.chipDark]}>
       {icon ? <Ionicons name={icon} size={12} color={color} /> : null}
@@ -101,10 +107,12 @@ export type StatusTone = 'clear' | 'caution' | 'hold';
  * available difference is saturation.
  */
 export function StatusPill({ status, label }: { status: StatusTone; label: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const dot =
-    status === 'clear'   ? Colors.mint600 :
-    status === 'caution' ? Colors.mint400 :
-                           Colors.gray400;
+    status === 'clear'   ? colors.mint600 :
+    status === 'caution' ? colors.mint400 :
+                           colors.gray400;
   return (
     <View style={styles.statusPill} accessibilityLabel={`Status: ${label}`}>
       <View style={[styles.statusDot, { backgroundColor: dot }]} />
@@ -118,6 +126,7 @@ export function SourceNote({ children, style }: {
   children: React.ReactNode;
   style?: StyleProp<TextStyle>;
 }) {
+  const styles = useStyles();
   return <Text style={[styles.sourceNote, style]}>{children}</Text>;
 }
 
@@ -132,6 +141,7 @@ export function Stat({ label, value, sub, align = 'left', onDark, muted }: {
   onDark?: boolean;
   muted?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <View style={{ flex: 1, alignItems: alignToFlex(align), gap: 2 }}>
       <Text style={[styles.statValue, onDark && styles.statValueDark, muted && styles.statValueMuted]}>
@@ -145,6 +155,7 @@ export function Stat({ label, value, sub, align = 'left', onDark, muted }: {
 
 /** Dark tile carrying a figure, as in the reference loan screens. */
 export function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.tile}>
       <Text style={styles.tileValue} allowFontScaling={false}>{value}</Text>
@@ -162,6 +173,8 @@ export function DataRow({ label, value, hint, onPress, last }: {
   onPress?: () => void;
   last?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const body = (
     <View style={[styles.dataRow, last && styles.dataRowLast]}>
       <View style={styles.dataRowLabel}>
@@ -170,7 +183,7 @@ export function DataRow({ label, value, hint, onPress, last }: {
       </View>
       <View style={styles.dataRowValue}>
         <Text style={styles.dataValue}>{value}</Text>
-        {onPress ? <Ionicons name="chevron-forward" size={15} color={Colors.gray400} /> : null}
+        {onPress ? <Ionicons name="chevron-forward" size={15} color={colors.gray400} /> : null}
       </View>
     </View>
   );
@@ -206,8 +219,10 @@ export function Meter({
   height?: number;
   onDark?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const pct = clamp01(value) * 100;
-  const fill = tone === 'accent' ? Colors.mint600 : Colors.gray400;
+  const fill = tone === 'accent' ? colors.mint600 : colors.gray400;
   return (
     <View>
       <View style={[
@@ -227,7 +242,7 @@ export function Meter({
               {
                 left: `${clamp01(m.at) * 100}%`,
                 height,
-                backgroundColor: onDark ? Colors.mint900 : Colors.surface,
+                backgroundColor: onDark ? colors.mint900 : colors.surface,
               },
             ]}
           />
@@ -262,6 +277,7 @@ export function ActionPair({ primary, secondary }: {
   primary:   { label: string; onPress: () => void; disabled?: boolean };
   secondary: { label: string; onPress: () => void };
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.actionPair}>
       <TouchableOpacity
@@ -293,6 +309,8 @@ export function PrimaryButton({ label, onPress, icon, disabled, style }: {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.primaryBtn, disabled && styles.actionBtnDisabled, style]}
@@ -302,7 +320,7 @@ export function PrimaryButton({ label, onPress, icon, disabled, style }: {
       accessibilityLabel={label}
     >
       <Text style={styles.primaryBtnText}>{label}</Text>
-      {icon ? <Ionicons name={icon} size={18} color={Colors.white} /> : null}
+      {icon ? <Ionicons name={icon} size={18} color={colors.white} /> : null}
     </TouchableOpacity>
   );
 }
@@ -315,6 +333,8 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
   onPress: () => void;
   danger?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={styles.linkRow}
@@ -324,14 +344,14 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
     >
       {icon ? (
         <View style={styles.linkIcon}>
-          <Ionicons name={icon} size={18} color={Colors.textSecondary} />
+          <Ionicons name={icon} size={18} color={colors.textSecondary} />
         </View>
       ) : null}
       <View style={{ flex: 1 }}>
         <Text style={[styles.linkLabel, danger && styles.linkLabelDanger]}>{label}</Text>
         {sub ? <Text style={styles.linkSub}>{sub}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+      <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
     </TouchableOpacity>
   );
 }
@@ -354,6 +374,8 @@ export function NavTile({ eyebrow, value, sub, icon, onPress, muted, accessibili
   muted?: boolean;
   accessibilityHint?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={styles.navTile}
@@ -364,9 +386,9 @@ export function NavTile({ eyebrow, value, sub, icon, onPress, muted, accessibili
       accessibilityHint={accessibilityHint}
     >
       <View style={styles.navTileHead}>
-        {icon ? <Ionicons name={icon} size={13} color={Colors.textMuted} /> : null}
+        {icon ? <Ionicons name={icon} size={13} color={colors.textMuted} /> : null}
         <Text style={styles.navTileEyebrow} numberOfLines={1}>{eyebrow}</Text>
-        <Ionicons name="chevron-forward" size={14} color={Colors.gray300} />
+        <Ionicons name="chevron-forward" size={14} color={colors.gray300} />
       </View>
       <Text
         style={[styles.navTileValue, muted && styles.navTileValueMuted]}
@@ -398,6 +420,8 @@ export function Disclosure({ count, children, label = 'details' }: {
   children: React.ReactNode;
   label?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [open, setOpen] = useState(false);
   if (count <= 0) return null;
   return (
@@ -421,7 +445,7 @@ export function Disclosure({ count, children, label = 'details' }: {
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
           size={15}
-          color={Colors.mint600}
+          color={colors.mint600}
         />
       </TouchableOpacity>
     </>
@@ -435,10 +459,12 @@ export function EmptyState({ icon, title, body, action }: {
   body: string;
   action?: { label: string; onPress: () => void };
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyRing}>
-        <Ionicons name={icon} size={26} color={Colors.mint600} />
+        <Ionicons name={icon} size={26} color={colors.mint600} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
@@ -459,15 +485,15 @@ function alignToFlex(a: 'left' | 'right' | 'center') {
   return a === 'left' ? 'flex-start' : a === 'right' ? 'flex-end' : 'center';
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     gap: Spacing[3],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   cardDark: {
     backgroundColor: OnDark.fill,
@@ -487,17 +513,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
 
   sectionLabel: {
     fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: Tracking.eyebrow,
     marginTop: Spacing[2],
   },
-  divider: { height: 1, backgroundColor: Colors.borderSubtle },
+  divider: { height: 1, backgroundColor: t.colors.borderSubtle },
 
   chip: {
     flexDirection: 'row',
@@ -506,9 +532,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     paddingVertical: 5,
     borderRadius: Radius.full,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
   },
-  chipAccent: { backgroundColor: Colors.mint50, borderWidth: 1, borderColor: Colors.mint200 },
+  chipAccent: { backgroundColor: t.colors.mint50, borderWidth: 1, borderColor: t.colors.mint200 },
   chipDark:   { backgroundColor: OnDark.fill, borderWidth: 1, borderColor: OnDark.hairline },
   chipText:   { fontSize: 11, fontWeight: Typography.semibold },
 
@@ -521,26 +547,26 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: 0.4,
   },
 
-  sourceNote: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17 },
+  sourceNote: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 17 },
 
   statValue: {
     fontSize: Typography.lg,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   statValueDark:  { color: OnDark.primary },
-  statValueMuted: { color: Colors.gray400 },
-  statLabel:      { fontSize: Typography.xs, color: Colors.textMuted },
+  statValueMuted: { color: t.colors.gray400 },
+  statLabel:      { fontSize: Typography.xs, color: t.colors.textMuted },
   statLabelDark:  { color: OnDark.muted },
-  statSub:        { fontSize: Typography.xs, color: Colors.textMuted },
+  statSub:        { fontSize: Typography.xs, color: t.colors.textMuted },
 
   tile: {
     flex: 1,
-    backgroundColor: Colors.mint900,
+    backgroundColor: t.colors.mint900,
     borderRadius: Radius.lg,
     paddingVertical: Spacing[4],
     paddingHorizontal: Spacing[4],
@@ -563,29 +589,29 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[3],
     minHeight: 44,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   dataRowLast:   { borderBottomWidth: 0 },
   dataRowLabel:  { flex: 1, gap: 2 },
   dataRowValue:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  dataLabel:     { fontSize: Typography.sm, color: Colors.textSecondary },
-  dataHint:      { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  dataLabel:     { fontSize: Typography.sm, color: t.colors.textSecondary },
+  dataHint:      { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   dataValue: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'right',
   },
 
   meterTrack: {
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     overflow: 'hidden',
     position: 'relative',
   },
   meterFill: { position: 'absolute', left: 0, top: 0 },
   meterMark: { position: 'absolute', top: 0, width: 2 },
   meterMarkLabels: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: Spacing[1] },
-  meterMarkLabel: { fontSize: Typography.xs, color: Colors.textMuted },
+  meterMarkLabel: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   actionPair: { flexDirection: 'row', gap: Spacing[3] },
   actionBtn: {
@@ -593,8 +619,8 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing[3],
@@ -603,12 +629,12 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     textAlign: 'center',
   },
 
   primaryBtn: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     minHeight: 50,
     flexDirection: 'row',
@@ -618,7 +644,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[5],
   },
   primaryBtnText: {
-    color: Colors.white,
+    color: t.colors.white,
     fontSize: Typography.base,
     fontWeight: Typography.bold,
   },
@@ -632,40 +658,40 @@ const styles = StyleSheet.create({
   },
   linkIcon: {
     width: 36, height: 36, borderRadius: Radius.md,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     alignItems: 'center', justifyContent: 'center',
   },
-  linkLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  linkLabelDanger: { color: Colors.gray500 },
-  linkSub:   { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  linkLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textPrimary },
+  linkLabelDanger: { color: t.colors.gray500 },
+  linkSub:   { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2, lineHeight: 16 },
 
   navTile: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     padding: Spacing[4],
     gap: Spacing[1],
     minHeight: 96,
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   navTileHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   navTileEyebrow: {
     flex: 1,
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: Tracking.label,
   },
   navTileValue: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,
   },
-  navTileValueMuted: { color: Colors.gray400 },
-  navTileSub: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  navTileValueMuted: { color: t.colors.gray400 },
+  navTileSub: { fontSize: 11, color: t.colors.textMuted, lineHeight: 15 },
 
   disclosure: {
     flexDirection: 'row',
@@ -677,20 +703,20 @@ const styles = StyleSheet.create({
   disclosureText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
 
   empty: { alignItems: 'center', paddingVertical: Spacing[10], gap: Spacing[2] },
   emptyRing: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: Colors.mint50,
-    borderWidth: 1, borderColor: Colors.mint200,
+    backgroundColor: t.colors.mint50,
+    borderWidth: 1, borderColor: t.colors.mint200,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: Spacing[2],
   },
-  emptyTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  emptyTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   emptyBody: {
-    fontSize: Typography.sm, color: Colors.textMuted,
+    fontSize: Typography.sm, color: t.colors.textMuted,
     textAlign: 'center', lineHeight: 20, maxWidth: 300,
   },
-});
+}));

@@ -15,7 +15,8 @@
 // failure, so `flat` exists to make "no judgement applies here" a thing a caller
 // must say out loud rather than a default it can drift away from.
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, Semantic } from '../../lib/theme';
+import { Typography, Spacing, type Theme } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { getBarColor } from '../../lib/budget';
 import type { MonthPoint } from '../../lib/spending';
 
@@ -49,6 +50,8 @@ export default function TrendBarChart({
   showValues = false,
   accessibilityLabel,
 }: TrendBarChartProps) {
+  const styles = useStyles();
+  const theme = useTheme();
   if (points.length === 0) return null;
 
   // The ceiling participates in the scale, not just the colouring. Without it,
@@ -104,7 +107,7 @@ export default function TrendBarChart({
                     // than nothing. A genuinely empty month gets 0 and reads as
                     // empty, which is the distinction worth keeping.
                     height: p.amount > 0 ? Math.max(3, frac * (height - 8)) : 0,
-                    backgroundColor: barColor(colorMode, p, threshold, isSelected),
+                    backgroundColor: barColor(colorMode, p, threshold, isSelected, theme),
                   },
                   // The selection outline is neutral and layered over whatever
                   // the fill already means, so "the bar I tapped" never reads as
@@ -133,21 +136,27 @@ export default function TrendBarChart({
   );
 }
 
+/**
+ * Takes the theme rather than reading it, because this is called from inside the
+ * bar `.map` — a hook there would run in a loop and behind a branch. Same reason
+ * `buildSegments` takes its ramp: a plain helper stays a plain helper.
+ */
 function barColor(
   mode: BarColorMode,
   point: MonthPoint,
   threshold: number | null,
   isSelected: boolean,
+  theme: Theme,
 ): string {
   switch (mode) {
     case 'threshold':
       // The one shared threshold rule, so this chart and every progress bar in
       // the app agree about what "over" means.
-      return getBarColor(point.amount, threshold);
+      return getBarColor(point.amount, threshold, theme);
     case 'flat':
-      return Colors.mint600;
+      return theme.colors.mint600;
     case 'selection':
-      return isSelected ? Colors.mint600 : Colors.mint400;
+      return isSelected ? theme.colors.mint600 : theme.colors.mint400;
   }
 }
 
@@ -158,7 +167,7 @@ function compact(n: number): string {
   return String(Math.round(n));
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   plot: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -168,11 +177,11 @@ const styles = StyleSheet.create({
   bar: { width: '100%', maxWidth: 34, borderRadius: 4 },
   barSelected: {
     borderWidth: 2,
-    borderColor: Semantic.selected,
+    borderColor: t.semantic.selected,
   },
   value: {
     fontSize: 9,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginBottom: 3,
   },
 
@@ -187,7 +196,7 @@ const styles = StyleSheet.create({
   ceilingTick: {
     width: 4,
     height: 1,
-    backgroundColor: Colors.gray300,
+    backgroundColor: t.colors.gray300,
   },
 
   axis: {
@@ -195,9 +204,9 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
     marginTop: Spacing[2],
   },
-  axisLabel: { fontSize: 10, color: Colors.textMuted },
+  axisLabel: { fontSize: 10, color: t.colors.textMuted },
   axisLabelSelected: {
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     fontWeight: Typography.semibold,
   },
-});
+}));

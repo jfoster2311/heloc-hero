@@ -13,7 +13,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../ui/primitives';
-import { Colors, Typography, Spacing, Radius, Semantic, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight } from '../../lib/haptics';
 import { getBarColor, budgetStatus, type BudgetMap } from '../../lib/budget';
 import type { CategoryTotal } from '../../lib/spending';
@@ -39,6 +40,8 @@ export default function BudgetWidget({
   categories, budgets, totalCeiling, totalSpent, monthLabel,
   onOpenCategory, onOpenAll, onStartBudget,
 }: BudgetWidgetProps) {
+  const { common, colors } = useTheme();
+  const styles = useStyles();
   const anyBudget = totalCeiling !== null && totalCeiling > 0;
   const total = budgetStatus(totalSpent, totalCeiling);
   const preview = categories.slice(0, PREVIEW_COUNT);
@@ -52,8 +55,8 @@ export default function BudgetWidget({
         accessibilityLabel="Budget"
         accessibilityHint="Opens the full budget"
       >
-        <Text style={CommonStyles.eyebrow}>BUDGET</Text>
-        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+        <Text style={common.eyebrow}>BUDGET</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
       </TouchableOpacity>
 
       {!anyBudget ? (
@@ -76,7 +79,7 @@ export default function BudgetWidget({
             </View>
             <View style={styles.startBtnGo}>
               <Text style={styles.startBtnGoText}>Begin</Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              <Ionicons name="arrow-forward" size={16} color={colors.white} />
             </View>
           </TouchableOpacity>
         </View>
@@ -108,12 +111,12 @@ export default function BudgetWidget({
                   accessibilityHint="Opens this category"
                 >
                   <View style={styles.rowIcon}>
-                    <Ionicons name={c.icon} size={17} color={Colors.mint700} />
+                    <Ionicons name={c.icon} size={17} color={colors.mint700} />
                   </View>
                   <View style={styles.rowBody}>
                     <BudgetBar label={c.label} spent={c.amount} ceiling={ceiling} />
                   </View>
-                  <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+                  <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
                 </TouchableOpacity>
               );
             })}
@@ -144,8 +147,13 @@ function BudgetBar({ label, spent, ceiling, emphasis }: {
   ceiling: number | null;
   emphasis?: boolean;
 }) {
+  const styles = useStyles();
+  const theme = useTheme();
   const status = budgetStatus(spent, ceiling);
-  const fill = getBarColor(spent, ceiling);
+  // Passes the theme explicitly — without it this resolves against the light
+  // tokens and an over-ceiling bar would draw in the light grey, which is nearly
+  // invisible on a dark card.
+  const fill = getBarColor(spent, ceiling, theme);
 
   return (
     <View style={styles.barBlock}>
@@ -183,7 +191,7 @@ function BudgetBar({ label, spent, ceiling, emphasis }: {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -192,7 +200,7 @@ const styles = StyleSheet.create({
   },
 
   startBlock: { gap: Spacing[4], paddingTop: Spacing[1] },
-  startBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  startBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
   startBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,17 +210,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[3],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   startBtnBody: { flex: 1, gap: 2 },
   startBtnTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
-  startBtnSub: { fontSize: Typography.xs, color: Colors.textSecondary },
+  startBtnSub: { fontSize: Typography.xs, color: t.colors.textSecondary },
   startBtnGo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,12 +228,12 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.full,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
   },
   startBtnGoText: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: Colors.white,
+    color: t.colors.white,
   },
 
   list: { marginTop: Spacing[4], gap: Spacing[1] },
@@ -238,7 +246,7 @@ const styles = StyleSheet.create({
   },
   rowIcon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center', justifyContent: 'center',
   },
   rowBody: { flex: 1 },
@@ -250,39 +258,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing[2],
   },
-  barLabel: { flexShrink: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  barLabel: { flexShrink: 1, fontSize: Typography.sm, color: t.colors.textSecondary },
   barLabelEmphasis: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   barFigures: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   overWord: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Semantic.overCeiling,
+    color: t.semantic.overCeiling,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  barValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  barValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   barValueEmphasis: { fontSize: Typography.base, fontWeight: Typography.bold },
-  barOf: { fontWeight: Typography.regular, color: Colors.textMuted },
+  barOf: { fontWeight: Typography.regular, color: t.colors.textMuted },
 
   track: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: Semantic.ceilingTrack,
+    backgroundColor: t.semantic.ceilingTrack,
     overflow: 'hidden',
   },
   fill: { height: 6, borderRadius: 3 },
 
   overNote: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: Spacing[3],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+    borderTopColor: t.colors.borderSubtle,
   },
-});
+}));

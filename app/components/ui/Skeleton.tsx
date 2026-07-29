@@ -19,7 +19,8 @@ import {
   View, StyleSheet, Animated, AccessibilityInfo,
   type StyleProp, type ViewStyle, type DimensionValue,
 } from 'react-native';
-import { Colors, Radius, Spacing } from '../../lib/theme';
+import { Radius, Spacing } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** One shimmering block. `onDark` for placeholders sitting on the aurora hero. */
 export function Skeleton({ width = '100%', height = 14, radius = Radius.sm, onDark, style }: {
@@ -29,6 +30,7 @@ export function Skeleton({ width = '100%', height = 14, radius = Radius.sm, onDa
   onDark?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const styles = useStyles();
   const pulse = useRef(new Animated.Value(0.45)).current;
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export function SkeletonGroup({ label, children, style }: {
 
 /** The common case: a stat's label over its value. */
 export function SkeletonStat({ width = 90 }: { width?: DimensionValue }) {
+  const styles = useStyles();
   return (
     <View style={styles.stat}>
       <Skeleton width={64} height={10} />
@@ -101,6 +104,7 @@ export function SkeletonStat({ width = 90 }: { width?: DimensionValue }) {
 
 /** Two or three stats across, matching the statRow layout on both tabs. */
 export function SkeletonStatRow({ count = 3 }: { count?: number }) {
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       {Array.from({ length: count }, (_, i) => <SkeletonStat key={i} width={i === 0 ? 96 : 72} />)}
@@ -113,6 +117,7 @@ export function SkeletonLines({ count = 2, last = '60%' }: {
   count?: number;
   last?: DimensionValue;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.lines}>
       {Array.from({ length: count }, (_, i) => (
@@ -122,10 +127,10 @@ export function SkeletonLines({ count = 2, last = '60%' }: {
   );
 }
 
-const styles = StyleSheet.create({
-  block: { backgroundColor: Colors.gray200 },
+const useStyles = createThemedStyles(t => ({
+  block: { backgroundColor: t.colors.gray200 },
   blockDark: { backgroundColor: 'rgba(255,255,255,0.16)' },
   stat: { gap: Spacing[2], flex: 1 },
   row: { flexDirection: 'row', gap: Spacing[4] },
   lines: { gap: Spacing[2] },
-});
+}));

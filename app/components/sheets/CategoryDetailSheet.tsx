@@ -21,7 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import DetailSheet, { SheetSection, SheetRow } from '../ui/DetailSheet';
 import TransactionRow from '../ui/TransactionRow';
 import TrendBarChart from '../ui/TrendBarChart';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../lib/haptics';
 import { budgetStatus, suggestCeiling } from '../../lib/budget';
 import type {
@@ -67,6 +68,8 @@ export interface CategoryDetailSheetProps {
 }
 
 export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
+  const { common, colors } = useTheme();
+  const styles = useStyles();
   const {
     target, monthLabel, amount, history, trailingAverage, ceiling, inherited,
     rows, metaFor, categoryFor, inProgress, saving,
@@ -123,7 +126,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
             accessibilityLabel={`Save a ${monthLabel} budget of $${fmt(parsed!)} for ${target.label}`}
           >
             {saving
-              ? <ActivityIndicator size="small" color={Colors.white} />
+              ? <ActivityIndicator size="small" color={colors.white} />
               : <Text style={styles.saveText}>Save budget</Text>}
           </TouchableOpacity>
         ) : undefined
@@ -132,7 +135,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
       {/* ── Identity ───────────────────────────────────────────────────── */}
       <View style={styles.identity}>
         <View style={styles.identityIcon}>
-          <Ionicons name={target.icon} size={20} color={Colors.mint700} />
+          <Ionicons name={target.icon} size={20} color={colors.mint700} />
         </View>
         <View style={styles.identityBody}>
           <Text style={styles.identityLabel}>{target.label}</Text>
@@ -156,7 +159,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
               onChangeText={setDraft}
               keyboardType="decimal-pad"
               placeholder={suggestion !== null ? String(suggestion) : '0'}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               maxLength={9}
               accessibilityLabel={`Monthly budget for ${target.label}`}
             />
@@ -176,8 +179,8 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
             <Switch
               value={applyToFuture}
               onValueChange={v => { hapticSelection(); setApplyToFuture(v); }}
-              trackColor={{ false: Colors.gray200, true: Colors.mint600 }}
-              thumbColor={Colors.white}
+              trackColor={{ false: colors.gray200, true: colors.mint600 }}
+              thumbColor={colors.white}
               accessibilityLabel="Apply this budget to future months"
             />
           </SheetRow>
@@ -193,7 +196,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
           <Ionicons
             name={status.over ? 'alert-circle-outline' : 'checkmark-circle-outline'}
             size={18}
-            color={status.over ? Colors.gray500 : Colors.mint700}
+            color={status.over ? colors.gray500 : colors.mint700}
           />
           <View style={styles.calloutBody}>
             <Text style={[styles.calloutValue, status.over && styles.calloutValueOver]}>
@@ -237,7 +240,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
           test that was never set. */}
       {history.length > 0 && (
         <View style={styles.chartBlock}>
-          <Text style={CommonStyles.eyebrow}>LAST {history.length} MONTHS</Text>
+          <Text style={common.eyebrow}>LAST {history.length} MONTHS</Text>
           <TrendBarChart
             points={history}
             colorMode={isExpense && ceiling !== null ? 'threshold' : 'flat'}
@@ -259,7 +262,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
 
       {/* ── The rows behind the figure ─────────────────────────────────── */}
       <View style={styles.listBlock}>
-        <Text style={CommonStyles.eyebrow}>
+        <Text style={common.eyebrow}>
           TRANSACTIONS IN {monthLabel.toUpperCase()}
         </Text>
         {rows.length === 0 ? (
@@ -303,24 +306,24 @@ function formatDay(date: string) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   identityIcon: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center', justifyContent: 'center',
   },
   identityBody: { flex: 1, gap: 2 },
   identityLabel: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  identitySub: { fontSize: Typography.xs, color: Colors.textMuted },
+  identitySub: { fontSize: Typography.xs, color: t.colors.textMuted },
   identityAmount: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
 
   inputRow: {
@@ -329,22 +332,22 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
     minHeight: 56,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   currency: {
     fontSize: Typography.xl,
     fontWeight: Typography.semibold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
   },
   input: {
     flex: 1,
     fontSize: Typography['2xl'],
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     paddingVertical: Spacing[2],
   },
   clear: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing[2] },
-  clearText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
+  clearText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textSecondary },
 
   callout: {
     flexDirection: 'row',
@@ -352,45 +355,45 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
-  calloutOver: { backgroundColor: Colors.gray100, borderColor: Colors.gray200 },
+  calloutOver: { backgroundColor: t.colors.gray100, borderColor: t.colors.gray200 },
   calloutBody: { flex: 1, gap: 2 },
   calloutValue: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
-  calloutValueOver: { color: Colors.gray500 },
-  calloutSub: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
+  calloutValueOver: { color: t.colors.gray500 },
+  calloutSub: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
 
   chartBlock: { gap: Spacing[3] },
-  chartNote: { fontSize: 11, color: Colors.textMuted },
+  chartNote: { fontSize: 11, color: t.colors.textMuted },
 
   listBlock: { gap: Spacing[2] },
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
-  empty: { fontSize: Typography.sm, color: Colors.textMuted, lineHeight: 20 },
+  empty: { fontSize: Typography.sm, color: t.colors.textMuted, lineHeight: 20 },
 
-  footnote: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
+  footnote: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18 },
 
   save: {
     minHeight: 52,
     borderRadius: Radius.full,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveText: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: Colors.white,
+    color: t.colors.white,
   },
-});
+}));

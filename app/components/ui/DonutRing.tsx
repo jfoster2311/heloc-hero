@@ -20,7 +20,8 @@
 // one hue merge into a single band and the count of categories is lost.
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius, Shadows, Tracking, CategoryRamp } from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, type CategoryRampTokens } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export interface RingSegment {
   key: string;
@@ -53,6 +54,7 @@ const ICON_MIN_PCT = 7;
 export default function DonutRing({
   segments, centerLabel, centerValue, centerSub, size = 216, thickness = 20,
 }: Props) {
+  const styles = useStyles();
   const radius = (size - thickness) / 2;
   const center = size / 2;
   // The rim badges sit outside the band, so the box has to make room for them.
@@ -152,20 +154,20 @@ export default function DonutRing({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   box: { alignSelf: 'center', position: 'relative' },
-  track: { position: 'absolute', borderColor: CategoryRamp.track },
+  track: { position: 'absolute', borderColor: t.categoryRamp.track },
   badge: {
     position: 'absolute',
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   center: {
     position: 'absolute',
@@ -177,43 +179,53 @@ const styles = StyleSheet.create({
   centerLabel: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 1.1,
     textAlign: 'center',
   },
   centerValue: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,
     textAlign: 'center',
   },
-  centerSub: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
-});
+  centerSub: { fontSize: 11, color: t.colors.textMuted, textAlign: 'center' },
+}));
 
-/** Assigns ramp colours by rank and folds the tail into one neutral arc. */
+/**
+ * Assigns ramp colours by rank and folds the tail into one neutral arc.
+ *
+ * The ramp is a PARAMETER rather than something this reads for itself, because
+ * this is a plain helper and not a component — callers invoke it inside `useMemo`
+ * and inside `.map`, where a hook would be called conditionally and in a loop.
+ * The caller already has the theme in hand; passing `theme.categoryRamp` costs
+ * one argument and keeps this a pure function of its inputs, which is also what
+ * makes the colour assignment testable.
+ */
 export function buildSegments<T extends { id: string; label: string; amount: number; pct: number; icon: keyof typeof Ionicons.glyphMap }>(
   categories: T[],
   maxArcs: number,
+  ramp: CategoryRampTokens,
 ): { segments: RingSegment[]; colorFor: Record<string, string>; folded: T[] } {
   const head = categories.slice(0, maxArcs);
   const tail = categories.slice(maxArcs);
 
   const colorFor: Record<string, string> = {};
   const segments: RingSegment[] = head.map((c, i) => {
-    const color = CategoryRamp.steps[i] ?? CategoryRamp.neutral;
+    const color = ramp.steps[i] ?? ramp.neutral;
     colorFor[c.id] = color;
     return { key: c.id, label: c.label, pct: c.pct, color, icon: c.icon };
   });
 
   if (tail.length > 0) {
     const pct = tail.reduce((s, c) => s + c.pct, 0);
-    for (const c of tail) colorFor[c.id] = CategoryRamp.neutral;
+    for (const c of tail) colorFor[c.id] = ramp.neutral;
     segments.push({
       key: '__rest',
       label: `${tail.length} smaller categories`,
       pct,
-      color: CategoryRamp.neutral,
+      color: ramp.neutral,
       icon: 'ellipsis-horizontal-outline',
     });
   }

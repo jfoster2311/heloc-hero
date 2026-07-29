@@ -12,9 +12,8 @@ import { ReactNode, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Colors, Typography, Spacing, Radius, Shadows, Tracking, CommonStyles,
-} from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export interface DetailSheetProps {
   visible: boolean;
@@ -31,6 +30,8 @@ export interface DetailSheetProps {
 export default function DetailSheet({
   visible, title, onClose, children, footer, onDismiss,
 }: DetailSheetProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   // onDismiss is iOS-only. Anything that must be reset when the sheet closes has
   // to be reset here too, or Android reopens the sheet still holding the last
   // one's expanded rows and half-typed input.
@@ -58,7 +59,7 @@ export default function DetailSheet({
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
-            <Ionicons name="close" size={22} color={Colors.textSecondary} />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -78,9 +79,11 @@ export default function DetailSheet({
 
 /** A titled block of rows inside a sheet. */
 export function SheetSection({ label, children }: { label?: string; children: ReactNode }) {
+  const { common } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.section}>
-      {label && <Text style={CommonStyles.eyebrow}>{label.toUpperCase()}</Text>}
+      {label && <Text style={common.eyebrow}>{label.toUpperCase()}</Text>}
       <View style={styles.sectionCard}>{children}</View>
     </View>
   );
@@ -103,6 +106,8 @@ export function SheetRow({ label, value, placeholder, onPress, last, children }:
   /** A control rendered in place of the value — a switch, say. */
   children?: ReactNode;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const hasValue = value !== null && value !== undefined && value !== '';
   const body = (
     <>
@@ -115,7 +120,7 @@ export function SheetRow({ label, value, placeholder, onPress, last, children }:
           {hasValue ? value : (placeholder ?? '—')}
         </Text>
       )}
-      {onPress && <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />}
+      {onPress && <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />}
     </>
   );
 
@@ -135,8 +140,8 @@ export function SheetRow({ label, value, placeholder, onPress, last, children }:
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  sheet: { flex: 1, backgroundColor: t.colors.background },
 
   header: {
     flexDirection: 'row',
@@ -152,7 +157,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: Tracking.eyebrow,
   },
   close: {
@@ -174,17 +179,17 @@ const styles = StyleSheet.create({
     paddingTop: Spacing[3],
     paddingBottom: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
-    backgroundColor: Colors.surface,
-    ...Shadows.modal,
+    borderTopColor: t.colors.borderSubtle,
+    backgroundColor: t.colors.surface,
+    ...t.shadows.modal,
   },
 
   section: { gap: Spacing[2] },
   sectionCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
     overflow: 'hidden',
   },
@@ -195,17 +200,17 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     minHeight: 48,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   rowLast: { borderBottomWidth: 0 },
-  rowLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  rowLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary },
   rowValue: {
     flexShrink: 1,
     maxWidth: '60%',
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'right',
   },
-  rowPlaceholder: { color: Colors.textMuted, fontWeight: Typography.regular },
-});
+  rowPlaceholder: { color: t.colors.textMuted, fontWeight: Typography.regular },
+}));

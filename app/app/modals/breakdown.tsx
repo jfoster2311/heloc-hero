@@ -107,9 +107,12 @@ export default function BreakdownScreen() {
   // widens it to `string` and fails. Calling per branch keeps each inference
   // clean, which is also the honest shape — one is categories, one is payers.
   const ring = useMemo(
+    // This screen is not theme-aware yet, so it passes the light ramp
+    // explicitly and renders exactly as it does today. It becomes one word when
+    // the modals are converted.
     () => (side === 'spending'
-      ? buildSegments(summary.categories, CATEGORY_RAMP_MAX)
-      : buildSegments(incomeSegments(summary.inflows), CATEGORY_RAMP_MAX)),
+      ? buildSegments(summary.categories, CATEGORY_RAMP_MAX, CategoryRamp)
+      : buildSegments(incomeSegments(summary.inflows), CATEGORY_RAMP_MAX, CategoryRamp)),
     [side, summary.categories, summary.inflows],
   );
 

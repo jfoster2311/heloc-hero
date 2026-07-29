@@ -60,10 +60,8 @@ import {
   previousRange, cumulativeSpend, dailyBreakdown, categoryHistory, trailingAverage,
   type PeriodId, type SpendCategory, type CategorizedTxn, type DayCell,
 } from '../../lib/spending';
-import {
-  Colors, Typography, Spacing, Radius, Shadows, OnDark, CommonStyles,
-  CategoryRamp, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE,
-} from '../../lib/theme';
+import { Typography, Spacing, Radius, OnDark, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** How many months the category trend charts look back over. */
 const TREND_MONTHS = 6;
@@ -76,6 +74,8 @@ const TREND_MONTHS = 6;
 const COLLAPSED_CATS = 6;
 
 export default function CashFlowScreen() {
+  const { categoryRamp, common, colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
@@ -175,8 +175,8 @@ export default function CashFlowScreen() {
   // Ranked arcs plus a folded tail, and the colour each category is painted in
   // — shared with the list below so a swatch there means the same arc here.
   const ring = useMemo(
-    () => buildSegments(summary.categories, CATEGORY_RAMP_MAX),
-    [summary.categories],
+    () => buildSegments(summary.categories, CATEGORY_RAMP_MAX, categoryRamp),
+    [summary.categories, categoryRamp],
   );
 
   // The mortgage payment scaled to the period. It is deliberately absent from
@@ -266,12 +266,12 @@ export default function CashFlowScreen() {
   }, [f.categories]);
 
   return (
-    <View style={CommonStyles.screenContainer}>
+    <View style={common.screenContainer}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.mint600} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mint600} />
         }
       >
         <Hero
@@ -314,7 +314,7 @@ export default function CashFlowScreen() {
             accessibilityRole="button"
             accessibilityLabel="Balances may be out of date. Tap to retry."
           >
-            <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
+            <Ionicons name="cloud-offline-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.staleText}>
               Couldn&apos;t reach your balances — HELOC interest below may be out of date.
             </Text>
@@ -389,8 +389,8 @@ export default function CashFlowScreen() {
             accessibilityLabel="Breakdown"
             accessibilityHint="Opens the full breakdown by category and merchant"
           >
-            <Text style={CommonStyles.eyebrow}>BREAKDOWN</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+            <Text style={common.eyebrow}>BREAKDOWN</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </TouchableOpacity>
 
           <View style={styles.rangeRow}>
@@ -406,7 +406,7 @@ export default function CashFlowScreen() {
           ) : summary.basis === 'estimated' ? (
             <View style={styles.stateBlock}>
               <View style={styles.emptyRing}>
-                <Ionicons name="pie-chart-outline" size={26} color={Colors.textMuted} />
+                <Ionicons name="pie-chart-outline" size={26} color={colors.textMuted} />
               </View>
               <Text style={styles.emptyBody}>
                 {f.hasLinkedAccounts
@@ -458,13 +458,13 @@ export default function CashFlowScreen() {
                 accessibilityHint="Shows the transactions in this category"
               >
                 <View style={styles.catIcon}>
-                  <Ionicons name={c.icon} size={18} color={Colors.mint700} />
+                  <Ionicons name={c.icon} size={18} color={colors.mint700} />
                   {/* The swatch ties the row to its arc. It is a second cue,
                       never the only one — the icon and name carry identity. */}
                   <View
                     style={[
                       styles.catSwatch,
-                      { backgroundColor: ring.colorFor[c.id] ?? CategoryRamp.neutral },
+                      { backgroundColor: ring.colorFor[c.id] ?? categoryRamp.neutral },
                     ]}
                   />
                 </View>
@@ -477,7 +477,7 @@ export default function CashFlowScreen() {
                 </View>
 
                 <Text style={styles.catAmount}>${fmt(c.amount)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             ))}
 
@@ -504,7 +504,7 @@ export default function CashFlowScreen() {
                 <Ionicons
                   name={catsExpanded ? 'chevron-up' : 'chevron-down'}
                   size={15}
-                  color={Colors.mint700}
+                  color={colors.mint700}
                 />
               </TouchableOpacity>
             )}
@@ -600,7 +600,7 @@ export default function CashFlowScreen() {
                 </View>
                 <View style={styles.beginGo}>
                   <Text style={styles.beginGoText}>Begin</Text>
-                  <Ionicons name="arrow-forward" size={15} color={Colors.white} />
+                  <Ionicons name="arrow-forward" size={15} color={colors.white} />
                 </View>
               </TouchableOpacity>
             )}
@@ -618,7 +618,7 @@ export default function CashFlowScreen() {
               accessibilityHint="Opens everything that repeats, in and out"
             >
               <Text style={styles.cardTitleInline}>Next 14 days</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <UpcomingMoney items={upcoming} />
           </Card>
@@ -644,7 +644,7 @@ export default function CashFlowScreen() {
                   {f.derivedCashflow.coverageMonths} months from your accounts
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <SurplusChart months={f.derivedCashflow.months} />
             <Text style={styles.chartNote}>
@@ -716,7 +716,7 @@ export default function CashFlowScreen() {
                           styles.bar,
                           {
                             height: maxBucket > 0 ? Math.max(3, (b.total / maxBucket) * 88) : 3,
-                            backgroundColor: b.total > 0 ? Colors.mint600 : Colors.gray100,
+                            backgroundColor: b.total > 0 ? colors.mint600 : colors.gray100,
                           },
                         ]}
                       />
@@ -814,6 +814,7 @@ function PeriodToggle({ value, onChange }: {
   value: PeriodId;
   onChange: (p: PeriodId) => void;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.toggle} accessibilityRole="tablist">
       {PERIODS.map(p => {
@@ -866,6 +867,8 @@ function SummaryRow({ icon, label, value, hint, total, barPct, onPress, action }
   onPress?: () => void;
   action?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const negative = value < 0;
   const Row = onPress ? TouchableOpacity : View;
   return (
@@ -882,7 +885,7 @@ function SummaryRow({ icon, label, value, hint, total, barPct, onPress, action }
         <Ionicons
           name={icon}
           size={16}
-          color={total ? Colors.mint700 : Colors.textSecondary}
+          color={total ? colors.mint700 : colors.textSecondary}
         />
       </View>
 
@@ -922,7 +925,7 @@ function SummaryRow({ icon, label, value, hint, total, barPct, onPress, action }
       {onPress && (
         <View style={styles.sumAction}>
           {action ? <Text style={styles.sumActionText}>{action}</Text> : null}
-          <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+          <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
         </View>
       )}
     </Row>
@@ -935,11 +938,13 @@ function BasisNote({ basis, period, hasFigures }: {
   period: PeriodId;
   hasFigures: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const live = basis === 'live';
   if (!live && !hasFigures) {
     return (
       <View style={styles.basis}>
-        <Ionicons name="help-circle-outline" size={14} color={Colors.textMuted} />
+        <Ionicons name="help-circle-outline" size={14} color={colors.textMuted} />
         <Text style={styles.basisText}>
           Nothing on file yet — add your income and expenses, or link an account.
         </Text>
@@ -951,7 +956,7 @@ function BasisNote({ basis, period, hasFigures }: {
       <Ionicons
         name={live ? 'pulse-outline' : 'create-outline'}
         size={14}
-        color={live ? Colors.mint700 : Colors.textMuted}
+        color={live ? colors.mint700 : colors.textMuted}
       />
       <Text style={[styles.basisText, live && styles.basisTextLive]}>
         {live
@@ -983,6 +988,7 @@ function CyclingNote({ measuredMonthly, plannedMonthly, basis }: {
   plannedMonthly: number;
   basis: 'live' | 'estimated';
 }) {
+  const styles = useStyles();
   // Estimated means this card is the entered figures scaled back out again, so
   // there is no second measurement to compare against — only one claim exists.
   if (basis === 'estimated') {
@@ -1033,6 +1039,7 @@ function periodWord(p: PeriodId): string {
  * error, and this palette carries severity as saturation.
  */
 function SurplusChart({ months }: { months: { key: string; label: string; surplus: number }[] }) {
+  const styles = useStyles();
   const peak = Math.max(...months.map(m => Math.abs(m.surplus)), 1);
   return (
     <View style={styles.surplusChart}>
@@ -1062,7 +1069,7 @@ function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   topTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
@@ -1082,14 +1089,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[3],
     minHeight: 44,
   },
-  staleText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
-  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
+  staleText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
+  staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   cardHead: {
     flexDirection: 'row',
@@ -1100,10 +1107,10 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: Spacing[3],
   },
-  cardStatus: { fontSize: Typography.xs, color: Colors.textMuted, marginBottom: Spacing[3] },
+  cardStatus: { fontSize: Typography.xs, color: t.colors.textMuted, marginBottom: Spacing[3] },
 
   /** Card header that is itself the way into the full screen. */
   linkHead: {
@@ -1118,9 +1125,9 @@ const styles = StyleSheet.create({
   cardTitleInline: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  cardStatusInline: { fontSize: Typography.xs, color: Colors.textMuted },
+  cardStatusInline: { fontSize: Typography.xs, color: t.colors.textMuted },
   ringHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1136,33 +1143,33 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing[2],
   },
   pillActive: {
-    backgroundColor: Colors.mint800,
-    borderColor: Colors.mint800,
-    ...Shadows.card,
+    backgroundColor: t.colors.mint800,
+    borderColor: t.colors.mint800,
+    ...t.shadows.card,
   },
-  pillText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  pillTextActive: { color: Colors.white, fontWeight: Typography.semibold },
+  pillText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  pillTextActive: { color: t.colors.white, fontWeight: Typography.semibold },
 
   // ── Ring card ────────────────────────────────────────────────────────────
   ringCard: { alignItems: 'center', gap: Spacing[4] },
   ringSkeleton: { alignItems: 'center', gap: Spacing[4] },
   emptyRing: {
     width: 64, height: 64, borderRadius: 32,
-    borderWidth: 6, borderColor: CategoryRamp.track,
+    borderWidth: 6, borderColor: t.categoryRamp.track,
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'center',
   },
 
   rangeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] },
-  rangeLabel: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textSecondary },
-  rangeNote: { fontSize: Typography.xs, color: Colors.textMuted },
+  rangeLabel: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textSecondary },
+  rangeNote: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   // ── Summary card ─────────────────────────────────────────────────────────
   sumRow: {
@@ -1173,10 +1180,10 @@ const styles = StyleSheet.create({
   },
   sumIcon: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     alignItems: 'center', justifyContent: 'center',
   },
-  sumIconTotal: { backgroundColor: Colors.mint50 },
+  sumIconTotal: { backgroundColor: t.colors.mint50 },
   sumBody: { flex: 1, gap: 4 },
   sumHead: {
     flexDirection: 'row',
@@ -1187,40 +1194,40 @@ const styles = StyleSheet.create({
   sumTrack: {
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     overflow: 'hidden',
   },
   sumFill: { height: 5, borderRadius: 3 },
-  sumFillIn:  { backgroundColor: Colors.mint600 },
-  sumFillOut: { backgroundColor: Colors.gray400 },
-  sumLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
+  sumFillIn:  { backgroundColor: t.colors.mint600 },
+  sumFillOut: { backgroundColor: t.colors.gray400 },
+  sumLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
   sumLabelTotal: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  sumHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  sumHint: { fontSize: 11, color: t.colors.textMuted, lineHeight: 15 },
   sumAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   sumActionText: {
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
-  sumValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  sumValueMuted: { color: Colors.gray500 },
+  sumValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  sumValueMuted: { color: t.colors.gray500 },
   sumValueTotal: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
   sumValueTotalNeg: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: Colors.gray500,
+    color: t.colors.gray500,
   },
   summaryRule: {
     height: 1,
-    backgroundColor: Colors.borderSubtle,
+    backgroundColor: t.colors.borderSubtle,
     marginVertical: Spacing[2],
   },
 
@@ -1232,11 +1239,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[2],
     paddingHorizontal: Spacing[3],
     borderRadius: Radius.md,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
   },
-  basisLive: { backgroundColor: Colors.mint50 },
-  basisText: { flex: 1, fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
-  basisTextLive: { color: Colors.mint700 },
+  basisLive: { backgroundColor: t.colors.mint50 },
+  basisText: { flex: 1, fontSize: 11, color: t.colors.textMuted, lineHeight: 16 },
+  basisTextLive: { color: t.colors.mint700 },
 
   beginRow: {
     flexDirection: 'row',
@@ -1248,17 +1255,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[3],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   beginBody: { flex: 1, gap: 2 },
   beginTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
-  beginSub: { fontSize: Typography.xs, color: Colors.textSecondary },
+  beginSub: { fontSize: Typography.xs, color: t.colors.textSecondary },
   beginGo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1266,18 +1273,18 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.full,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
   },
-  beginGoText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.white },
+  beginGoText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.white },
 
   tieBackText: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: Spacing[3],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+    borderTopColor: t.colors.borderSubtle,
   },
 
   // ── Category list ────────────────────────────────────────────────────────
@@ -1289,17 +1296,17 @@ const styles = StyleSheet.create({
     minHeight: 68,
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[3],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
-    ...Shadows.card,
+    borderColor: t.colors.borderSubtle,
+    ...t.shadows.card,
   },
   catIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1311,24 +1318,24 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: Colors.surface,
+    borderColor: t.colors.surface,
   },
   catBody: { flex: 1, gap: 2 },
-  catLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  catAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  catMeta: { fontSize: 11, color: Colors.textMuted },
+  catLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  catAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  catMeta: { fontSize: 11, color: t.colors.textMuted },
 
   untagged: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 17,
     marginTop: Spacing[3],
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[3],
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
   },
-  errorNote: { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: Spacing[3] },
+  errorNote: { fontSize: Typography.xs, color: t.colors.textSecondary, marginTop: Spacing[3] },
 
   seeMore: {
     flexDirection: 'row',
@@ -1339,13 +1346,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing[1],
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
-  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   stateBlock: { gap: Spacing[3] },
-  emptyBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  emptyBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
   emptyBtn: {
     alignSelf: 'flex-start',
     minHeight: 44,
@@ -1353,13 +1360,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
   emptyBtnText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
 
   editRow: {
@@ -1370,21 +1377,21 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing[1],
   },
-  editRowText: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17 },
-  editRowAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.mint700 },
+  editRowText: { flex: 1, fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 17 },
+  editRowAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   surplusChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   surplusCol: { flex: 1, alignItems: 'center' },
   surplusUpper: { height: 60, justifyContent: 'flex-end' },
   surplusLower: { height: 24, justifyContent: 'flex-start' },
-  surplusBaseline: { height: 1, alignSelf: 'stretch', backgroundColor: Colors.borderSubtle },
-  surplusBar: { width: 14, borderRadius: 3, backgroundColor: Colors.mint600 },
-  surplusBarNeg: { backgroundColor: Colors.gray300 },
+  surplusBaseline: { height: 1, alignSelf: 'stretch', backgroundColor: t.colors.borderSubtle },
+  surplusBar: { width: 14, borderRadius: 3, backgroundColor: t.colors.mint600 },
+  surplusBarNeg: { backgroundColor: t.colors.gray300 },
 
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing[2], height: 112 },
   barGroup: { flex: 1, alignItems: 'center', gap: Spacing[2] },
   barSlot: { height: 88, justifyContent: 'flex-end' },
   bar: { width: 18, borderRadius: 4 },
-  barLabel: { fontSize: 11, color: Colors.textMuted },
-  chartNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[3] },
-});
+  barLabel: { fontSize: 11, color: t.colors.textMuted },
+  chartNote: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[3] },
+}));

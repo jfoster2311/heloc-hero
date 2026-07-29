@@ -7,7 +7,8 @@
 import { View, Text, StyleSheet } from 'react-native';
 import DetailSheet from '../ui/DetailSheet';
 import TransactionRow from '../ui/TransactionRow';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight } from '../../lib/haptics';
 import type {
   DayCell, CategorizedTxn, CategoryMeta, SpendCategory,
@@ -26,6 +27,7 @@ export interface DayDetailSheetProps {
 export default function DayDetailSheet({
   day, metaFor, categoryFor, onClose, onOpenTransaction,
 }: DayDetailSheetProps) {
+  const styles = useStyles();
   if (!day) {
     return (
       <DetailSheet visible={false} title="Details" onClose={onClose}>
@@ -90,23 +92,23 @@ function formatFullDay(date: string) {
   });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: { alignItems: 'center', gap: Spacing[1], paddingTop: Spacing[2] },
-  date: { fontSize: Typography.sm, color: Colors.textMuted },
+  date: { fontSize: Typography.sm, color: t.colors.textMuted },
   total: {
     fontSize: Typography.displaySm,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  credit: { fontSize: Typography.xs, color: Colors.mint600, fontWeight: Typography.semibold },
+  credit: { fontSize: Typography.xs, color: t.colors.mint600, fontWeight: Typography.semibold },
 
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
-  empty: { fontSize: Typography.sm, color: Colors.textMuted, lineHeight: 20, textAlign: 'center' },
-});
+  empty: { fontSize: Typography.sm, color: t.colors.textMuted, lineHeight: 20, textAlign: 'center' },
+}));

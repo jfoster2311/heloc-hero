@@ -22,7 +22,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import DetailSheet, { SheetSection, SheetRow } from '../ui/DetailSheet';
 import NewCategoryForm from '../ui/NewCategoryForm';
-import { Colors, Typography, Spacing, Radius, Semantic } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
 import type { SpendCategory, CategorizedTxn, CategoryMeta } from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
@@ -55,6 +56,8 @@ export default function TransactionDetailSheet({
   onCreateCategory, categorySaving, categoryError,
   onClose, onRecategorize, onSetHidden, onSetNote, onSetRecurring,
 }: TransactionDetailSheetProps) {
+  const { colors, semantic } = useTheme();
+  const styles = useStyles();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
@@ -111,7 +114,7 @@ export default function TransactionDetailSheet({
             paycheck under Groceries. */}
         {inflow ? (
           <View style={[styles.catPill, styles.catPillStatic]}>
-            <Ionicons name="arrow-down-circle-outline" size={15} color={Colors.mint700} />
+            <Ionicons name="arrow-down-circle-outline" size={15} color={colors.mint700} />
             <Text style={styles.catPillText}>Money in</Text>
           </View>
         ) : (
@@ -121,12 +124,12 @@ export default function TransactionDetailSheet({
             accessibilityRole="button"
             accessibilityLabel={`Category: ${cat.label}. Tap to change.`}
           >
-            <Ionicons name={cat.icon} size={15} color={Colors.mint700} />
+            <Ionicons name={cat.icon} size={15} color={colors.mint700} />
             <Text style={styles.catPillText}>{cat.label}</Text>
             <Ionicons
               name={pickerOpen ? 'chevron-up' : 'chevron-down'}
               size={14}
-              color={Colors.mint700}
+              color={colors.mint700}
             />
           </TouchableOpacity>
         )}
@@ -170,7 +173,7 @@ export default function TransactionDetailSheet({
                   <Ionicons
                     name={c.icon}
                     size={14}
-                    color={active ? Colors.mint700 : Colors.textSecondary}
+                    color={active ? colors.mint700 : colors.textSecondary}
                   />
                   <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
                     {c.label}
@@ -186,7 +189,7 @@ export default function TransactionDetailSheet({
                 accessibilityRole="button"
                 accessibilityLabel="Create a new category"
               >
-                <Ionicons name="add" size={15} color={Colors.mint700} />
+                <Ionicons name="add" size={15} color={colors.mint700} />
                 <Text style={[styles.pickerChipText, styles.pickerChipTextActive]}>
                   New category
                 </Text>
@@ -221,7 +224,7 @@ export default function TransactionDetailSheet({
               onBlur={commitNote}
               onSubmitEditing={commitNote}
               placeholder="Add a note"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               autoFocus
               returnKeyType="done"
               maxLength={280}
@@ -248,21 +251,21 @@ export default function TransactionDetailSheet({
           <Switch
             value={meta.recurring}
             onValueChange={v => { hapticSelection(); onSetRecurring(t.transaction_id, v); }}
-            trackColor={{ false: Colors.gray200, true: Colors.mint600 }}
-            thumbColor={Colors.white}
+            trackColor={{ false: colors.gray200, true: colors.mint600 }}
+            thumbColor={colors.white}
             accessibilityLabel="Mark this transaction as repeating monthly"
           />
         </SheetRow>
 
         <SheetRow label="Hide as a duplicate" last>
           {saving ? (
-            <ActivityIndicator size="small" color={Colors.mint600} />
+            <ActivityIndicator size="small" color={colors.mint600} />
           ) : (
             <Switch
               value={meta.hidden}
               onValueChange={v => { hapticSelection(); onSetHidden(t.transaction_id, v); }}
-              trackColor={{ false: Colors.gray200, true: Colors.mint600 }}
-              thumbColor={Colors.white}
+              trackColor={{ false: colors.gray200, true: colors.mint600 }}
+              thumbColor={colors.white}
               accessibilityLabel="Hide this transaction from all totals"
             />
           )}
@@ -282,7 +285,7 @@ export default function TransactionDetailSheet({
 
       {accountLabel && (
         <View style={styles.accountRow}>
-          <View style={[styles.accountDot, { borderColor: Semantic.linkedAccount }]} />
+          <View style={[styles.accountDot, { borderColor: semantic.linkedAccount }]} />
           <Text style={styles.accountLabel}>{accountLabel}</Text>
         </View>
       )}
@@ -319,16 +322,16 @@ function prettyPfc(raw: string | null): string {
     .replace(/^./, c => c.toUpperCase());
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   amountBlock: { alignItems: 'center', gap: Spacing[3], paddingTop: Spacing[2] },
   amount: {
     fontSize: Typography.displaySm,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  amountIn: { color: Colors.mint600 },
-  pending: { fontSize: Typography.xs, color: Colors.textMuted },
+  amountIn: { color: t.colors.mint600 },
+  pending: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   catPill: {
     flexDirection: 'row',
@@ -337,15 +340,15 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.full,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   catPillStatic: { paddingHorizontal: Spacing[4] },
   catPillText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
 
   picker: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2] },
@@ -357,17 +360,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
   },
-  pickerChipActive: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
-  pickerChipNew: { borderStyle: 'dashed', borderColor: Colors.mint600 },
+  pickerChipActive: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint600 },
+  pickerChipNew: { borderStyle: 'dashed', borderColor: t.colors.mint600 },
   pickerChipText: {
     fontSize: Typography.xs,
     fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
-  pickerChipTextActive: { color: Colors.mint700, fontWeight: Typography.semibold },
+  pickerChipTextActive: { color: t.colors.mint700, fontWeight: Typography.semibold },
 
   noteRow: {
     flexDirection: 'row',
@@ -375,28 +378,28 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     minHeight: 48,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   noteValueTap: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', minHeight: 44 },
   noteInput: {
     flex: 1,
     fontSize: Typography.sm,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'right',
     paddingVertical: Spacing[2],
   },
-  rowLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
+  rowLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
   rowValue: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'right',
   },
-  rowPlaceholder: { color: Colors.textMuted, fontWeight: Typography.regular },
+  rowPlaceholder: { color: t.colors.textMuted, fontWeight: Typography.regular },
 
   footnote: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
   },
 
@@ -407,5 +410,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   accountDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
-  accountLabel: { fontSize: Typography.xs, color: Colors.textMuted },
-});
+  accountLabel: { fontSize: Typography.xs, color: t.colors.textMuted },
+}));

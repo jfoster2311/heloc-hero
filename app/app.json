@@ -4,7 +4,7 @@
     "slug": "heloc-hero",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#081A0F",
     "assetBundlePatterns": [
       "**/*"

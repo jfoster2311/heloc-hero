@@ -13,7 +13,8 @@
 // looks like in one file, which is the only way it stays consistent.
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius, Semantic } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export interface TransactionRowProps {
   /** Payee, or the raw description when the bank sent no merchant. */
@@ -53,6 +54,8 @@ export default function TransactionRow({
   hidden, pending, linkedAccount, overridden, recurring,
   saving, onPress, accessibilityExtra,
 }: TransactionRowProps) {
+  const { colors, semantic } = useTheme();
+  const styles = useStyles();
   // Money IN, in Plaid's convention. Shown with an explicit plus, because the
   // sign is the only thing separating a $40 refund from a $40 purchase and the
   // colour cannot carry it — mint means "on track" elsewhere in this app.
@@ -65,7 +68,7 @@ export default function TransactionRow({
         <Ionicons
           name={hidden ? 'eye-off-outline' : icon}
           size={17}
-          color={hidden ? Colors.textMuted : Colors.mint700}
+          color={hidden ? colors.textMuted : colors.mint700}
         />
       </View>
 
@@ -75,7 +78,7 @@ export default function TransactionRow({
             {name}
           </Text>
           {recurring && !hidden && (
-            <Ionicons name="repeat" size={13} color={Colors.textMuted} />
+            <Ionicons name="repeat" size={13} color={colors.textMuted} />
           )}
         </View>
         <Text style={[styles.meta, hidden && styles.dimText]} numberOfLines={1}>
@@ -88,7 +91,7 @@ export default function TransactionRow({
 
       <View style={styles.amountBlock}>
         {saving ? (
-          <ActivityIndicator size="small" color={Colors.mint600} />
+          <ActivityIndicator size="small" color={colors.mint600} />
         ) : (
           <Text
             style={[
@@ -107,16 +110,16 @@ export default function TransactionRow({
         {linkedAccount && !hidden && (
           // A ring, not a filled dot. A filled mint dot at this size is the
           // same mark this app uses for "on track", and the two appearing in
-          // one row would collide. See Semantic.linkedAccount in lib/theme.
+          // one row would collide. See semantic.linkedAccount in lib/theme.
           <View
-            style={[styles.accountDot, { borderColor: Semantic.linkedAccount }]}
+            style={[styles.accountDot, { borderColor: semantic.linkedAccount }]}
             accessibilityElementsHidden
           />
         )}
       </View>
 
       {onPress && (
-        <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
       )}
     </>
   );
@@ -155,7 +158,7 @@ function fmtCents(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,17 +167,17 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingVertical: Spacing[2],
   },
-  rowHidden: { opacity: Semantic.hiddenOpacity },
+  rowHidden: { opacity: t.semantic.hiddenOpacity },
 
   icon: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconHidden: { backgroundColor: Colors.gray100 },
+  iconHidden: { backgroundColor: t.colors.gray100 },
 
   body: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -182,18 +185,18 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  meta: { fontSize: 11, color: Colors.textMuted },
-  dimText: { color: Colors.textMuted },
+  meta: { fontSize: 11, color: t.colors.textMuted },
+  dimText: { color: t.colors.textMuted },
 
   amountBlock: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   amount: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  amountIn: { color: Colors.mint600 },
+  amountIn: { color: t.colors.mint600 },
   amountStruck: { textDecorationLine: 'line-through' },
 
   accountDot: {
@@ -202,4 +205,4 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1.5,
   },
-});
+}));

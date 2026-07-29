@@ -8,11 +8,26 @@ import { DEV_AUTH_BYPASS } from '../lib/devFlags';
 import { loadDevProMode } from '../lib/devPro';
 import LockGate from '../components/LockGate';
 import BootSplash from '../components/ui/BootSplash';
+import { ThemeProvider, useThemePreference } from '../lib/themeContext';
 
+/**
+ * The provider has to sit ABOVE the layout that reads it, so the routing shell
+ * moved down into RootLayoutInner and this became a wrapper. Nothing else about
+ * the auth/onboarding guard below changed.
+ */
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootLayoutInner />
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutInner() {
   const { profile, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const { mode, hydrated } = useThemePreference();
 
   // Restore the DEV Pro override before gated screens first render. No-op in production.
   useEffect(() => {
@@ -82,7 +97,12 @@ export default function RootLayout() {
   // Never a blank frame. Resolving the session lands the user on either the dark
   // aurora of /onboarding/welcome or the dark hero of /tabs/dashboard, so the
   // hold uses that same field and the handoff is a content change, not a flash.
-  if (loading) {
+  //
+  // `hydrated` joins the gate so the first painted frame is already in the
+  // user's chosen theme. Reading AsyncStorage is faster than resolving the
+  // session, so in practice this adds no time to the splash at all — it just
+  // guarantees the ordering rather than relying on the race going our way.
+  if (loading || !hydrated) {
     return (
       <>
         <StatusBar style="light" />
@@ -93,7 +113,9 @@ export default function RootLayout() {
 
   return (
     <LockGate>
-      <StatusBar style="dark" />
+      {/* The bar sits over the page, not the aurora, so it follows the theme.
+          tabs/_layout re-declares "light" because every tab opens on a hero. */}
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />

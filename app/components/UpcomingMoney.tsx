@@ -19,7 +19,8 @@
 import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../lib/theme';
+import { Typography, Spacing, Radius } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 import { hapticSelection, hapticLight } from '../lib/haptics';
 import type { RecurringStream } from '../lib/cashflow';
 
@@ -99,6 +100,8 @@ export function buildUpcoming(
 }
 
 export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const now = startOfDay(new Date());
   // Which week of the horizon the strip is showing, and which day (if any) the
   // user has drilled into. Selection is an ISO key rather than a Date so that
@@ -238,7 +241,7 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
               accessibilityRole="button"
               accessibilityLabel="Clear the day filter and show everything again"
             >
-              <Ionicons name="funnel-outline" size={12} color={Colors.mint700} />
+              <Ionicons name="funnel-outline" size={12} color={colors.mint700} />
               <Text style={styles.filterNoteText}>
                 {formatWhen(fromKey(selected), now)} only · show all
               </Text>
@@ -253,7 +256,7 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
                 <Ionicons
                   name={it.amount > 0 ? 'arrow-down' : 'arrow-up'}
                   size={13}
-                  color={it.amount > 0 ? Colors.mint600 : Colors.gray500}
+                  color={it.amount > 0 ? colors.mint600 : colors.gray500}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -294,6 +297,8 @@ function PagerButton({ icon, label, disabled, onPress }: {
   disabled: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.pagerBtn, disabled && styles.pagerBtnOff]}
@@ -307,7 +312,7 @@ function PagerButton({ icon, label, disabled, onPress }: {
       <Ionicons
         name={icon}
         size={15}
-        color={disabled ? Colors.gray300 : Colors.textSecondary}
+        color={disabled ? colors.gray300 : colors.textSecondary}
       />
     </TouchableOpacity>
   );
@@ -401,7 +406,7 @@ function cadenceLabel(days: number): string {
 }
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   wrap: { gap: Spacing[2] },
 
   stripHead: {
@@ -413,7 +418,7 @@ const styles = StyleSheet.create({
   stripRange: {
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
   pager: { flexDirection: 'row', gap: Spacing[1] },
   pagerBtn: {
@@ -421,11 +426,11 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pagerBtnOff: { borderColor: Colors.borderSubtle },
+  pagerBtnOff: { borderColor: t.colors.borderSubtle },
 
   strip: { flexDirection: 'row', gap: 4, marginBottom: Spacing[2] },
   cell: {
@@ -439,40 +444,40 @@ const styles = StyleSheet.create({
     gap: 2,
     minHeight: 64,
   },
-  cellToday: { backgroundColor: Colors.mint50, borderColor: Colors.mint200 },
+  cellToday: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint200 },
   // Selection has to outrank "today", since today is where selection starts.
-  cellSelected: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
-  dow: { fontSize: 10, color: Colors.textMuted, fontWeight: Typography.semibold },
-  dowActive: { color: Colors.mint700 },
-  dom: { fontSize: Typography.sm, color: Colors.textPrimary, fontWeight: Typography.semibold },
-  domActive: { color: Colors.mint700 },
+  cellSelected: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint600 },
+  dow: { fontSize: 10, color: t.colors.textMuted, fontWeight: Typography.semibold },
+  dowActive: { color: t.colors.mint700 },
+  dom: { fontSize: Typography.sm, color: t.colors.textPrimary, fontWeight: Typography.semibold },
+  domActive: { color: t.colors.mint700 },
   cellAmount: {
     fontSize: 9,
     fontWeight: Typography.bold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
-  cellAmountOut: { color: Colors.gray500 },
+  cellAmountOut: { color: t.colors.gray500 },
   /** Holds the row height steady on days with nothing on them. */
   cellAmountSpacer: { height: 11 },
   expectedTick: {
     width: 3,
     height: 3,
     borderRadius: 2,
-    backgroundColor: Colors.gray400,
+    backgroundColor: t.colors.gray400,
   },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], paddingVertical: Spacing[3] },
-  rowBorder: { borderTopWidth: 1, borderTopColor: Colors.borderSubtle },
+  rowBorder: { borderTopWidth: 1, borderTopColor: t.colors.borderSubtle },
   rowIcon: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  rowDetail: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
-  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint600 },
+  rowLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textPrimary },
+  rowDetail: { fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
+  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.mint600 },
   // Money out is muted grey, never red. See the palette policy in lib/theme.
-  rowAmountOut: { color: Colors.gray500 },
+  rowAmountOut: { color: t.colors.gray500 },
 
   netRow: {
     flexDirection: 'row',
@@ -480,12 +485,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
-  netLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  netValue: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.mint600 },
+  netLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  netValue: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.mint600 },
 
-  empty: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  empty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 
   filterNote: {
     flexDirection: 'row',
@@ -496,11 +501,11 @@ const styles = StyleSheet.create({
   filterNoteText: {
     fontSize: 11,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
   moreNote: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginTop: Spacing[2],
   },
-});
+}));

@@ -10,7 +10,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../ui/primitives';
 import TransactionRow from '../ui/TransactionRow';
-import { Colors, Typography, Spacing, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight } from '../../lib/haptics';
 import type { CategorizedTxn, CategoryMeta, SpendCategory } from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
@@ -30,6 +31,8 @@ export interface LatestActivityProps {
 export default function LatestActivity({
   rows, metaFor, categoryFor, onOpenRow, onOpenAll,
 }: LatestActivityProps) {
+  const { common, colors } = useTheme();
+  const styles = useStyles();
   const preview = rows.slice(0, PREVIEW_COUNT);
 
   return (
@@ -41,10 +44,10 @@ export default function LatestActivity({
         accessibilityLabel={`Latest activity. ${rows.length} transactions.`}
         accessibilityHint="Opens the full list"
       >
-        <Text style={CommonStyles.eyebrow}>LATEST ACTIVITY</Text>
+        <Text style={common.eyebrow}>LATEST ACTIVITY</Text>
         <View style={styles.headRight}>
           <Text style={styles.count}>{rows.length}</Text>
-          <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </View>
       </TouchableOpacity>
 
@@ -100,7 +103,7 @@ function formatDay(date: string) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -109,12 +112,12 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
   },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  count: { fontSize: Typography.xs, color: Colors.textMuted },
+  count: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   list: { marginTop: Spacing[1] },
   empty: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     paddingVertical: Spacing[3],
   },
@@ -125,11 +128,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
+    borderTopColor: t.colors.borderSubtle,
   },
   moreText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
-});
+}));

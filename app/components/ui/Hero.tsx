@@ -12,7 +12,8 @@ import { View, Text, StyleSheet, type ViewStyle, type StyleProp } from 'react-na
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuroraBackground from '../Aurora';
-import { Colors, Typography, Spacing, Tracking, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Tracking, OnDark } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface HeroProps {
   /** Uppercase micro-label above the figure. */
@@ -22,7 +23,14 @@ interface HeroProps {
   children: React.ReactNode;
   /** Scales the mint glow. Lower it when the hero is tall. */
   intensity?: number;
-  /** Colour the hero dissolves into. Defaults to the app background. */
+  /**
+   * Colour the hero dissolves into. Defaults to the app background.
+   *
+   * Resolved from the theme inside the component rather than as a default
+   * parameter: a default evaluated at module scope would bake in the LIGHT
+   * background forever, and the seam this component exists to hide would
+   * reappear as a pale band across the bottom of every dark hero.
+   */
   fadeTo?: string;
   /** Adds the top safe-area inset. Off when the screen already handled it. */
   insetTop?: boolean;
@@ -34,11 +42,13 @@ export default function Hero({
   topBar,
   children,
   intensity = 0.9,
-  fadeTo = Colors.background,
+  fadeTo,
   insetTop = true,
   style,
 }: HeroProps) {
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   return (
     <AuroraBackground
       style={[styles.root, insetTop && { paddingTop: insets.top + Spacing[3] }, style]}
@@ -50,7 +60,7 @@ export default function Hero({
 
       {/* Dissolves into the page instead of stopping at a hard edge. */}
       <LinearGradient
-        colors={['rgba(0,0,0,0)', fadeTo]}
+        colors={['rgba(0,0,0,0)', fadeTo ?? colors.background]}
         style={styles.fade}
         pointerEvents="none"
       />
@@ -60,6 +70,7 @@ export default function Hero({
 
 /** The display numeral a hero exists to carry. */
 export function HeroValue({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
+  const styles = useStyles();
   return (
     <Text
       style={[styles.value, accent && { color: OnDark.accent }]}
@@ -72,14 +83,16 @@ export function HeroValue({ children, accent }: { children: React.ReactNode; acc
 
 /** The sentence directly beneath a hero figure. A bare number is homework. */
 export function HeroCaption({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.caption}>{children}</Text>;
 }
 
 export function HeroSublabel({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.sublabel}>{children}</Text>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   root: {
     paddingHorizontal: Spacing[5],
     paddingBottom: Spacing[10],
@@ -116,4 +129,4 @@ const styles = StyleSheet.create({
     color: OnDark.muted,
     letterSpacing: Tracking.label,
   },
-});
+}));

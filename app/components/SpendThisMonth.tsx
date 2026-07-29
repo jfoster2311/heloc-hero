@@ -22,7 +22,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from './ui/primitives';
 import LineChart from './ui/LineChart';
-import { Colors, Typography, Spacing, Radius, Semantic, CommonStyles } from '../lib/theme';
+import { Typography, Spacing, Radius } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 import { hapticLight, hapticSelection } from '../lib/haptics';
 import type { DayCell, SpendSeries, PeriodId } from '../lib/spending';
 
@@ -46,6 +47,8 @@ export interface SpendThisMonthProps {
 export default function SpendThisMonth({
   cur, prev, days, period, rangeLabel, reference, onSelectDay,
 }: SpendThisMonthProps) {
+  const { common } = useTheme();
+  const styles = useStyles();
   const [mode, setMode] = useState<ViewMode>('chart');
   const word = periodWord(period);
 
@@ -53,7 +56,7 @@ export default function SpendThisMonth({
     <Card>
       <View style={styles.head}>
         <View style={styles.headBody}>
-          <Text style={CommonStyles.eyebrow}>SPEND THIS {word.toUpperCase()}</Text>
+          <Text style={common.eyebrow}>SPEND THIS {word.toUpperCase()}</Text>
           <Text style={styles.total}>${fmt(cur.total)}</Text>
           <Text style={styles.rangeLabel}>{rangeLabel}</Text>
         </View>
@@ -89,6 +92,8 @@ function ModeButton({ icon, label, active, onPress }: {
   active: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.modeBtn, active && styles.modeBtnActive]}
@@ -100,7 +105,7 @@ function ModeButton({ icon, label, active, onPress }: {
       <Ionicons
         name={icon}
         size={17}
-        color={active ? Colors.white : Colors.textSecondary}
+        color={active ? colors.white : colors.textSecondary}
       />
     </TouchableOpacity>
   );
@@ -123,6 +128,8 @@ function SpendCurve({ cur, prev, word, reference }: {
   word: string;
   reference: { amount: number; label: string } | null;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const curValues = cur.values.slice(0, cur.elapsed);
   // Clipped to the current period's length so the two share an x-domain. A
   // 31-day previous month plotted against a 30-day current one would run off
@@ -174,7 +181,7 @@ function SpendCurve({ cur, prev, word, reference }: {
             ...(reference
               ? [{
                   values: [reference.amount, reference.amount],
-                  color: Colors.gray300,
+                  color: colors.gray300,
                   width: 1,
                   dash: [4, 4] as [number, number],
                 }]
@@ -182,7 +189,7 @@ function SpendCurve({ cur, prev, word, reference }: {
             ...(hasPrev
               ? [{
                   values: prevValues,
-                  color: Colors.gray400,
+                  color: colors.gray400,
                   width: 2,
                   dash: [4, 4] as [number, number],
                   widthFraction: prevValues.length / cur.days,
@@ -190,9 +197,9 @@ function SpendCurve({ cur, prev, word, reference }: {
               : []),
             {
               values: curValues,
-              color: Colors.mint600,
+              color: colors.mint600,
               width: 2.5,
-              fillColor: Colors.mint50,
+              fillColor: colors.mint50,
               widthFraction: cur.elapsed / cur.days,
             },
           ]}
@@ -206,9 +213,9 @@ function SpendCurve({ cur, prev, word, reference }: {
       </View>
 
       <View style={styles.legend}>
-        <LegendItem label={`This ${word}`} color={Colors.mint600} />
-        {hasPrev && <LegendItem label={`Last ${word}`} color={Colors.gray400} dashed />}
-        {reference && <LegendItem label={reference.label} color={Colors.gray300} dashed />}
+        <LegendItem label={`This ${word}`} color={colors.mint600} />
+        {hasPrev && <LegendItem label={`Last ${word}`} color={colors.gray400} dashed />}
+        {reference && <LegendItem label={reference.label} color={colors.gray300} dashed />}
       </View>
     </>
   );
@@ -224,6 +231,7 @@ function LegendItem({ label, color, dashed }: {
   color: string;
   dashed?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.legendItem}>
       {dashed ? (
@@ -263,6 +271,7 @@ function SpendGrid({ days, onSelectDay }: {
   days: DayCell[];
   onSelectDay: (day: DayCell) => void;
 }) {
+  const styles = useStyles();
   // Scaled against the busiest day rather than a fixed dollar figure, so the
   // grid is legible for a $200 month and a $20,000 one alike.
   const peak = useMemo(
@@ -371,7 +380,7 @@ function axisDays(days: number): number[] {
   return [1, Math.round(days / 3), Math.round((days * 2) / 3), days];
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -383,10 +392,10 @@ const styles = StyleSheet.create({
   total: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  rangeLabel: { fontSize: Typography.xs, color: Colors.textMuted },
+  rangeLabel: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   cluster: { flexDirection: 'row', gap: Spacing[2] },
   modeBtn: {
@@ -394,24 +403,24 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modeBtnActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  modeBtnActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
 
   headline: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     lineHeight: 22,
     marginBottom: Spacing[3],
   },
-  empty: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  empty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 
   axis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing[2] },
-  axisLabel: { fontSize: 10, color: Colors.textMuted },
+  axisLabel: { fontSize: 10, color: t.colors.textMuted },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3], marginTop: Spacing[3] },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -421,11 +430,11 @@ const styles = StyleSheet.create({
   },
   legendSolid: { borderRadius: 2 },
   legendTick: { width: 4, height: 2, borderRadius: 1 },
-  legendText: { fontSize: 11, color: Colors.textSecondary },
+  legendText: { fontSize: 11, color: t.colors.textSecondary },
 
   grid: { gap: Spacing[2] },
   weekHead: { flexDirection: 'row' },
-  weekLabel: { fontSize: 10, fontWeight: Typography.semibold, color: Colors.textMuted },
+  weekLabel: { fontSize: 10, fontWeight: Typography.semibold, color: t.colors.textMuted },
   cells: { flexDirection: 'row', flexWrap: 'wrap' },
   // Seven per row, sized by percentage so the grid fits any card width. The
   // padding is on the slot rather than the cell, so the gutters stay even.
@@ -434,22 +443,22 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     borderRadius: Radius.sm,
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
   },
-  cellFuture: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.borderSubtle },
-  cellDay: { fontSize: 10, fontWeight: Typography.semibold, color: Colors.textSecondary },
+  cellFuture: { backgroundColor: 'transparent', borderWidth: 1, borderColor: t.colors.borderSubtle },
+  cellDay: { fontSize: 10, fontWeight: Typography.semibold, color: t.colors.textSecondary },
   // Past roughly half tint the cell is dark enough that dark text fails
   // contrast, so the type inverts rather than the ramp being cut short.
-  cellDayBusy: { color: Colors.white },
-  cellDayFuture: { color: Colors.textMuted, fontWeight: Typography.regular },
-  cellAmount: { fontSize: 9, color: Colors.textSecondary },
-  cellAmountBusy: { color: Colors.white, fontWeight: Typography.semibold },
-  cellAmountZero: { color: Colors.textMuted },
-  cellCredit: { fontSize: 9, fontWeight: Typography.semibold, color: Colors.mint600 },
-  cellDash: { fontSize: 9, color: Colors.textMuted },
+  cellDayBusy: { color: t.colors.white },
+  cellDayFuture: { color: t.colors.textMuted, fontWeight: Typography.regular },
+  cellAmount: { fontSize: 9, color: t.colors.textSecondary },
+  cellAmountBusy: { color: t.colors.white, fontWeight: Typography.semibold },
+  cellAmountZero: { color: t.colors.textMuted },
+  cellCredit: { fontSize: 9, fontWeight: Typography.semibold, color: t.colors.mint600 },
+  cellDash: { fontSize: 9, color: t.colors.textMuted },
 
-  gridNote: { fontSize: 11, color: Colors.textMuted, marginTop: Spacing[1] },
-});
+  gridNote: { fontSize: 11, color: t.colors.textMuted, marginTop: Spacing[1] },
+}));
