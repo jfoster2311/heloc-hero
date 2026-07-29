@@ -102,7 +102,7 @@ export default function ForgotPasswordScreen() {
           {sent ? (
             <>
               <View style={styles.sent} accessibilityLiveRegion="polite">
-                <Ionicons name="mail-outline" size={20} color={colors.mint600} style={styles.sentIcon} />
+                <Ionicons name="mail-outline" size={20} color={colors.accentInk} style={styles.sentIcon} />
                 <View style={styles.flex}>
                   <Text style={styles.sentTitle}>Check your inbox</Text>
                   <Text style={styles.sentText}>
@@ -175,7 +175,7 @@ export default function ForgotPasswordScreen() {
                 accessibilityState={{ disabled: !canSubmit, busy: loading }}
               >
                 {loading
-                  ? <ActivityIndicator color={colors.white} />
+                  ? <ActivityIndicator color={colors.onAccent} />
                   : <Text style={styles.submitText}>Send reset link</Text>}
               </TouchableOpacity>
 
@@ -251,7 +251,7 @@ const useStyles = createThemedStyles(t => ({
     ...Shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  submitText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  submitText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
 
   secondary: {
     minHeight: 44,

@@ -33,7 +33,7 @@ export default function GetHelocModal() {
         <View style={styles.requirementCard}>
           <View style={styles.requirementRow}>
             <View style={styles.requirementIcon}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.accentInk} />
             </View>
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>Interest-only draw period</Text>
@@ -46,7 +46,7 @@ export default function GetHelocModal() {
 
           <View style={[styles.requirementRow, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing[4] }]}>
             <View style={styles.requirementIcon}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.accentInk} />
             </View>
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>10+ year draw period</Text>
@@ -135,7 +135,7 @@ function ListRow({ icon, text }: { icon: string; text: string }) {
   const styles = useStyles();
   return (
     <View style={styles.listRow}>
-      <Ionicons name={icon as never} size={16} color={colors.mint600} />
+      <Ionicons name={icon as never} size={16} color={colors.accentInk} />
       <Text style={styles.listRowText}>{text}</Text>
     </View>
   );
@@ -242,7 +242,7 @@ const useStyles = createThemedStyles(t => ({
   lenderApr: { fontSize: Typography.sm, color: t.colors.textSecondary },
   lenderDisclosure: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   applyBtn: { alignSelf: 'flex-start', paddingVertical: Spacing[1] },
-  applyBtnText: { fontSize: Typography.sm, color: t.colors.mint600, fontWeight: Typography.semibold },
+  applyBtnText: { fontSize: Typography.sm, color: t.colors.accentInk, fontWeight: Typography.semibold },
 
   comingSoonCard: {
     flexDirection: 'row',

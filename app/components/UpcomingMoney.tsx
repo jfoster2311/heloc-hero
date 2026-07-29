@@ -454,7 +454,7 @@ const useStyles = createThemedStyles(t => ({
   cellAmount: {
     fontSize: 9,
     fontWeight: Typography.bold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   cellAmountOut: { color: t.colors.gray500 },
   /** Holds the row height steady on days with nothing on them. */
@@ -475,7 +475,7 @@ const useStyles = createThemedStyles(t => ({
   },
   rowLabel: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textPrimary },
   rowDetail: { fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
-  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.mint600 },
+  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.accentInk },
   // Money out is muted grey, never red. See the palette policy in lib/theme.
   rowAmountOut: { color: t.colors.gray500 },
 
@@ -488,7 +488,7 @@ const useStyles = createThemedStyles(t => ({
     borderTopColor: t.colors.gray100,
   },
   netLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
-  netValue: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.mint600 },
+  netValue: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.accentInk },
 
   empty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 

@@ -438,7 +438,7 @@ const useStyles = createThemedStyles(t => ({
   },
   thresholdChipActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
   thresholdText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textSecondary },
-  thresholdTextActive: { color: t.colors.white },
+  thresholdTextActive: { color: t.colors.onAccent },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
@@ -450,7 +450,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxOn: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
-  checkmark: { color: t.colors.white, fontSize: 14, fontWeight: '800' },
+  checkmark: { color: t.colors.onAccent, fontSize: 14, fontWeight: '800' },
   toggleLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textPrimary, lineHeight: 20 },
 
   result: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
@@ -466,6 +466,6 @@ const useStyles = createThemedStyles(t => ({
   },
   stressChipActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
   stressText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textSecondary },
-  stressTextActive: { color: t.colors.white },
+  stressTextActive: { color: t.colors.onAccent },
   stressResult: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20, marginTop: Spacing[3] },
 }));

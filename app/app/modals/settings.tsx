@@ -648,7 +648,7 @@ const useStyles = createThemedStyles(t => ({
   rowValue: { fontSize: Typography.sm, color: t.colors.textMuted, marginRight: Spacing[1] },
   rowAction: {
     fontSize: Typography.sm,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
     fontWeight: Typography.semibold,
     marginLeft: Spacing[2],
   },
@@ -662,9 +662,11 @@ const useStyles = createThemedStyles(t => ({
   },
   toggleSubtitle: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2 },
   dangerRow: { borderBottomWidth: 0 },
+  // Still grey rather than red, per the palette rule — but gray400 is a
+  // decorative tint at 2.54:1, and this is the label on a destructive action.
   dangerText: {
     fontSize: Typography.base,
-    color: t.colors.gray400,
+    color: t.colors.gray500,
     fontWeight: Typography.medium,
   },
   version: {

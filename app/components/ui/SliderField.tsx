@@ -103,7 +103,7 @@ const useStyles = createThemedStyles(t => ({
   container:  { marginBottom: Spacing[4] },
   labelRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
   label:      { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
-  valueText:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint600 },
+  valueText:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.accentInk },
   trackWrap:  { height: Math.max(HIT_HEIGHT, THUMB), justifyContent: 'center' },
   track: {
     height:          TRACK_HEIGHT,

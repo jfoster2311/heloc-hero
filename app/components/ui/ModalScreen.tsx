@@ -75,7 +75,7 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
               accessibilityLabel={save.label}
             >
               {save.saving
-                ? <ActivityIndicator color={colors.white} />
+                ? <ActivityIndicator color={colors.onAccent} />
                 : <Text style={styles.saveText}>{save.label}</Text>}
             </TouchableOpacity>
           ) : null}
@@ -153,7 +153,7 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
   },
   saveBtnDisabled: { opacity: 0.45 },
-  saveText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  saveText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
 
   footnote: {
     fontSize: Typography.xs,

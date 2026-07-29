@@ -302,7 +302,7 @@ export default function UpgradeModal() {
           <Text style={styles.cardTitle}>What you get</Text>
           {PRO_FEATURES.map(f => (
             <View key={f} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={16} color={colors.mint600} />
+              <Ionicons name="checkmark" size={16} color={colors.accentInk} />
               <Text style={styles.featureText}>{f}</Text>
             </View>
           ))}
@@ -320,7 +320,7 @@ export default function UpgradeModal() {
         >
           {/* Only a genuinely free intro offer earns the word "free" here. */}
           {purchasing
-            ? <ActivityIndicator color={colors.white} />
+            ? <ActivityIndicator color={colors.onAccent} />
             : (
               <Text style={styles.ctaText}>
                 {isPro ? 'Pro is active' : hasTrial ? 'Start free trial' : 'Subscribe'}
@@ -343,7 +343,7 @@ export default function UpgradeModal() {
             accessibilityLabel="Restore purchases"
           >
             {restoring
-              ? <ActivityIndicator size="small" color={colors.mint600} />
+              ? <ActivityIndicator size="small" color={colors.accentInk} />
               : <Text style={styles.actionBtnText}>Restore purchases</Text>}
           </TouchableOpacity>
 
@@ -467,7 +467,7 @@ const useStyles = createThemedStyles(t => ({
   periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
   periodTextActive: { color: t.colors.textPrimary, fontWeight: Typography.semibold },
   periodBadge: { fontSize: 10, color: t.colors.textMuted },
-  periodBadgeActive: { color: t.colors.mint600 },
+  periodBadgeActive: { color: t.colors.accentInk },
 
   priceCard: { alignItems: 'center', gap: Spacing[1], paddingVertical: Spacing[2] },
   price: {
@@ -479,7 +479,7 @@ const useStyles = createThemedStyles(t => ({
   pricePer: { fontSize: Typography.base, fontWeight: Typography.regular, color: t.colors.textMuted },
   priceSub: { fontSize: Typography.sm, color: t.colors.textSecondary },
   priceNote: { fontSize: Typography.xs, color: t.colors.textMuted, textAlign: 'center', marginTop: Spacing[1] },
-  trialNote: { fontSize: Typography.sm, color: t.colors.mint600, marginTop: Spacing[1] },
+  trialNote: { fontSize: Typography.sm, color: t.colors.accentInk, marginTop: Spacing[1] },
 
   retryBanner: {
     flexDirection: 'row',
@@ -526,7 +526,7 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
   },
   ctaDisabled: { opacity: 0.45 },
-  ctaText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
+  ctaText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.semibold },
   unavailableNote: {
     fontSize: Typography.xs,
     color: t.colors.textMuted,

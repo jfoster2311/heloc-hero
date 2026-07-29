@@ -249,7 +249,7 @@ export default function LinkAccountModal() {
                 <Text style={styles.typeDesc}>{item.desc}</Text>
               </View>
               {selectedType === item.type && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.mint600} />
+                <Ionicons name="checkmark-circle" size={20} color={colors.accentInk} />
               )}
             </TouchableOpacity>
           ))}
@@ -257,7 +257,7 @@ export default function LinkAccountModal() {
 
         {/* Security note */}
         <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark-outline" size={16} color={colors.mint600} />
+          <Ionicons name="shield-checkmark-outline" size={16} color={colors.accentInk} />
           <Text style={styles.securityText}>
             256-bit encryption. We never store your bank credentials. Read-only access.
           </Text>
@@ -273,7 +273,7 @@ export default function LinkAccountModal() {
             onPress={handleSandboxLink}
             disabled={!selectedType || loading}
           >
-            <Ionicons name="flask-outline" size={16} color={colors.mint600} />
+            <Ionicons name="flask-outline" size={16} color={colors.accentInk} />
             <Text style={styles.sandboxBtnText}>Sandbox Quick-Link (dev only)</Text>
           </TouchableOpacity>
         )}
@@ -290,10 +290,10 @@ export default function LinkAccountModal() {
           disabled={!selectedType || loading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
             <>
-              <Ionicons name="link-outline" size={18} color={colors.white} />
+              <Ionicons name="link-outline" size={18} color={colors.onAccent} />
               <Text style={styles.connectBtnText}>Connect with Plaid</Text>
             </>
           )}
@@ -332,7 +332,7 @@ const useStyles = createThemedStyles(t => ({
     paddingHorizontal: Spacing[8],
     marginTop: Spacing[2],
   },
-  gateBtnText: { color: t.colors.white, fontWeight: Typography.semibold, fontSize: Typography.base },
+  gateBtnText: { color: t.colors.onAccent, fontWeight: Typography.semibold, fontSize: Typography.base },
   content: { padding: Spacing[5], gap: Spacing[4] },
   subtitle: {
     fontSize: Typography.base,
@@ -346,7 +346,8 @@ const useStyles = createThemedStyles(t => ({
     borderLeftWidth: 3,
     borderLeftColor: t.colors.gray400,
   },
-  errorText: { color: t.colors.gray400, fontSize: Typography.sm },
+  // gray400 is decorative (2.54:1); an error message has to be readable.
+  errorText: { color: t.colors.gray500, fontSize: Typography.sm },
   typeList: { gap: Spacing[3] },
   typeItem: {
     flexDirection: 'row',
@@ -405,7 +406,7 @@ const useStyles = createThemedStyles(t => ({
     borderColor: t.colors.mint200,
     backgroundColor: t.colors.mint50,
   },
-  sandboxBtnText: { color: t.colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
+  sandboxBtnText: { color: t.colors.accentInk, fontSize: Typography.sm, fontWeight: Typography.medium },
   footer: {
     padding: Spacing[4],
     borderTopWidth: 1,
@@ -422,5 +423,5 @@ const useStyles = createThemedStyles(t => ({
     ...Shadows.glow,
   },
   connectBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
-  connectBtnText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
+  connectBtnText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.semibold },
 }));

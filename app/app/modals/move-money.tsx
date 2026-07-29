@@ -503,7 +503,7 @@ const useStyles = createThemedStyles(t => ({
     minHeight: 44,
   },
   suggestBtn: { marginTop: Spacing[3], minHeight: 44, justifyContent: 'center' },
-  suggestText: { fontSize: Typography.sm, color: t.colors.mint600, lineHeight: 20 },
+  suggestText: { fontSize: Typography.sm, color: t.colors.accentInk, lineHeight: 20 },
 
   reasonRow: { flexDirection: 'row', gap: Spacing[3], marginBottom: Spacing[3] },
   reasonDot: {
@@ -514,7 +514,7 @@ const useStyles = createThemedStyles(t => ({
   reasonText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
   estimateNote: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[1] },
   rateWarnBtn: { marginTop: Spacing[2], minHeight: 44, justifyContent: 'center' },
-  rateWarnText: { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 17 },
+  rateWarnText: { fontSize: Typography.xs, color: t.colors.accentInk, lineHeight: 17 },
 
   // Upside and downside share a row, a type size and a weight. Neither is
   // styled to be more appealing than the other.
@@ -601,7 +601,7 @@ const useStyles = createThemedStyles(t => ({
   keypadDoneText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
 
   footnote: {

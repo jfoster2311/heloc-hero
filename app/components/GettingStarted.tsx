@@ -132,7 +132,7 @@ function StepRow({ step, index, highlighted, onPress }: {
         ]}
       >
         {step.done
-          ? <Ionicons name="checkmark" size={14} color={colors.white} />
+          ? <Ionicons name="checkmark" size={14} color={colors.onAccent} />
           : <Text style={[styles.markText, step.blocked && styles.markTextBlocked]}>{index}</Text>}
       </View>
 

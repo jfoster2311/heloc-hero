@@ -320,7 +320,7 @@ export function PrimaryButton({ label, onPress, icon, disabled, style }: {
       accessibilityLabel={label}
     >
       <Text style={styles.primaryBtnText}>{label}</Text>
-      {icon ? <Ionicons name={icon} size={18} color={colors.white} /> : null}
+      {icon ? <Ionicons name={icon} size={18} color={colors.onAccent} /> : null}
     </TouchableOpacity>
   );
 }
@@ -445,7 +445,7 @@ export function Disclosure({ count, children, label = 'details' }: {
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
           size={15}
-          color={colors.mint600}
+          color={colors.accentInk}
         />
       </TouchableOpacity>
     </>
@@ -464,7 +464,7 @@ export function EmptyState({ icon, title, body, action }: {
   return (
     <View style={styles.empty}>
       <View style={styles.emptyRing}>
-        <Ionicons name={icon} size={26} color={colors.mint600} />
+        <Ionicons name={icon} size={26} color={colors.accentInk} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
@@ -644,7 +644,9 @@ const useStyles = createThemedStyles(t => ({
     paddingHorizontal: Spacing[5],
   },
   primaryBtnText: {
-    color: t.colors.white,
+    // Deep green, not white: white on mint600 measures 2.62:1 light and 2.02:1
+    // dark, both under the 3:1 that 16pt bold needs. See `onAccent` in theme.ts.
+    color: t.colors.onAccent,
     fontSize: Typography.base,
     fontWeight: Typography.bold,
   },
@@ -703,7 +705,7 @@ const useStyles = createThemedStyles(t => ({
   disclosureText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
 
   empty: { alignItems: 'center', paddingVertical: Spacing[10], gap: Spacing[2] },

@@ -502,7 +502,7 @@ const useStyles = createThemedStyles(t => ({
   allocValueEmphasis: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   allocValueNeg: { color: t.colors.gray500 },
   allocRule: { height: 1, backgroundColor: t.colors.borderSubtle, marginVertical: Spacing[1] },

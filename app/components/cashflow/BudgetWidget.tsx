@@ -79,7 +79,7 @@ export default function BudgetWidget({
             </View>
             <View style={styles.startBtnGo}>
               <Text style={styles.startBtnGoText}>Begin</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.white} />
+              <Ionicons name="arrow-forward" size={16} color={colors.onAccent} />
             </View>
           </TouchableOpacity>
         </View>
@@ -233,7 +233,7 @@ const useStyles = createThemedStyles(t => ({
   startBtnGoText: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: t.colors.white,
+    color: t.colors.onAccent,
   },
 
   list: { marginTop: Spacing[4], gap: Spacing[1] },

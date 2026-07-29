@@ -60,5 +60,5 @@ const useStyles = createThemedStyles(t => ({
     borderColor:     t.colors.mint600,
   },
   chipText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
-  chipTextActive: { color: t.colors.white },
+  chipTextActive: { color: t.colors.onAccent },
 }));

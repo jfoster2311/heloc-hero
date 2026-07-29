@@ -359,7 +359,7 @@ export default function RevealScreen() {
           >
             <View style={styles.noHelocRow}>
               <View style={styles.noHelocIcon}>
-                <Ionicons name="home-outline" size={22} color={colors.mint600} />
+                <Ionicons name="home-outline" size={22} color={colors.accentInk} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.noHelocTitle}>First step: open a HELOC</Text>
@@ -396,7 +396,7 @@ export default function RevealScreen() {
             accessibilityLabel="See what Pro adds"
           >
             <Text style={styles.primaryBtnText}>See what Pro adds</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.white} />
+            <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
           </TouchableOpacity>
 
           {/* No introductory offer is configured in App Store Connect, so this
@@ -405,7 +405,7 @@ export default function RevealScreen() {
           <Text style={styles.pricing}>Pro is $19.99/mo or $175/yr. Cancel anytime.</Text>
 
           <View style={styles.riskReversal}>
-            <Ionicons name="shield-checkmark-outline" size={14} color={colors.mint600} />
+            <Ionicons name="shield-checkmark-outline" size={14} color={colors.accentInk} />
             <Text style={styles.riskReversalText}>
               Everything you just saw stays free. Pro adds live accounts and alerts.
             </Text>
@@ -470,7 +470,7 @@ function ThingRow({ icon, text }: { icon: string; text: string }) {
   const styles = useStyles();
   return (
     <View style={styles.thingRow}>
-      <Ionicons name={icon as never} size={16} color={colors.mint600} />
+      <Ionicons name={icon as never} size={16} color={colors.accentInk} />
       <Text style={styles.thingText}>{text}</Text>
     </View>
   );
@@ -607,7 +607,7 @@ const useStyles = createThemedStyles(t => ({
     color:        t.colors.mint700,
     marginBottom: 2,
   },
-  noHelocBody: { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 18 },
+  noHelocBody: { fontSize: Typography.xs, color: t.colors.accentInk, lineHeight: 18 },
 
   // ── "Not a budgeting app" card ─────────────────────────────────────────────
   differentCard: {
@@ -643,7 +643,7 @@ const useStyles = createThemedStyles(t => ({
     gap:             Spacing[2],
     ...Shadows.glow,
   },
-  primaryBtnText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  primaryBtnText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
   pricing: {
     fontSize:  Typography.xs,
     color:     t.colors.textMuted,
@@ -656,7 +656,7 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
     gap:            6,
   },
-  riskReversalText: { fontSize: Typography.xs, color: t.colors.mint600 },
+  riskReversalText: { fontSize: Typography.xs, color: t.colors.accentInk },
   secondaryBtn: {
     borderRadius:    Radius.md,
     paddingVertical: Spacing[4],

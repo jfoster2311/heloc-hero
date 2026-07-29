@@ -186,7 +186,7 @@ const useStyles = createThemedStyles(t => ({
   avatarText: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: t.colors.white,
+    color: t.colors.onAccent,
   },
   identityBody: { flex: 1, gap: 2 },
   name: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },

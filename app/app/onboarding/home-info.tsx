@@ -204,12 +204,12 @@ const useStyles = createThemedStyles(t => ({
   equityValue: {
     fontSize:   Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color:      t.colors.mint600,
+    color:      t.colors.accentInk,
     marginTop:  Spacing[1],
   },
   equityPct: {
     fontSize:  Typography.sm,
-    color:     t.colors.mint600,
+    color:     t.colors.accentInk,
     marginTop: 2,
   },
 }));

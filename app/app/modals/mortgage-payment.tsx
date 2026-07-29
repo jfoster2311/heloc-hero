@@ -89,7 +89,7 @@ export default function MortgagePaymentScreen() {
     >
       {f.loading ? (
         <View style={styles.centre}>
-          <ActivityIndicator color={colors.mint600} />
+          <ActivityIndicator color={colors.accentInk} />
         </View>
       ) : !f.hasLinkedAccounts ? (
         <View style={styles.stateBlock}>
@@ -212,7 +212,7 @@ function CandidateRow({ candidate, busy, onToggle }: {
       }
     >
       <View style={[styles.box, candidate.confirmed && styles.checkboxOn]}>
-        {candidate.confirmed && <Ionicons name="checkmark" size={15} color={colors.white} />}
+        {candidate.confirmed && <Ionicons name="checkmark" size={15} color={colors.onAccent} />}
       </View>
 
       <View style={styles.rowBody}>

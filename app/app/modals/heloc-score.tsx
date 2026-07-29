@@ -88,13 +88,13 @@ export default function HelocScoreScreen() {
       }
     >
       {f.loading ? (
-        <View style={styles.centre}><ActivityIndicator color={colors.mint600} /></View>
+        <View style={styles.centre}><ActivityIndicator color={colors.accentInk} /></View>
       ) : (
         <>
           <View style={styles.gaugeBlock}>
             <GaugeArc
               pct={score.total}
-              color={colors.mint600}
+              color={colors.accentInk}
               label={score.label}
               value={String(score.total)}
               sub={score.ready ? 'ready to cycle' : `${READY_THRESHOLD} is ready`}
@@ -168,7 +168,7 @@ export default function HelocScoreScreen() {
                         <Text style={styles.rangeScore}>{r.range}</Text>
                       </View>
                       {active && (
-                        <Ionicons name="checkmark-circle" size={20} color={colors.mint600} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.accentInk} />
                       )}
                     </TouchableOpacity>
                   );
@@ -279,7 +279,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center', justifyContent: 'center',
     marginTop: 1,
   },
-  nextRankText: { fontSize: 11, fontWeight: Typography.bold, color: t.colors.white },
+  nextRankText: { fontSize: 11, fontWeight: Typography.bold, color: t.colors.onAccent },
   nextBody: { flex: 1, gap: 2 },
   nextLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   nextAdvice: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },

@@ -53,5 +53,5 @@ const useStyles = createThemedStyles(t => ({
   },
   watchTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   watchDetail: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
-  watchAction: { fontSize: Typography.xs, color: t.colors.mint600, fontWeight: Typography.semibold, marginTop: 2 },
+  watchAction: { fontSize: Typography.xs, color: t.colors.accentInk, fontWeight: Typography.semibold, marginTop: 2 },
 }));

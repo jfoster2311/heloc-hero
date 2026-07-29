@@ -214,7 +214,7 @@ export default function LoginScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
           >
             {loading
-              ? <ActivityIndicator color={colors.white} />
+              ? <ActivityIndicator color={colors.onAccent} />
               : <Text style={styles.submitText}>Sign in</Text>}
           </TouchableOpacity>
 
@@ -290,7 +290,7 @@ const useStyles = createThemedStyles(t => ({
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
   submitText: {
-    color: t.colors.white,
+    color: t.colors.onAccent,
     fontSize: Typography.base,
     fontWeight: Typography.bold,
   },

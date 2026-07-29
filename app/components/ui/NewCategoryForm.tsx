@@ -101,7 +101,7 @@ export default function NewCategoryForm({
         accessibilityLabel="Create this category"
       >
         {saving
-          ? <ActivityIndicator size="small" color={colors.white} />
+          ? <ActivityIndicator size="small" color={colors.onAccent} />
           : <Text style={styles.createText}>{submitLabel ?? 'Create'}</Text>}
       </TouchableOpacity>
     </View>
@@ -155,5 +155,5 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
   },
   createDisabled: { backgroundColor: t.colors.gray300 },
-  createText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.white },
+  createText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.onAccent },
 }));

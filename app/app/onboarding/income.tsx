@@ -136,5 +136,5 @@ const useStyles = createThemedStyles(t => ({
   helocSurplusRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   helocSurplusLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
   helocSurplusValue: { fontSize: Typography.base, fontWeight: Typography.extrabold },
-  helocSurplusSub:   { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 16, marginTop: 2 },
+  helocSurplusSub:   { fontSize: Typography.xs, color: t.colors.accentInk, lineHeight: 16, marginTop: 2 },
 }));

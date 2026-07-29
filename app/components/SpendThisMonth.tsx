@@ -213,7 +213,7 @@ function SpendCurve({ cur, prev, word, reference }: {
       </View>
 
       <View style={styles.legend}>
-        <LegendItem label={`This ${word}`} color={colors.mint600} />
+        <LegendItem label={`This ${word}`} color={colors.accentInk} />
         {hasPrev && <LegendItem label={`Last ${word}`} color={colors.gray400} dashed />}
         {reference && <LegendItem label={reference.label} color={colors.gray300} dashed />}
       </View>
@@ -457,7 +457,7 @@ const useStyles = createThemedStyles(t => ({
   cellAmount: { fontSize: 9, color: t.colors.textSecondary },
   cellAmountBusy: { color: t.colors.white, fontWeight: Typography.semibold },
   cellAmountZero: { color: t.colors.textMuted },
-  cellCredit: { fontSize: 9, fontWeight: Typography.semibold, color: t.colors.mint600 },
+  cellCredit: { fontSize: 9, fontWeight: Typography.semibold, color: t.colors.accentInk },
   cellDash: { fontSize: 9, color: t.colors.textMuted },
 
   gridNote: { fontSize: 11, color: t.colors.textMuted, marginTop: Spacing[1] },

@@ -126,7 +126,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
             accessibilityLabel={`Save a ${monthLabel} budget of $${fmt(parsed!)} for ${target.label}`}
           >
             {saving
-              ? <ActivityIndicator size="small" color={colors.white} />
+              ? <ActivityIndicator size="small" color={colors.onAccent} />
               : <Text style={styles.saveText}>Save budget</Text>}
           </TouchableOpacity>
         ) : undefined
@@ -394,6 +394,6 @@ const useStyles = createThemedStyles(t => ({
   saveText: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: t.colors.white,
+    color: t.colors.onAccent,
   },
 }));

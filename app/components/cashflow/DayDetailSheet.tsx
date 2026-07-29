@@ -101,7 +101,7 @@ const useStyles = createThemedStyles(t => ({
     color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  credit: { fontSize: Typography.xs, color: t.colors.mint600, fontWeight: Typography.semibold },
+  credit: { fontSize: Typography.xs, color: t.colors.accentInk, fontWeight: Typography.semibold },
 
   list: {
     backgroundColor: t.colors.surface,

@@ -921,7 +921,7 @@ const useStyles = createThemedStyles(t => ({
     padding: Spacing[3],
   },
   bufferText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
-  undoText: { fontSize: Typography.sm, color: t.colors.mint600, fontWeight: Typography.medium },
+  undoText: { fontSize: Typography.sm, color: t.colors.accentInk, fontWeight: Typography.medium },
 
   sweepMath: { gap: Spacing[2] },
   sweepLine: {

@@ -70,7 +70,7 @@ export default function CreditScoreStep() {
                 <Text style={styles.rangeScore}>{r.range}</Text>
               </View>
               {active && (
-                <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
+                <Ionicons name="checkmark-circle" size={22} color={colors.accentInk} />
               )}
             </TouchableOpacity>
           );

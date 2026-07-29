@@ -18,7 +18,34 @@ export const Colors = {
   mint100: '#E8F9F1',  // pale accent, aurora's lightest note
   mint200: '#D8EDE3',  // hairline borders on tinted surfaces
   mint400: '#4ADE80',  // soft accent, secondary marks
-  mint600: '#12B76A',  // THE accent — one per screen, ideally
+  mint600: '#12B76A',  // THE accent — one per screen, ideally. A FILL, not ink.
+  /**
+   * The accent as TEXT. Measured, not picked.
+   *
+   * `mint600` is a fill colour and fails badly as ink on a light page: 2.62:1 on
+   * a white card and 2.39:1 on the canvas, against the 4.5:1 normal text needs.
+   * It was being used for links, values and icons in 69 places, which made the
+   * app's own accent the least legible thing on the screen.
+   *
+   * `mint700` already passes (12.27:1) but it is #0F3D22 — near-black green,
+   * which reads as body text rather than as an accent. This is mint600 taken 30%
+   * toward black: the smallest move that clears 4.5:1 on every light surface
+   * (5.00:1 on white, 4.55:1 on the canvas, 4.77:1 on mint50) while still
+   * reading unmistakably green.
+   *
+   * On dark it IS mint600 — that value already measures 8.34:1 on a dark card,
+   * so the dark palette needed no second token and the swap is a no-op there.
+   */
+  accentInk: '#0D804A',
+  /**
+   * Ink for a solid mint600 fill — the primary CTA label.
+   *
+   * White on mint600 measures 2.62:1 on light and 2.02:1 on dark, both under the
+   * 3:1 that 16pt bold requires. This is the deep brand green, which measures
+   * 6.87:1 and 8.14:1 on those same fills. Same value as mint900; named for the
+   * role so the intent survives a palette change.
+   */
+  onAccent: '#081A0F',
   mint700: '#0F3D22',  // deep green for text on mint tints
   mint800: '#0C2A18',
   mint900: '#081A0F',  // the aurora's floor
@@ -27,8 +54,11 @@ export const Colors = {
   // Kept as named tokens so intent stays readable, but all resolve inside the
   // monochrome system. Severity reads as saturation; the label carries meaning.
   success: '#12B76A',
-  warning: '#6B7280',
-  error:   '#6B7280',
+  // Same 1% nudge as `gray500`, and for the same reason: '#6B7280' measured
+  // 4.40:1 against the canvas. An error message is the last thing that should be
+  // the hardest to read. Still grey, never red — see the policy note above.
+  warning: '#6A707E',
+  error:   '#6A707E',
   info:    '#4ADE80',
 
   // ── Neutrals ─────────────────────────────────────────────────────────────
@@ -39,8 +69,15 @@ export const Colors = {
   gray100: '#E8F3EB',
   gray200: '#DCEDE2',
   gray300: '#C6DDCE',
+  // 2.54:1 on white. DECORATIVE ONLY — inactive tab tint, switch thumbs, spinner,
+  // bar fills, hairline accents. It is not a text colour on a light surface, and
+  // two screens were using it as one (an error message and a destructive row
+  // label); both moved to `gray500`.
   gray400: '#9CA3AF',
-  gray500: '#6B7280',
+  // 4.96:1 on white, 4.52:1 on the canvas. Nudged 1% darker from '#6B7280',
+  // which measured 4.40:1 against the canvas and so missed AA on the one surface
+  // it is most often read against. This is the token every negative number uses.
+  gray500: '#6A707E',
 
   // ── App surfaces ─────────────────────────────────────────────────────────
   //
@@ -66,15 +103,36 @@ export const Colors = {
   surface:       '#FFFFFF',
   surfaceSunken: '#F4FAF6',
   border:        '#D8EDE3',
+  /**
+   * The boundary of an INPUT, where the border is the control.
+   *
+   * WCAG 1.4.11 wants 3:1 for anything needed to identify a component. Card
+   * borders and row dividers are exempt in practice — a card is identified by
+   * its fill and shadow, a divider is decoration — but a text field is not:
+   * `gray50` on `surface` measures 1.06:1, so the fill cannot delineate it and
+   * the border is doing the whole job at 1.23:1. An input a sighted user has to
+   * hunt for is a real defect on a screen that asks for mortgage figures.
+   *
+   * 3.31:1 on a card, 3.02:1 on the canvas, 3.13:1 on a sunken field. Used only
+   * for input boundaries — `border` stays soft everywhere else, which is the
+   * look the rest of the system is built on.
+   */
+  borderField:   '#84908A',
   borderSubtle:  '#E9F2EC',
   // Measured on white / on the canvas:
   textPrimary:   '#0C2E1A',  // 14.8:1 / 14.1:1 — deep forest, still authoritative
   textSecondary: '#2F6242',  //  7.1:1 /  6.8:1 — moss, comfortable at body size
-  // 3.7:1 / 3.5:1. This REPLACES `#9CA3AF`, which measured 2.54:1 on white and
-  // had been failing contrast for as long as it has existed — a pre-existing
-  // bug found while measuring the greens rather than eyeballing them. Still
-  // muted, now legible. Labels and hints only; never a lone value.
-  textMuted:     '#6E8C7B',
+  // 4.95:1 on a white card, 4.51:1 on the canvas, 4.68:1 on a sunken field.
+  //
+  // This has now been darkened twice. It began as `#9CA3AF` (2.54:1 on white),
+  // became `#6E8C7B` when the greens were measured — but that only reached
+  // 3.68:1 / 3.35:1 and was recorded as "now legible", which was true relative
+  // to where it started and still short of the 4.5:1 AA needs for normal text.
+  // It carries eyebrows, hints and every muted label in the app, so the shortfall
+  // was everywhere at once. This is the previous value taken a further 16% toward
+  // black — the smallest move that clears AA on all three light surfaces.
+  // Labels and hints only; never a lone value.
+  textMuted:     '#5C7667',
 };
 
 /** Text and hairlines for anything sitting on the aurora. */
@@ -82,7 +140,11 @@ export const OnDark = {
   primary:   '#FFFFFF',
   secondary: 'rgba(255,255,255,0.72)',
   muted:     'rgba(255,255,255,0.55)',
-  faint:     'rgba(255,255,255,0.40)',
+  // 0.40 measured 3.30:1 against the aurora's lightest band (#0F3D22) and every
+  // one of its six uses is TEXT at 11–14pt — hero disclaimers, the equity-curve
+  // note, tile subtitles — so 4.5:1 applies to all of them. 0.52 is the least
+  // that clears it (4.51:1).
+  faint:     'rgba(255,255,255,0.52)',
   hairline:  'rgba(255,255,255,0.12)',
   fill:      'rgba(255,255,255,0.08)',
   fillStrong:'rgba(255,255,255,0.16)',
@@ -367,6 +429,12 @@ export const DarkColors: typeof Colors = {
   mint200: '#1B3B2B',  // hairline borders on tinted surfaces
   mint400: '#4ADE80',  // soft accent, secondary marks — unchanged, reads well on dark
   mint600: '#25D07E',  // THE accent, lifted slightly so it holds against a dark card
+  // Identical to mint600 on purpose: at 8.34:1 on a dark card it is already
+  // legible as ink, so dark needs no darkened variant and the light-mode swap
+  // costs nothing here.
+  accentInk: '#25D07E',
+  // The deep green still works as ink on the brighter dark-mode fill — 8.14:1.
+  onAccent:  '#0A2417',
   mint700: '#7DE9AE',  // text on mint tints — inverted role: light ink on deep tint
 
   // 800 and 900 do NOT invert, and this is the exception worth reading.
@@ -442,6 +510,7 @@ export const DarkColors: typeof Colors = {
   // light theme's strength, on the theme that has no shadow to help it. These
   // two are picked against the ratio directly.
   border:        '#2F4237',  // 1.57:1 vs the card — the edge, doing all the work
+  borderField:   '#606F66',  // 3.18:1 vs the card — see the light-mode note
   borderSubtle:  '#233229',  // 1.25:1
   // ── The text ramp, re-derived on the brand hue ──────────────────────────
   // This was the least green part of the palette, and the audit is what found
@@ -454,7 +523,10 @@ export const DarkColors: typeof Colors = {
   // better than the value it replaced.
   textPrimary:   '#DEF8E8',  // 15.0:1 on the card — not pure white, which vibrates
   textSecondary: '#98C0A7',  //  8.4:1
-  textMuted:     '#738E7E',  //  4.7:1 — clears AA, unlike most muted greys
+  // 4.79:1 on a card and 5.54:1 on the page — but it is also FormField's
+  // placeholder colour, drawn on `gray50`, where '#738E7E' measured 4.47:1 and
+  // missed AA by a hair. One step lighter clears it on all three.
+  textMuted:     '#748F7F',
 };
 
 /**

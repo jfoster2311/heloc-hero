@@ -112,7 +112,7 @@ const useStyles = createThemedStyles(t => ({
     borderColor:     t.colors.mint600,
   },
   cardText:       { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textSecondary },
-  cardTextActive: { color: t.colors.white },
+  cardTextActive: { color: t.colors.onAccent },
   customWrap:     { marginTop: Spacing[3] },
   hint:           { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[2] },
 }));

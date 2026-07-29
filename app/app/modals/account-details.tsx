@@ -139,7 +139,7 @@ export default function AccountDetailsModal() {
     return (
       <ModalScreen title="Connection">
         <View style={styles.centre}>
-          <ActivityIndicator color={colors.mint600} />
+          <ActivityIndicator color={colors.accentInk} />
         </View>
       </ModalScreen>
     );

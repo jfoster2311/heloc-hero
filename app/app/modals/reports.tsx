@@ -140,7 +140,7 @@ export default function ReportsScreen() {
           : <GroupedChart months={series.months} onSelect={setOpenMonth} />}
 
         <View style={styles.legend}>
-          <LegendItem label="In" color={colors.mint600} />
+          <LegendItem label="In" color={colors.accentInk} />
           <LegendItem label="Out" color={colors.gray400} />
           <Text style={styles.legendHint}>Tap a month for the detail</Text>
         </View>
@@ -461,7 +461,7 @@ const useStyles = createThemedStyles(t => ({
   },
   statLabel: { fontSize: 10, color: t.colors.textMuted },
   statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.textPrimary },
-  statValueEmphasis: { color: t.colors.mint600 },
+  statValueEmphasis: { color: t.colors.accentInk },
   statValueMuted: { color: t.colors.gray500 },
 
   avgRow: {
@@ -476,7 +476,7 @@ const useStyles = createThemedStyles(t => ({
     borderColor: t.colors.borderSubtle,
   },
   avgLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
-  avgValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.mint600 },
+  avgValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.accentInk },
   avgValueNeg: { color: t.colors.gray500 },
 
   section: { gap: Spacing[3] },

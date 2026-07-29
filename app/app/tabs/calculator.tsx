@@ -608,12 +608,12 @@ export default function CalculatorScreen() {
                 accessibilityState={{ expanded: showAssumptions }}
                 accessibilityLabel={showAssumptions ? 'Hide how this is calculated' : 'How this is calculated'}
               >
-                <Ionicons name="information-circle-outline" size={16} color={colors.mint600} />
+                <Ionicons name="information-circle-outline" size={16} color={colors.accentInk} />
                 <Text style={styles.assumeToggleText}>How this is calculated</Text>
                 <Ionicons
                   name={showAssumptions ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color={colors.mint600}
+                  color={colors.accentInk}
                 />
               </TouchableOpacity>
               {showAssumptions && (
@@ -648,7 +648,7 @@ export default function CalculatorScreen() {
                     <Ionicons
                       name={showSchedule ? 'chevron-up' : 'chevron-down'}
                       size={16}
-                      color={colors.mint600}
+                      color={colors.accentInk}
                     />
                   </TouchableOpacity>
 
@@ -719,7 +719,7 @@ export default function CalculatorScreen() {
                   of these estimates.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.mint600} />
+              <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
             </TouchableOpacity>
           )}
 
@@ -864,7 +864,7 @@ const useTermStyles = createThemedStyles(t => ({
     fontWeight: Typography.semibold,
     color: t.colors.textSecondary,
   },
-  chipTextActive: { color: t.colors.white },
+  chipTextActive: { color: t.colors.onAccent },
   unit: { fontSize: Typography.xs, color: t.colors.textMuted },
   customBox: {
     flexDirection: 'row',
@@ -874,7 +874,7 @@ const useTermStyles = createThemedStyles(t => ({
     paddingHorizontal: Spacing[2],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: t.colors.border,
+    borderColor: t.colors.borderField,
     backgroundColor: t.colors.gray50,
   },
   customInput: {
@@ -1135,7 +1135,7 @@ const useStyles = createThemedStyles(t => ({
   scheduleToggleText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   scheduleWrap: { marginTop: Spacing[1] },
   scheduleSummary: {
@@ -1194,7 +1194,7 @@ const useStyles = createThemedStyles(t => ({
   assumeToggleText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   assumePanel: {
     backgroundColor: t.colors.gray50,
@@ -1216,7 +1216,7 @@ const useStyles = createThemedStyles(t => ({
     gap: Spacing[3],
   },
   ctaTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.mint700 },
-  ctaSub: { fontSize: Typography.xs, color: t.colors.mint600, marginTop: 2, lineHeight: 16 },
+  ctaSub: { fontSize: Typography.xs, color: t.colors.accentInk, marginTop: 2, lineHeight: 16 },
 
   // ── Keypad accessory ──────────────────────────────────────────────────────
   keypadBar: {
@@ -1239,7 +1239,7 @@ const useStyles = createThemedStyles(t => ({
   keypadDoneText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
 
   resetBtn: { alignItems: 'center', paddingVertical: Spacing[3], minHeight: 44, justifyContent: 'center' },
@@ -1276,7 +1276,7 @@ const useStyles = createThemedStyles(t => ({
   leverValue: {
     fontSize: Typography.lg,
     fontWeight: Typography.extrabold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   leverNoteEm: { fontWeight: Typography.bold, color: t.colors.textPrimary },
   leverNote: {
@@ -1318,7 +1318,7 @@ const useStyles = createThemedStyles(t => ({
   compareCostAccent: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   vsBadge: {
     width: 32,

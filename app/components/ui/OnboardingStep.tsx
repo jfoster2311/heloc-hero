@@ -67,7 +67,7 @@ export default function OnboardingStep({
                   ]}
                 >
                   {done && (
-                    <Ionicons name="checkmark" size={8} color={colors.white} />
+                    <Ionicons name="checkmark" size={8} color={colors.onAccent} />
                   )}
                 </View>
               );
@@ -104,7 +104,7 @@ export default function OnboardingStep({
               {loading ? 'Saving…' : nextLabel}
             </Text>
             {!loading && (
-              <Ionicons name="arrow-forward" size={18} color={colors.white} />
+              <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
             )}
           </TouchableOpacity>
         </View>
@@ -202,7 +202,7 @@ const useStyles = createThemedStyles(t => ({
   },
   nextBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
   nextBtnText: {
-    color: t.colors.white,
+    color: t.colors.onAccent,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },

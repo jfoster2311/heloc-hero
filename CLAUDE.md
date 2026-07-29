@@ -22,8 +22,13 @@ supabase.ts reads keys from Constants.expoConfig.extra FIRST, then process.env. 
 IMPORTANT: there is NO single Zustand appStore.ts on this branch. Do not import appStore or assume selectors like selectNetWorth/selectStreak. Adapt ported features to the modules that actually exist. Verify imports against real files before writing.
 
 ## Design system — monochrome green (via lib/theme.ts)
-Use theme tokens, not hardcoded values. Palette is monochrome green — NO red/amber/blue/purple. Negative numbers use muted grey (#6B7280/#9CA3AF), never red.
-Greens: #081A0F, #0C2A18, #0F3D22; mint #12B76A; accents #4ade80/#E8F9F1/#F0FDF4; bg #F0F7F3; border #D8EDE3; text #0A0F0D/#374151/#9CA3AF.
+Use theme tokens, not hardcoded values — `lib/theme.ts` is the single source of truth and `lib/themeContext` (createThemedStyles/useTheme) is how screens read it. Do NOT hardcode hex or add a second palette file. Palette is monochrome green — NO red/amber/blue/purple. Negative numbers use muted grey (`gray500`), never red.
+Do not quote hexes from this file — they drift. Read the tokens. Contrast is measured, not eyeballed: every text pairing clears WCAG AA (4.5:1, or 3:1 for large text and UI boundaries) in BOTH palettes, verified in both light and dark.
+Three tokens exist because the obvious choice failed measurement, so prefer them:
+- `accentInk` for accent TEXT and icons. `mint600` is a FILL — as ink it is 2.62:1 on a white card.
+- `onAccent` for a label on a solid `mint600` fill. White there is 2.62:1 light / 2.02:1 dark.
+- `borderField` for an INPUT's boundary. `border` is 1.23:1 and a field's fill is 1.06:1, so nothing would delineate the control. Card borders and dividers keep the soft `border`/`borderSubtle` — those are decorative and exempt.
+`gray400` is decorative only (2.54:1): tab tint, switch thumbs, spinners, bar fills. Never text on a light surface.
 NO emojis in UI — use Ionicons sized/colored from theme.
 Quality bar: Apple HIG. Touch targets >=44pt, 8pt spacing, real loading/empty/error states, haptics on key interactions, safe-area correctness, smooth animations, accessibility labels.
 

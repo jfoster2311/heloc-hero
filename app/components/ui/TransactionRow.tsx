@@ -91,7 +91,7 @@ export default function TransactionRow({
 
       <View style={styles.amountBlock}>
         {saving ? (
-          <ActivityIndicator size="small" color={colors.mint600} />
+          <ActivityIndicator size="small" color={colors.accentInk} />
         ) : (
           <Text
             style={[
@@ -196,7 +196,7 @@ const useStyles = createThemedStyles(t => ({
     fontWeight: Typography.semibold,
     color: t.colors.textPrimary,
   },
-  amountIn: { color: t.colors.mint600 },
+  amountIn: { color: t.colors.accentInk },
   amountStruck: { textDecorationLine: 'line-through' },
 
   accountDot: {

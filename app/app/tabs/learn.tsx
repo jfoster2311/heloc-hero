@@ -365,7 +365,7 @@ export default function LearnScreen() {
                 <Ionicons
                   name={open ? 'remove-circle-outline' : 'add-circle-outline'}
                   size={20}
-                  color={colors.mint600}
+                  color={colors.accentInk}
                 />
               </View>
               {open && <Text style={styles.faqAnswer}>{item.a}</Text>}

@@ -259,7 +259,7 @@ export default function TransactionDetailSheet({
 
         <SheetRow label="Hide as a duplicate" last>
           {saving ? (
-            <ActivityIndicator size="small" color={colors.mint600} />
+            <ActivityIndicator size="small" color={colors.accentInk} />
           ) : (
             <Switch
               value={meta.hidden}
@@ -330,7 +330,7 @@ const useStyles = createThemedStyles(t => ({
     color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  amountIn: { color: t.colors.mint600 },
+  amountIn: { color: t.colors.accentInk },
   pending: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   catPill: {

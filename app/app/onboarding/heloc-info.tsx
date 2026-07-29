@@ -135,7 +135,7 @@ export default function HelocInfoStep() {
       ) : (
         <>
           <View style={styles.noHelocInfo}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.mint600} />
+            <Ionicons name="information-circle-outline" size={20} color={colors.accentInk} />
             <Text style={styles.noHelocText}>
               No problem. After setup, we'll guide you through what to look for and how to
               find the right HELOC for this strategy.
@@ -182,7 +182,7 @@ const useStyles = createThemedStyles(t => ({
     borderColor:     t.colors.mint600,
   },
   toggleText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
-  toggleTextActive: { color: t.colors.white },
+  toggleTextActive: { color: t.colors.onAccent },
   noHelocInfo: {
     flexDirection:   'row',
     gap:             Spacing[3],

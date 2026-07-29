@@ -600,7 +600,7 @@ export default function CashFlowScreen() {
                 </View>
                 <View style={styles.beginGo}>
                   <Text style={styles.beginGoText}>Begin</Text>
-                  <Ionicons name="arrow-forward" size={15} color={colors.white} />
+                  <Ionicons name="arrow-forward" size={15} color={colors.onAccent} />
                 </View>
               </TouchableOpacity>
             )}
@@ -1218,7 +1218,7 @@ const useStyles = createThemedStyles(t => ({
   sumValueTotal: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
   },
   sumValueTotalNeg: {
     fontSize: Typography.xl,
@@ -1275,7 +1275,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: Radius.full,
     backgroundColor: t.colors.mint600,
   },
-  beginGoText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.white },
+  beginGoText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.onAccent },
 
   tieBackText: {
     fontSize: Typography.xs,

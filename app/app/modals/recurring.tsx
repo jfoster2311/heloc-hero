@@ -308,7 +308,7 @@ const useStyles = createThemedStyles(t => ({
     marginTop: Spacing[1],
   },
   summaryLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
-  summaryIn: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.mint600 },
+  summaryIn: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.accentInk },
   summaryOut: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.gray500 },
   bar: { height: 6, borderRadius: 3, backgroundColor: t.colors.gray100, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
@@ -362,7 +362,7 @@ const useStyles = createThemedStyles(t => ({
   rowMeta: { fontSize: 11, color: t.colors.textMuted },
   rowAmounts: { alignItems: 'flex-end', gap: 1 },
   rowAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
-  rowAmountIn: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint600 },
+  rowAmountIn: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.accentInk },
   rowAnnual: { fontSize: 10, color: t.colors.textMuted },
 
   empty: {

@@ -99,7 +99,7 @@ export default function NotificationPrimer({ eligible, userId }: Props) {
         <View style={styles.sheet}>
           <View style={styles.iconRow}>
             <View style={styles.iconBg}>
-              <Ionicons name="notifications-outline" size={32} color={colors.mint600} />
+              <Ionicons name="notifications-outline" size={32} color={colors.accentInk} />
             </View>
           </View>
 
@@ -193,7 +193,7 @@ const useStyles = createThemedStyles(t => ({
     ...Shadows.glow,
   },
   primaryBtnText: {
-    color: t.colors.white,
+    color: t.colors.onAccent,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },

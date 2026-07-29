@@ -57,7 +57,7 @@ export default function LockGate({ children }: Props) {
   return (
     <LinearGradient colors={Gradients.hero} style={styles.overlay}>
       <View style={styles.card}>
-        <Ionicons name="lock-closed" size={48} color={colors.mint600} />
+        <Ionicons name="lock-closed" size={48} color={colors.accentInk} />
         <Text style={styles.title}>HELOC Hero</Text>
         <Text style={styles.subtitle}>The app has been locked for your security.</Text>
         <TouchableOpacity
@@ -66,7 +66,7 @@ export default function LockGate({ children }: Props) {
           disabled={authenticating}
           accessibilityLabel="Unlock with Face ID or passcode"
         >
-          <Ionicons name="finger-print-outline" size={22} color={colors.white} />
+          <Ionicons name="finger-print-outline" size={22} color={colors.onAccent} />
           <Text style={styles.unlockText}>
             {authenticating ? 'Authenticating…' : 'Unlock'}
           </Text>
@@ -115,7 +115,7 @@ const useStyles = createThemedStyles(t => ({
     ...Shadows.glow,
   },
   unlockText: {
-    color: t.colors.white,
+    color: t.colors.onAccent,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },

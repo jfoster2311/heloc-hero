@@ -348,7 +348,7 @@ export default function SignupScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
           >
             {loading
-              ? <ActivityIndicator color={colors.white} />
+              ? <ActivityIndicator color={colors.onAccent} />
               : <Text style={styles.submitText}>Create account</Text>}
           </TouchableOpacity>
 
@@ -438,7 +438,7 @@ const useStyles = createThemedStyles(t => ({
     ...Shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  submitText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  submitText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
 
   terms: {
     fontSize: Typography.xs,

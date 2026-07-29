@@ -172,7 +172,7 @@ const useStyles = createThemedStyles(t => ({
   net: {
     fontSize: Typography.displaySm,
     fontWeight: Typography.extrabold,
-    color: t.colors.mint600,
+    color: t.colors.accentInk,
     letterSpacing: -1,
   },
   netNegative: { color: t.colors.gray500 },
