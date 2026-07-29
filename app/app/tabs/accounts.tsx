@@ -180,17 +180,20 @@ export default function AccountsScreen() {
       emptyLabel: 'Add value',
       onPress: () => { hapticLight(); router.push('/modals/home-value' as never); },
     },
-    {
-      key: 'cash',
-      icon: 'wallet-outline',
-      // Not "available to move". What is safe to move is a judgement that weighs
-      // this against the buffer rules, and it is made on the dashboard.
-      label: 'Cash on hand',
-      sub: f.hasLinkedAccounts ? 'from your linked accounts' : 'from the figures you entered',
-      amount: f.liquidCash > 0 ? f.liquidCash : null,
-      emptyLabel: '—',
-    },
   ];
+
+  // Deliberately not an asset row. Savings are not home equity, and the figure
+  // the hero and the net line both state is equity. See the note in Position.
+  const cashAside: PositionRow = {
+    key: 'cash',
+    icon: 'wallet-outline',
+    // Not "available to move". What is safe to move is a judgement that weighs
+    // this against the buffer rules, and it is made on the dashboard.
+    label: 'Cash on hand',
+    sub: f.hasLinkedAccounts ? 'linked · not counted in equity' : 'not counted in equity',
+    amount: f.liquidCash > 0 ? f.liquidCash : null,
+    emptyLabel: '—',
+  };
 
   const debtRows: PositionRow[] = [
     {
@@ -305,15 +308,28 @@ export default function AccountsScreen() {
               Grouped by what each figure DOES in the strategy rather than by
               where it came from. The drawn line sits with the mortgage, not
               against the cash — see the note in components/Position.tsx, which
-              is the same framing the dashboard's unified figure uses. */}
+              is the same framing the dashboard's unified figure uses.
+
+              `net` is f.equity — the SAME value the hero renders above. This
+              block shows the arithmetic behind the headline; it must never
+              compute a second version of it. */}
           {!f.loading && (
             <>
               <SectionLabel>YOUR POSITION</SectionLabel>
               <Position
                 assets={assetRows}
                 debts={debtRows}
+                net={f.equity}
                 netLabel="Your equity"
-                onPressNet={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+                netHint={f.homeValue === null
+                  ? 'Add your home value and this becomes a real figure.'
+                  : 'Your home value less everything secured against it. The same figure as above.'}
+                aside={cashAside}
+                // No "how this is worked out" link on purpose. The rows above
+                // ARE the arithmetic and netHint states the rule, and there is
+                // no modal that explains equity — /modals/assumptions is surplus
+                // and rate stress, /modals/breakdown is spending. Pointing at
+                // either would be a dead end dressed as an explanation.
               />
             </>
           )}

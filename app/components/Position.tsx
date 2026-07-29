@@ -14,12 +14,25 @@
 // attack, which is also the framing the dashboard's unified figure uses — the
 // two screens have to agree about this or neither is trustworthy.
 //
-// ── Cash is shown, never recommended ──────────────────────────────────────
+// ── Cash is shown, never recommended, and never counted ───────────────────
 // The liquidity row exists because the buffer is what `safeToMove` reasons
 // about, so a user should be able to see it. It carries no target, no ring and
 // no "you could move this" prompt: that judgement belongs to Safe to Move,
 // which weighs it against the buffer rules, and duplicating it here as a bare
 // number would invite exactly the move the buffer rules exist to prevent.
+//
+// It also sits BELOW the net figure rather than inside "what you own", because
+// home equity does not include your savings. Cash in the assets group made the
+// group total home + cash, and the difference against the debts was then no
+// longer equity — a figure the hero states in the same breath under the same
+// word. Two numbers, one label, one screen. Now the groups net to exactly the
+// figure above them and cash is stated as context beneath it.
+//
+// ── The net figure is passed in, not derived here ──────────────────────────
+// `net` comes from useFinancials, which is what the hero renders too. Position
+// summing its own rows was the whole bug: a second implementation of equity
+// that could drift from the first any time a row was added. This component
+// lays out the arithmetic; it does not own it.
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from './ui/primitives';
@@ -39,28 +52,27 @@ export interface PositionRow {
 }
 
 export default function Position({
-  assets, debts, netLabel, onPressNet,
+  assets, debts, net, netLabel, netHint, aside, onPressNet,
 }: {
   assets: PositionRow[];
   debts: PositionRow[];
+  /** The authoritative figure, from useFinancials. Null when it cannot be known. */
+  net: number | null;
   netLabel?: string;
+  /** Why the figure is what it is, when the groups alone do not show it. */
+  netHint?: string;
+  /** Stated below the net, deliberately outside its arithmetic. */
+  aside?: PositionRow;
   onPressNet?: () => void;
 }) {
   const styles = useStyles();
-
-  const assetTotal = sumKnown(assets);
-  const debtTotal  = sumKnown(debts);
-  // Null only when nothing at all is known — a partial position is still worth
-  // stating, and the rows show which parts are missing.
-  const net = assetTotal === null && debtTotal === null
-    ? null
-    : (assetTotal ?? 0) - (debtTotal ?? 0);
+  const { colors } = useTheme();
 
   return (
     <Card>
-      <Group title="WHAT YOU OWN" total={assetTotal} rows={assets} />
+      <Group title="WHAT YOU OWN" total={sumKnown(assets)} rows={assets} />
       <View style={styles.gap} />
-      <Group title="WHAT YOU OWE" total={debtTotal} rows={debts} negative />
+      <Group title="WHAT YOU OWE" total={sumKnown(debts)} rows={debts} negative />
 
       <View style={styles.netRule} />
       <View style={styles.netRow}>
@@ -69,10 +81,33 @@ export default function Position({
           {net === null ? '—' : `${net < 0 ? '−' : ''}$${fmt(Math.abs(net))}`}
         </Text>
       </View>
+      {netHint ? <Text style={styles.netSub}>{netHint}</Text> : null}
       {onPressNet && (
-        <Text style={styles.netHint} onPress={onPressNet}>
-          How this is worked out
-        </Text>
+        <TouchableOpacity
+          onPress={onPressNet}
+          accessibilityRole="button"
+          accessibilityLabel="How your equity is worked out"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.netHint}>How this is worked out</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Outside the figure above, and said so. Not an asset row: savings are
+          not home equity, and the buffer is Safe to Move's call, not a total. */}
+      {aside && (
+        <View style={styles.aside}>
+          <View style={styles.asideIcon}>
+            <Ionicons name={aside.icon} size={15} color={colors.textMuted} />
+          </View>
+          <View style={styles.rowText}>
+            <Text style={styles.asideLabel} numberOfLines={1}>{aside.label}</Text>
+            {aside.sub ? <Text style={styles.rowSub} numberOfLines={1}>{aside.sub}</Text> : null}
+          </View>
+          <Text style={styles.asideAmount}>
+            {aside.amount === null ? (aside.emptyLabel ?? '—') : `$${fmt(aside.amount)}`}
+          </Text>
+        </View>
       )}
     </Card>
   );
@@ -230,10 +265,46 @@ const useStyles = createThemedStyles(t => ({
   // Negative equity is grey, never red — a person underwater on their house is
   // not an error state, and the figure is severe enough without the colour.
   netValueMuted: { color: t.colors.gray500 },
+  netSub: {
+    fontSize: Typography.xs,
+    color: t.colors.textMuted,
+    marginTop: Spacing[1],
+    lineHeight: 16,
+  },
   netHint: {
     fontSize: Typography.xs,
     color: t.colors.mint700,
     fontWeight: Typography.medium,
     marginTop: Spacing[2],
+  },
+
+  // Visually demoted on purpose — muted icon, no chevron, no mint. It reads as
+  // a footnote to the figure above rather than another line in the sum.
+  aside: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    marginTop: Spacing[4],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: t.colors.borderSubtle,
+  },
+  asideIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.md,
+    backgroundColor: t.colors.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  asideLabel: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
+    color: t.colors.textSecondary,
+  },
+  asideAmount: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.textSecondary,
   },
 }));
