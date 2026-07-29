@@ -36,6 +36,52 @@ import { Colors, Typography, Spacing, Radius, OnDark, CommonStyles, TAB_BAR_CLEA
 const REPLENISH_PCT = Math.round(UTILIZATION.replenishThreshold * 100);
 const HOLD_PCT      = Math.round(UTILIZATION.hold * 100);
 
+/**
+ * The three mechanics, as a scannable layer above the long-form guides.
+ *
+ * Every line here is traceable, per the rule at the top of this file:
+ *  · 01 is runCycling in lib/projections.ts — the dump is a principal payment.
+ *  · 02 is UTILIZATION.replenishThreshold, interpolated rather than typed, the
+ *    same constant lib/strike.ts and lib/safeToMove.ts gate the next dump on.
+ *  · 03 is components/NetDebt.tsx, which exists specifically because a rising
+ *    line mid-cycle reads as backsliding when the two debts are shown apart.
+ *
+ * ── What is deliberately NOT here ─────────────────────────────────────────
+ * A "cash shield" card, on the claim that surplus parked in the line suppresses
+ * the interest charged on the MORTGAGE. It does not: money sitting against the
+ * line reduces what the LINE charges, and mortgage interest only falls when a
+ * dump reduces mortgage principal. Beyond being wrong, the average-daily-balance
+ * framing it comes from belongs to the all-in-one variant — paycheck into the
+ * line, bills paid from it — which lib/strike.ts and article 1 below both tell
+ * the user outright this app does not ask of them. There is no shield mechanic
+ * in lib/ to describe, and inventing one is how this screen went wrong before.
+ */
+const CONCEPTS: { n: string; icon: keyof typeof Ionicons.glyphMap; title: string; body: string }[] = [
+  {
+    n: '01',
+    icon: 'arrow-down-circle-outline',
+    title: 'The dump',
+    body: 'Draw a lump sum from your line and put it straight onto your mortgage principal. '
+      + 'The balance falls that day, so every remaining mortgage payment carries less interest.',
+  },
+  {
+    n: '02',
+    icon: 'repeat-outline',
+    title: 'Replenish, then strike',
+    body: `Your monthly surplus pays the line back down. The next dump opens once the line is `
+      + `back to your replenish threshold — ${REPLENISH_PCT}% by default, and adjustable. `
+      + `No surplus means nothing replenishes, and the loop stops after one turn.`,
+  },
+  {
+    n: '03',
+    icon: 'layers-outline',
+    title: 'One number, not two',
+    body: 'Mid-cycle your line is up — that is what a dump looks like from the line’s side. '
+      + 'The app tracks the mortgage and the line as a single figure, so doing the right thing '
+      + 'never reads as going backwards.',
+  },
+];
+
 interface Article {
   id: number;
   category: string;
@@ -188,6 +234,55 @@ export default function LearnScreen() {
         </Hero>
 
         <View style={styles.content}>
+        {/* ── THE SURPLUS RULE ────────────────────────────────────────────────
+            Promoted out of the sixth paragraph of article 1, where the single
+            most important safety instruction on the screen was sitting behind a
+            tap-to-expand. A user who never opens that guide never reads it.
+
+            Tinted mint, not red. The palette has no red in it, and this is a
+            rule to follow rather than an error the user has made — the same
+            reason negative numbers on this app are grey. Alarm styling would
+            also imply the app had detected something about THIS user, which it
+            has not: this is guidance, shown to everyone, always. */}
+        <View style={styles.ruleCard}>
+          <View style={styles.ruleIcon}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={Colors.mint700} />
+          </View>
+          <View style={styles.ruleBody}>
+            <Text style={styles.ruleTitle}>Surplus, not salary</Text>
+            <Text style={styles.ruleText}>
+              Keep banking the way you already do: your paycheck lands in checking and your
+              bills are paid from there. Only what is genuinely{' '}
+              <Text style={styles.ruleEm}>left over</Text> goes at the line, so a month where
+              cash flow stops is a month you pause — not a month you cannot pay the bills.
+              The version of this strategy that runs your whole income through the HELOC is a
+              different and riskier arrangement, and this app never asks it of you.
+            </Text>
+          </View>
+        </View>
+
+        {/* ── CORE MECHANICS ──────────────────────────────────────────────────
+            A scannable summary above the guides, for the reader who wants the
+            shape of the strategy before committing to five long articles.
+
+            Plain Views, not Pressables. There is nothing behind them to open —
+            the guides below hold the detail — and a card that depresses under
+            the finger and then does nothing is a worse answer than a card that
+            never offered. */}
+        <SectionLabel>CORE MECHANICS</SectionLabel>
+        {CONCEPTS.map(c => (
+          <View key={c.n} style={[CommonStyles.card, styles.conceptCard]}>
+            <View style={styles.conceptHead}>
+              <Text style={styles.conceptNumber}>{c.n}</Text>
+              <View style={styles.conceptIcon}>
+                <Ionicons name={c.icon} size={18} color={Colors.mint700} />
+              </View>
+            </View>
+            <Text style={styles.conceptTitle}>{c.title}</Text>
+            <Text style={styles.conceptBody}>{c.body}</Text>
+          </View>
+        ))}
+
         {/* Articles */}
         <SectionLabel>STRATEGY GUIDES</SectionLabel>
         {ARTICLES.map(article => {
@@ -377,4 +472,63 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     lineHeight: 18,
   },
+  // ── The surplus rule ──────────────────────────────────────────────────────
+  ruleCard: {
+    flexDirection: 'row',
+    gap: Spacing[3],
+    padding: Spacing[4],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.mint50,
+    borderWidth: 1,
+    borderColor: Colors.mint200,
+  },
+  ruleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ruleBody: { flex: 1 },
+  ruleTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+    color: Colors.mint700,
+    marginBottom: Spacing[1],
+  },
+  ruleText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  ruleEm: { fontWeight: Typography.bold, color: Colors.textPrimary },
+
+  // ── Core mechanics ────────────────────────────────────────────────────────
+  conceptCard: { gap: Spacing[1] },
+  conceptHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[1],
+  },
+  // Large, low-contrast ordinal. It is a position marker, not information, so it
+  // sits below the title in the reading order by weight of colour alone.
+  conceptNumber: {
+    fontSize: 30,
+    fontWeight: Typography.extrabold,
+    color: Colors.borderSubtle,
+    letterSpacing: -1,
+  },
+  conceptIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.mint50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  conceptTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: Colors.textPrimary,
+  },
+  conceptBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+
 });
