@@ -406,34 +406,55 @@ export const DarkColors: typeof Colors = {
   // below. Light's `gray50`/`gray100` are a hair darker than a white card; their
   // counterparts are a hair lighter than a dark one. Copying the direction
   // instead of the role would make every track and tinted row vanish.
-  gray50:  '#19241E',
-  gray100: '#1E2A24',
-  gray200: '#24312A',
+  gray50:  '#17251D',
+  gray100: '#1C2B22',
+  gray200: '#223228',
   // Mixed-role, and pitched for the harder of its two jobs. It is a subtle fill
   // in three places and a deliberately faint MARK in three others — the dashed
   // budget-ceiling line, a recessive chevron, a legend swatch. A value chosen
   // only as a fill would be a shade off the card and those marks would vanish,
   // so this sits high enough to stay visible as ink while still reading as
   // recessive when it is a surface.
-  gray300: '#4E5F57',
-  gray400: '#8B9A93',  // muted ink — negative numbers live here
-  gray500: '#A2B0A9',  // slightly LIGHTER than gray400, mirroring the light ramp's
+  gray300: '#4B6153',
+  // ── Why these two are green here and neutral in the light theme ──────────
+  // Not an inconsistency, though it looks like one. The LIGHT values are pinned
+  // by name: CLAUDE.md specifies `#6B7280`/`#9CA3AF` for negative numbers, so
+  // they stay exactly those. No such hex is mandated for dark, so the dark
+  // counterparts derive the same ROLE — muted, and unmistakably not the accent —
+  // on the brand hue instead of borrowing a slate that belongs to no palette
+  // here. At chroma ~0.025 against `mint600`'s 0.177 they remain a seventh as
+  // saturated as the accent, which is what the role actually requires.
+  gray400: '#899B90',  // muted ink — negative numbers live here
+  gray500: '#A0B1A6',  // slightly LIGHTER than gray400, mirroring the light ramp's
                        // relationship where gray500 is the stronger of the two
 
   // ── App surfaces ─────────────────────────────────────────────────────────
-  background:    '#070E0B',  // below the aurora's floor, so the hero still reads
-  surface:       '#151F1A',  // the card — the surface every ΔE check below is against
-  surfaceSunken: '#0D1712',
+  background:    '#050F09',  // below the aurora's floor, so the hero still reads
+  surface:       '#132018',  // the card — the surface every ΔE check below is against
+  surfaceSunken: '#0C1811',
   // Stronger against its card than the light border is against white (1.47:1 vs
   // 1.23:1), and deliberately so: in light, a card's edge is drawn by the border
   // AND the shadow together. Here the shadow contributes nothing, so the border
   // has to carry the whole edge on its own.
-  border:        '#2C3D35',
-  borderSubtle:  '#232F29',
-  // Measured against `surface`, not guessed:
-  textPrimary:   '#EAF3ED',  // 15.7:1 — not pure white, which vibrates on dark
-  textSecondary: '#A9B9B1',  //  8.7:1
-  textMuted:     '#7C8B84',  //  5.0:1 — still clears AA, unlike most muted greys
+  // Re-measured after the hue shift rather than assumed. Preserving OKLCH
+  // lightness does NOT preserve WCAG luminance once chroma moves, so the first
+  // re-derivation quietly dropped this edge from 1.47:1 to 1.25:1 — back to the
+  // light theme's strength, on the theme that has no shadow to help it. These
+  // two are picked against the ratio directly.
+  border:        '#2F4237',  // 1.57:1 vs the card — the edge, doing all the work
+  borderSubtle:  '#233229',  // 1.25:1
+  // ── The text ramp, re-derived on the brand hue ──────────────────────────
+  // This was the least green part of the palette, and the audit is what found
+  // it: every dark SURFACE already carried real green (chroma ~0.02) while the
+  // ink sat at 0.012 — effectively achromatic. The theme read colder than its
+  // light counterpart because the body copy was grey on a green page.
+  //
+  // Re-derived at hue 158 with the LIGHTNESS PRESERVED, which is what makes the
+  // change safe: chroma moves, L does not, so every ratio below is equal to or
+  // better than the value it replaced.
+  textPrimary:   '#DEF8E8',  // 15.0:1 on the card — not pure white, which vibrates
+  textSecondary: '#98C0A7',  //  8.4:1
+  textMuted:     '#738E7E',  //  4.7:1 — clears AA, unlike most muted greys
 };
 
 /**
@@ -446,27 +467,34 @@ export const DarkColors: typeof Colors = {
  *
  * So dark elevation is carried two ways instead, and both are already in the
  * system: the raised surface is LIGHTER than the page, and it wears a hairline.
- * The shadow objects are kept (same keys, so no call site changes) with a black
- * shadow at a much higher opacity — that still does useful work under the one
- * case where a dark card overlaps another dark card, which is the sheets.
+ * The shadow objects are kept (same keys, so no call site changes) at a much
+ * higher opacity — that still does useful work under the one case where a dark
+ * card overlaps another dark card, which is the sheets.
+ *
+ * `#020D08` rather than `#000000`, matching the light theme's green `#0A2A1B`.
+ * The honest note: at this darkness the two are within rounding distance of each
+ * other — the page itself is at luminance 0.0039 and the shadow at 0.0032, so
+ * there is almost no room left to darken and the visible difference is nil. It
+ * is green-derived (hue 167) for consistency, and the border above is what
+ * actually draws the edge.
  */
 export const DarkShadows: typeof Shadows = {
   card: {
-    shadowColor: '#000000',
+    shadowColor: '#020D08',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.40,
     shadowRadius: 10,
     elevation: 2,
   },
   lifted: {
-    shadowColor: '#000000',
+    shadowColor: '#020D08',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.55,
     shadowRadius: 22,
     elevation: 6,
   },
   modal: {
-    shadowColor: '#000000',
+    shadowColor: '#020D08',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.50,
     shadowRadius: 18,
@@ -511,9 +539,9 @@ export const DarkCategoryRamp: CategoryRampTokens = {
   /** Largest share first — brightest first, inverting the light ramp's order. */
   steps: ['#A8FBC5', '#63C88B', '#00974B', '#005E31'] as const,
   /** The aggregated tail. Neutral on purpose — it is not a rank. */
-  neutral: '#8B9A93',
+  neutral: '#899B90',
   /** The track behind an empty or partial ring — a shade above the card. */
-  track: '#26332C',
+  track: '#243429',
 };
 
 /**
