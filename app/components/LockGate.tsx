@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Typography, Spacing, Gradients, Shadows } from '../lib/theme';
+import { Typography, Spacing, Gradients, Shadows } from '../lib/theme';
+import { createThemedStyles, useTheme } from '../lib/themeContext';
 import {
   shouldLock, authenticate, recordBackgroundTime, isLockEnabled,
 } from '../lib/appLock';
@@ -11,6 +12,8 @@ import {
 interface Props { children: React.ReactNode }
 
 export default function LockGate({ children }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [locked, setLocked] = useState(false);
   const [authenticating, setAuthenticating] = useState(false);
   const appStateRef = useRef(AppState.currentState);
@@ -54,7 +57,7 @@ export default function LockGate({ children }: Props) {
   return (
     <LinearGradient colors={Gradients.hero} style={styles.overlay}>
       <View style={styles.card}>
-        <Ionicons name="lock-closed" size={48} color={Colors.mint600} />
+        <Ionicons name="lock-closed" size={48} color={colors.mint600} />
         <Text style={styles.title}>HELOC Hero</Text>
         <Text style={styles.subtitle}>The app has been locked for your security.</Text>
         <TouchableOpacity
@@ -63,7 +66,7 @@ export default function LockGate({ children }: Props) {
           disabled={authenticating}
           accessibilityLabel="Unlock with Face ID or passcode"
         >
-          <Ionicons name="finger-print-outline" size={22} color={Colors.white} />
+          <Ionicons name="finger-print-outline" size={22} color={colors.white} />
           <Text style={styles.unlockText}>
             {authenticating ? 'Authenticating…' : 'Unlock'}
           </Text>
@@ -73,7 +76,7 @@ export default function LockGate({ children }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -83,7 +86,7 @@ const styles = StyleSheet.create({
   card: {
     alignItems: 'center',
     gap: Spacing[4],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: 24,
     padding: Spacing[8],
     marginHorizontal: Spacing[8],
@@ -92,11 +95,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   subtitle: {
     fontSize: Typography.sm,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -104,7 +107,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: 12,
     paddingVertical: Spacing[4],
     paddingHorizontal: Spacing[8],
@@ -112,8 +115,8 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   unlockText: {
-    color: Colors.white,
+    color: t.colors.white,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },
-});
+}));

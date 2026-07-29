@@ -16,7 +16,8 @@
 // budget arc would wrap past its own start and read as 0%, so the arc clamps
 // and the caption states the overage in words.
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, Tracking } from '../../lib/theme';
+import { Typography, Spacing, Tracking } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface Props {
   /** 0–100, already clamped by the caller's budgetStatus. */
@@ -44,6 +45,8 @@ const START = 135;
 export default function GaugeArc({
   pct, color, label, value, sub, size = 200, thickness = 16, accessibilityLabel,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const radius = (size - thickness) / 2;
   const center = size / 2;
   const filledDeg = (Math.min(100, Math.max(0, pct)) / 100) * SWEEP;
@@ -75,7 +78,7 @@ export default function GaugeArc({
                 width: thickness,
                 height: thickness,
                 borderRadius: thickness / 2,
-                backgroundColor: t.filled ? color : Colors.gray100,
+                backgroundColor: t.filled ? color : colors.gray100,
                 left: center + radius * Math.cos(rad) - thickness / 2,
                 top:  center + radius * Math.sin(rad) - thickness / 2,
               },
@@ -95,7 +98,7 @@ export default function GaugeArc({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   wrap: { alignSelf: 'center' },
   tick: { position: 'absolute' },
   center: {
@@ -108,14 +111,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: Tracking.eyebrow,
   },
   value: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  sub: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center' },
-});
+  sub: { fontSize: Typography.xs, color: t.colors.textMuted, textAlign: 'center' },
+}));

@@ -13,8 +13,7 @@
 // and, unlike the old line, true.
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -25,9 +24,12 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function ForgotPasswordScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const [email, setEmail]     = useState('');
   const [loading, setLoading] = useState(false);
@@ -100,7 +102,7 @@ export default function ForgotPasswordScreen() {
           {sent ? (
             <>
               <View style={styles.sent} accessibilityLiveRegion="polite">
-                <Ionicons name="mail-outline" size={20} color={Colors.mint600} style={styles.sentIcon} />
+                <Ionicons name="mail-outline" size={20} color={colors.mint600} style={styles.sentIcon} />
                 <View style={styles.flex}>
                   <Text style={styles.sentTitle}>Check your inbox</Text>
                   <Text style={styles.sentText}>
@@ -136,7 +138,7 @@ export default function ForgotPasswordScreen() {
                   <Ionicons
                     name={problem.retryable ? 'cloud-offline-outline' : 'alert-circle-outline'}
                     size={18}
-                    color={Colors.textSecondary}
+                    color={colors.textSecondary}
                     style={styles.problemIcon}
                   />
                   <View style={styles.flex}>
@@ -173,7 +175,7 @@ export default function ForgotPasswordScreen() {
                 accessibilityState={{ disabled: !canSubmit, busy: loading }}
               >
                 {loading
-                  ? <ActivityIndicator color={Colors.white} />
+                  ? <ActivityIndicator color={colors.white} />
                   : <Text style={styles.submitText}>Send reset link</Text>}
               </TouchableOpacity>
 
@@ -193,8 +195,8 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  root: { flex: 1, backgroundColor: t.colors.background },
   flex: { flex: 1 },
 
   header: { paddingBottom: Spacing[6], backgroundColor: Aurora.deepest },
@@ -214,33 +216,33 @@ const styles = StyleSheet.create({
   problem: {
     flexDirection: 'row',
     gap: Spacing[3],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[4],
     marginBottom: Spacing[5],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
   problemIcon: { marginTop: 1 },
-  problemTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  problemText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
+  problemTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  problemText: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: 2 },
 
   sent: {
     flexDirection: 'row',
     gap: Spacing[3],
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     marginBottom: Spacing[5],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.mint600,
+    borderLeftColor: t.colors.mint600,
   },
   sentIcon: { marginTop: 1 },
-  sentTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
-  sentText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
+  sentTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
+  sentText: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: 2 },
 
   submit: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     minHeight: 54,
     alignItems: 'center',
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  submitText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  submitText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
 
   secondary: {
     minHeight: 44,
@@ -257,5 +259,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: Spacing[3],
   },
-  secondaryText: { color: Colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
-});
+  secondaryText: { color: t.colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
+}));

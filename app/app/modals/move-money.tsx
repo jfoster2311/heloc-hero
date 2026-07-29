@@ -20,9 +20,7 @@
 // bank, and is labelled as exactly that.
 import { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  InputAccessoryView, Keyboard,
+  View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, InputAccessoryView, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,12 +37,15 @@ import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
 import { hapticLight, hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
 
 const AMOUNT_ACCESSORY_ID = 'move-money-amount';
 
 export default function MoveMoneyModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { profile } = useAuth();
   const {
@@ -149,7 +150,7 @@ export default function MoveMoneyModal() {
           style={styles.closeBtn}
           accessibilityLabel="Close"
         >
-          <Ionicons name="close" size={22} color={Colors.textSecondary} />
+          <Ionicons name="close" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -183,7 +184,7 @@ export default function MoveMoneyModal() {
                 // and every caution on the screen.
                 inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 selectTextOnFocus
                 accessibilityLabel="Amount to move"
               />
@@ -360,7 +361,7 @@ export default function MoveMoneyModal() {
               accessibilityLabel={`Record a ${amount} dollar transfer`}
             >
               {logging
-                ? <ActivityIndicator color={Colors.mint700} />
+                ? <ActivityIndicator color={colors.mint700} />
                 : <Text style={styles.choicePrimaryText}>I moved ${fmt(amount)}</Text>}
             </TouchableOpacity>
           </View>
@@ -400,6 +401,7 @@ export default function MoveMoneyModal() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Reason({ text }: { text: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.reasonRow}>
       <View style={styles.reasonDot} />
@@ -409,6 +411,7 @@ function Reason({ text }: { text: string }) {
 }
 
 function LedgerItem({ value, label }: { value: string; label: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.ledgerItem}>
       <Text style={styles.ledgerValue}>{value}</Text>
@@ -418,9 +421,11 @@ function LedgerItem({ value, label }: { value: string; label: string }) {
 }
 
 function Caution({ text }: { text: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.caution}>
-      <Ionicons name="alert-circle-outline" size={18} color={Colors.textSecondary} />
+      <Ionicons name="alert-circle-outline" size={18} color={colors.textSecondary} />
       <Text style={styles.cautionText}>{text}</Text>
     </View>
   );
@@ -442,8 +447,8 @@ function fmtPct(v: number) { return `${Math.round(v * 100)}%`; }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  safe: { flex: 1, backgroundColor: t.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -456,7 +461,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   closeBtn: {
     width: 44, height: 44, borderRadius: 22,
@@ -465,51 +470,51 @@ const styles = StyleSheet.create({
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
 
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     ...Shadows.card,
   },
   cardTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: Spacing[3],
   },
-  label: { fontSize: Typography.sm, color: Colors.textSecondary, marginBottom: Spacing[2] },
+  label: { fontSize: Typography.sm, color: t.colors.textSecondary, marginBottom: Spacing[2] },
 
   amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[4],
   },
-  amountPrefix: { fontSize: Typography['2xl'], color: Colors.textMuted },
+  amountPrefix: { fontSize: Typography['2xl'], color: t.colors.textMuted },
   amountInput: {
     flex: 1,
     fontSize: Typography['2xl'],
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[2],
     minHeight: 44,
   },
   suggestBtn: { marginTop: Spacing[3], minHeight: 44, justifyContent: 'center' },
-  suggestText: { fontSize: Typography.sm, color: Colors.mint600, lineHeight: 20 },
+  suggestText: { fontSize: Typography.sm, color: t.colors.mint600, lineHeight: 20 },
 
   reasonRow: { flexDirection: 'row', gap: Spacing[3], marginBottom: Spacing[3] },
   reasonDot: {
     width: 6, height: 6, borderRadius: 3,
-    backgroundColor: Colors.gray400,
+    backgroundColor: t.colors.gray400,
     marginTop: 7,
   },
-  reasonText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
-  estimateNote: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[1] },
+  reasonText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
+  estimateNote: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[1] },
   rateWarnBtn: { marginTop: Spacing[2], minHeight: 44, justifyContent: 'center' },
-  rateWarnText: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 17 },
+  rateWarnText: { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 17 },
 
   // Upside and downside share a row, a type size and a weight. Neither is
   // styled to be more appealing than the other.
@@ -518,42 +523,42 @@ const styles = StyleSheet.create({
   ledgerDivider: {
     width: 1,
     alignSelf: 'stretch',
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     marginHorizontal: Spacing[4],
   },
   ledgerHead: {
     fontSize: Typography.xs,
     fontWeight: Typography.bold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 0.6,
   },
   ledgerItem: { gap: 2 },
   ledgerValue: {
     fontSize: Typography.lg,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  ledgerLabel: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  ledgerLabel: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   netLine: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     marginTop: Spacing[4],
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
-  netBold: { fontWeight: Typography.bold, color: Colors.textPrimary },
+  netBold: { fontWeight: Typography.bold, color: t.colors.textPrimary },
 
   caution: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing[3],
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.lg,
     padding: Spacing[4],
   },
-  cautionText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  cautionText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 
   // Equal footprint; only the fill differs.
   actions: { flexDirection: 'row', gap: Spacing[3] },
@@ -566,17 +571,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     borderWidth: 1,
   },
-  choiceSecondary: { backgroundColor: Colors.surface, borderColor: Colors.border },
+  choiceSecondary: { backgroundColor: t.colors.surface, borderColor: t.colors.border },
   choiceSecondaryText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
-  choicePrimary: { backgroundColor: Colors.mint50, borderColor: Colors.mint200 },
+  choicePrimary: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint200 },
   choicePrimaryText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
   choiceDisabled: { opacity: 0.5 },
 
@@ -587,23 +592,23 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[2],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
   },
-  keypadHint: { flex: 1, fontSize: Typography.xs, color: Colors.textMuted },
+  keypadHint: { flex: 1, fontSize: Typography.xs, color: t.colors.textMuted },
   keypadDone: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing[3] },
   keypadDoneText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
 
   footnote: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: Spacing[2],
   },
-});
+}));

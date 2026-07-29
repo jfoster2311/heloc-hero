@@ -7,11 +7,10 @@
 // multi-field screen makes the user dismiss the keyboard and tap the next box,
 // which is the difference between a form that feels considered and one that
 // feels like a web page from 2011.
-import {
-  View, Text, TextInput, StyleSheet, TextInputProps,
-} from 'react-native';
+import { View, Text, TextInput, TextInputProps } from 'react-native';
 import { useState, forwardRef } from 'react';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface FormFieldProps extends TextInputProps {
   label: string;
@@ -37,6 +36,8 @@ interface FormFieldProps extends TextInputProps {
 const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
   label, prefix, suffix, hint, error, invalid, accessory, style, onFocus, onBlur, ...rest
 }, ref) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [focused, setFocused] = useState(false);
   const hasError = !!error || !!invalid;
 
@@ -58,7 +59,7 @@ const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
         <TextInput
           ref={ref}
           style={[styles.input, style]}
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           onFocus={e => { setFocused(true); onFocus?.(e); }}
           onBlur={e => { setFocused(false); onBlur?.(e); }}
           {...rest}
@@ -76,29 +77,29 @@ const FormField = forwardRef<TextInput, FormFieldProps>(function FormField({
 
 export default FormField;
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   container: { marginBottom: Spacing[4] },
   label: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     marginBottom: Spacing[2],
   },
-  labelFocused: { color: Colors.mint600 },
-  labelError: { color: Colors.error },
+  labelFocused: { color: t.colors.mint600 },
+  labelError: { color: t.colors.error },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
     borderRadius: Radius.md,
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     paddingHorizontal: Spacing[4],
   },
   inputWrapperFocused: {
-    borderColor: Colors.mint600,
-    backgroundColor: Colors.surface,
-    shadowColor: Colors.mint600,
+    borderColor: t.colors.mint600,
+    backgroundColor: t.colors.surface,
+    shadowColor: t.colors.mint600,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -108,30 +109,30 @@ const styles = StyleSheet.create({
   // grey message, which is both visually incoherent and against the palette
   // rule that negative states are muted grey and never red.
   inputWrapperError: {
-    borderColor: Colors.error,
-    backgroundColor: Colors.gray50,
+    borderColor: t.colors.error,
+    backgroundColor: t.colors.gray50,
   },
   input: {
     flex: 1,
     fontSize: Typography.base,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     paddingVertical: Spacing[4],
     minHeight: 48,
   },
   adornment: {
     fontSize: Typography.base,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginRight: 4,
   },
-  adornmentFocused: { color: Colors.mint600 },
+  adornmentFocused: { color: t.colors.mint600 },
   hint: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginTop: Spacing[1],
   },
   error: {
     fontSize: Typography.xs,
-    color: Colors.error,
+    color: t.colors.error,
     marginTop: Spacing[1],
   },
-});
+}));

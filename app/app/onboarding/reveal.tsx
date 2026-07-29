@@ -13,7 +13,8 @@ import PayoffBoard from '../../components/PayoffBoard';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
-import { Colors, Typography, Spacing, Radius, Shadows, Aurora } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows, Aurora } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticMedium } from '../../lib/haptics';
 
 // ── Board ritual timeline (ms) ─────────────────────────────────────────────
@@ -91,6 +92,8 @@ function countUp(
 }
 
 export default function RevealScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { data, submit, saving } = useOnboardingStore();
   const { user, refresh: refreshProfile } = useAuth();
@@ -340,7 +343,7 @@ export default function RevealScreen() {
 
             {/* Bleeds the aurora into the page instead of a hard edge */}
             <LinearGradient
-              colors={['rgba(240,247,243,0)', Colors.surface]}
+              colors={['rgba(240,247,243,0)', colors.surface]}
               style={styles.heroFade}
               pointerEvents="none"
             />
@@ -356,7 +359,7 @@ export default function RevealScreen() {
           >
             <View style={styles.noHelocRow}>
               <View style={styles.noHelocIcon}>
-                <Ionicons name="home-outline" size={22} color={Colors.mint600} />
+                <Ionicons name="home-outline" size={22} color={colors.mint600} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.noHelocTitle}>First step: open a HELOC</Text>
@@ -365,7 +368,7 @@ export default function RevealScreen() {
                   Tap to see what to look for and avoid.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.mint400} />
+              <Ionicons name="chevron-forward" size={18} color={colors.mint400} />
             </View>
           </TouchableOpacity>
         )}
@@ -393,7 +396,7 @@ export default function RevealScreen() {
             accessibilityLabel="See what Pro adds"
           >
             <Text style={styles.primaryBtnText}>See what Pro adds</Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+            <Ionicons name="arrow-forward" size={18} color={colors.white} />
           </TouchableOpacity>
 
           {/* No introductory offer is configured in App Store Connect, so this
@@ -402,7 +405,7 @@ export default function RevealScreen() {
           <Text style={styles.pricing}>Pro is $19.99/mo or $175/yr. Cancel anytime.</Text>
 
           <View style={styles.riskReversal}>
-            <Ionicons name="shield-checkmark-outline" size={14} color={Colors.mint600} />
+            <Ionicons name="shield-checkmark-outline" size={14} color={colors.mint600} />
             <Text style={styles.riskReversalText}>
               Everything you just saw stays free. Pro adds live accounts and alerts.
             </Text>
@@ -463,17 +466,19 @@ export default function RevealScreen() {
 }
 
 function ThingRow({ icon, text }: { icon: string; text: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.thingRow}>
-      <Ionicons name={icon as never} size={16} color={Colors.mint600} />
+      <Ionicons name={icon as never} size={16} color={colors.mint600} />
       <Text style={styles.thingText}>{text}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safe:      { flex: 1, backgroundColor: Colors.mint700 },
-  container: { flexGrow: 1, backgroundColor: Colors.surface },
+const useStyles = createThemedStyles(t => ({
+  safe:      { flex: 1, backgroundColor: t.colors.mint700 },
+  container: { flexGrow: 1, backgroundColor: t.colors.surface },
 
   // ── Hero card ──────────────────────────────────────────────────────────────
   hero: {
@@ -519,7 +524,7 @@ const styles = StyleSheet.create({
   gapValue: {
     fontSize:      56,
     fontWeight:    Typography.extrabold,
-    color:         Colors.white,
+    color:         t.colors.white,
     lineHeight:    62,
     letterSpacing: -1.6,
     textAlign:     'center',
@@ -568,7 +573,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color:      'rgba(255,255,255,0.65)',
   },
-  dateColValueAccel: { color: Colors.white },
+  dateColValueAccel: { color: t.colors.white },
 
   heroDisclaimer: {
     fontSize:  Typography.xs,
@@ -579,11 +584,11 @@ const styles = StyleSheet.create({
   // ── No-HELOC card ──────────────────────────────────────────────────────────
   noHelocCard: {
     marginHorizontal: Spacing[5],
-    backgroundColor:  Colors.mint50,
+    backgroundColor:  t.colors.mint50,
     borderRadius:     Radius.xl,
     padding:          Spacing[4],
     borderWidth:      1,
-    borderColor:      Colors.mint200,
+    borderColor:      t.colors.mint200,
     ...Shadows.card,
   },
   noHelocRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
@@ -591,7 +596,7 @@ const styles = StyleSheet.create({
     width:           40,
     height:          40,
     borderRadius:    Radius.md,
-    backgroundColor: Colors.mint100,
+    backgroundColor: t.colors.mint100,
     alignItems:      'center',
     justifyContent:  'center',
     flexShrink:      0,
@@ -599,27 +604,27 @@ const styles = StyleSheet.create({
   noHelocTitle: {
     fontSize:     Typography.base,
     fontWeight:   Typography.semibold,
-    color:        Colors.mint700,
+    color:        t.colors.mint700,
     marginBottom: 2,
   },
-  noHelocBody: { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 18 },
+  noHelocBody: { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 18 },
 
   // ── "Not a budgeting app" card ─────────────────────────────────────────────
   differentCard: {
     margin:          Spacing[5],
     padding:         Spacing[5],
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius:    Radius.xl,
     borderWidth:     1,
-    borderColor:     Colors.mint200,
+    borderColor:     t.colors.mint200,
     gap:             Spacing[3],
     ...Shadows.card,
   },
-  differentTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.mint700 },
-  differentBody:  { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  differentTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.mint700 },
+  differentBody:  { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
   thingsList:     { gap: Spacing[3], marginTop: Spacing[1] },
   thingRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
-  thingText:      { flex: 1, fontSize: Typography.sm, color: Colors.textPrimary, lineHeight: 20 },
+  thingText:      { flex: 1, fontSize: Typography.sm, color: t.colors.textPrimary, lineHeight: 20 },
 
   // ── CTAs ───────────────────────────────────────────────────────────────────
   ctas: {
@@ -629,7 +634,7 @@ const styles = StyleSheet.create({
     alignItems:        'stretch',
   },
   primaryBtn: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius:    Radius.md,
     paddingVertical: Spacing[4] + 2,
     flexDirection:   'row',
@@ -638,10 +643,10 @@ const styles = StyleSheet.create({
     gap:             Spacing[2],
     ...Shadows.glow,
   },
-  primaryBtnText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  primaryBtnText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
   pricing: {
     fontSize:  Typography.xs,
-    color:     Colors.textMuted,
+    color:     t.colors.textMuted,
     textAlign: 'center',
     marginTop: -Spacing[1],
   },
@@ -651,28 +656,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap:            6,
   },
-  riskReversalText: { fontSize: Typography.xs, color: Colors.mint600 },
+  riskReversalText: { fontSize: Typography.xs, color: t.colors.mint600 },
   secondaryBtn: {
     borderRadius:    Radius.md,
     paddingVertical: Spacing[4],
     alignItems:      'center',
     borderWidth:     1,
-    borderColor:     Colors.border,
+    borderColor:     t.colors.border,
   },
   secondaryBtnText: {
     fontSize:   Typography.base,
-    color:      Colors.textSecondary,
+    color:      t.colors.textSecondary,
     fontWeight: Typography.medium,
   },
   freeNote: {
     fontSize:  Typography.xs,
-    color:     Colors.textMuted,
+    color:     t.colors.textMuted,
     textAlign: 'center',
     marginTop: -Spacing[1],
   },
   disclaimer: {
     fontSize:          Typography.xs,
-    color:             Colors.textMuted,
+    color:             t.colors.textMuted,
     lineHeight:        18,
     textAlign:         'center',
     paddingHorizontal: Spacing[6],
@@ -697,4 +702,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[6],
     alignItems:        'center',
   },
-});
+}));

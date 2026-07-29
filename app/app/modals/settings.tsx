@@ -1,8 +1,5 @@
 // app/modals/settings.tsx
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Switch, Alert, Linking,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +17,7 @@ import {
 } from '../../lib/appLock';
 import { loadDemo, clearDemo } from '../../lib/seedDemo';
 import { getDevProMode, setDevProMode, subscribeDevPro, type DevProMode } from '../../lib/devPro';
-import { useThemePreference, type ThemePreference } from '../../lib/themeContext';
+import { createThemedStyles, type ThemePreference, useTheme, useThemePreference } from '../../lib/themeContext';
 import { hapticSelection } from '../../lib/haptics';
 
 /**
@@ -39,7 +36,7 @@ const APPEARANCE_OPTIONS: {
   { value: 'light',  label: 'Light',  icon: 'sunny-outline',          a11y: 'Always light' },
   { value: 'dark',   label: 'Dark',   icon: 'moon-outline',           a11y: 'Always dark' },
 ];
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
 
 // Tapping the DEV Pro Override row cycles through these, so both sides of every
@@ -56,6 +53,8 @@ const DEV_PRO_LABELS: Record<DevProMode, string> = {
 };
 
 export default function SettingsModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { profile, tier } = useAuth();
   const { preference, setPreference } = useThemePreference();
@@ -225,7 +224,7 @@ export default function SettingsModal() {
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="close" size={24} color={Colors.textPrimary} />
+          <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -363,7 +362,7 @@ export default function SettingsModal() {
                   <Ionicons
                     name={opt.icon}
                     size={16}
-                    color={active ? Colors.white : Colors.textSecondary}
+                    color={active ? colors.white : colors.textSecondary}
                   />
                   <Text style={[styles.appearanceText, active && styles.appearanceTextActive]}>
                     {opt.label}
@@ -402,7 +401,7 @@ export default function SettingsModal() {
         <SectionHeader title="Security & Privacy" />
         <View style={styles.card}>
           <View style={[styles.row]}>
-            <Ionicons name="lock-closed-outline" size={18} color={Colors.textMuted} style={styles.rowIcon} />
+            <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.rowIcon} />
             <View style={styles.securityText}>
               <Text style={styles.rowLabel}>Encrypted in transit and at rest</Text>
               <Text style={styles.toggleSubtitle}>Powered by Supabase. Your data is never sold.</Text>
@@ -430,7 +429,7 @@ export default function SettingsModal() {
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
           <TouchableOpacity style={[styles.row, styles.dangerRow]} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={18} color={Colors.gray400} style={styles.rowIcon} />
+            <Ionicons name="log-out-outline" size={18} color={colors.gray400} style={styles.rowIcon} />
             <Text style={styles.dangerText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
@@ -487,6 +486,7 @@ export default function SettingsModal() {
 }
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -501,6 +501,8 @@ function SettingRow({
   icon: string; label: string; value: string;
   onPress?: () => void; actionLabel?: string; isLast?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.row, isLast && styles.rowLast]}
@@ -508,11 +510,11 @@ function SettingRow({
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
+      <Ionicons name={icon as any} size={18} color={colors.textMuted} style={styles.rowIcon} />
       <Text style={styles.rowLabel}>{label}</Text>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
       {actionLabel && <Text style={styles.rowAction}>{actionLabel}</Text>}
-      {onPress && !actionLabel && <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />}
+      {onPress && !actionLabel && <Ionicons name="chevron-forward" size={16} color={colors.gray300} />}
     </TouchableOpacity>
   );
 }
@@ -527,6 +529,8 @@ function NoticeRow({
   icon: string; label: string; subtitle: string;
   actionLabel?: string; onPress?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={styles.row}
@@ -536,7 +540,7 @@ function NoticeRow({
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={`${label}. ${subtitle}`}
     >
-      <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
+      <Ionicons name={icon as any} size={18} color={colors.textMuted} style={styles.rowIcon} />
       <View style={styles.toggleText}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.toggleSubtitle}>{subtitle}</Text>
@@ -552,9 +556,11 @@ function ToggleRow({
   icon: string; label: string; subtitle: string;
   value: boolean; onChange: (v: boolean) => void; isLast?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={[styles.row, isLast && styles.rowLast]}>
-      <Ionicons name={icon as any} size={18} color={Colors.textMuted} style={styles.rowIcon} />
+      <Ionicons name={icon as any} size={18} color={colors.textMuted} style={styles.rowIcon} />
       <View style={styles.toggleText}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.toggleSubtitle}>{subtitle}</Text>
@@ -562,26 +568,26 @@ function ToggleRow({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: Colors.gray200, true: Colors.mint400 }}
-        thumbColor={value ? Colors.mint600 : Colors.gray400}
+        trackColor={{ false: colors.gray200, true: colors.mint400 }}
+        thumbColor={value ? colors.mint600 : colors.gray400}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  container: { flex: 1, backgroundColor: t.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing[5],
     paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.colors.border,
   },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
+  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
   content: { padding: Spacing[4], gap: Spacing[2], paddingBottom: Spacing[10] },
   sectionHeader: {
     flexDirection: 'row',
@@ -594,13 +600,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  sectionSubtitle: { fontSize: Typography.xs, color: Colors.textMuted },
+  sectionSubtitle: { fontSize: Typography.xs, color: t.colors.textMuted },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     ...Shadows.card,
     overflow: 'hidden',
@@ -611,7 +617,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
+    borderBottomColor: t.colors.gray100,
   },
   rowLast: { borderBottomWidth: 0 },
   appearanceRow: { gap: Spacing[2] },
@@ -625,24 +631,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[2],
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
   appearancePillActive: {
-    backgroundColor: Colors.mint800,
-    borderColor: Colors.mint800,
+    backgroundColor: t.colors.mint800,
+    borderColor: t.colors.mint800,
   },
   appearanceText: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
   },
-  appearanceTextActive: { color: Colors.white, fontWeight: Typography.semibold },
+  appearanceTextActive: { color: t.colors.white, fontWeight: Typography.semibold },
   rowIcon: { marginRight: Spacing[3] },
-  rowLabel: { flex: 1, fontSize: Typography.base, color: Colors.textPrimary },
-  rowValue: { fontSize: Typography.sm, color: Colors.textMuted, marginRight: Spacing[1] },
+  rowLabel: { flex: 1, fontSize: Typography.base, color: t.colors.textPrimary },
+  rowValue: { fontSize: Typography.sm, color: t.colors.textMuted, marginRight: Spacing[1] },
   rowAction: {
     fontSize: Typography.sm,
-    color: Colors.mint600,
+    color: t.colors.mint600,
     fontWeight: Typography.semibold,
     marginLeft: Spacing[2],
   },
@@ -650,21 +656,21 @@ const styles = StyleSheet.create({
   securityText: { flex: 1 },
   inlineError: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     paddingHorizontal: Spacing[2],
     paddingTop: Spacing[2],
   },
-  toggleSubtitle: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 2 },
+  toggleSubtitle: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 2 },
   dangerRow: { borderBottomWidth: 0 },
   dangerText: {
     fontSize: Typography.base,
-    color: Colors.gray400,
+    color: t.colors.gray400,
     fontWeight: Typography.medium,
   },
   version: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     textAlign: 'center',
     paddingTop: Spacing[4],
   },
-});
+}));

@@ -13,7 +13,7 @@
 // safe to make it this easy. If something HAS changed, "Update terms" hands off
 // to the editor.
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import { Card, DataRow, LinkRow } from '../../components/ui/primitives';
@@ -23,9 +23,11 @@ import { daysSinceVerified } from '../../lib/helocTerms';
 import { parseDate } from '../../lib/mortgage';
 import { INTEREST_CALC_LABEL } from '../../lib/config';
 import { hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing } from '../../lib/theme';
+import { Typography, Spacing } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function ConfirmTermsModal() {
+  const styles = useStyles();
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
   const f = useFinancials();
@@ -108,9 +110,9 @@ function fmtMonthYear(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   helper: {
-    fontSize: Typography.xs, color: Colors.textMuted,
+    fontSize: Typography.xs, color: t.colors.textMuted,
     lineHeight: 18, marginTop: Spacing[2], marginBottom: -Spacing[1],
   },
-});
+}));

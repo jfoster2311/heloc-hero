@@ -14,7 +14,7 @@
 // A $15 subscription is beneath deciding about. The same subscription is $180 a
 // year, which for a strategy about redirecting surplus onto principal is a real
 // number. Per-charge is what the bank shows; per-year is what changes anything.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
@@ -25,7 +25,8 @@ import {
   detectRecurringExpenses, committedAhead, annualCost,
   type RecurringExpense,
 } from '../../lib/recurring';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** The window "still to clear" covers. A month, so it spans a full cycle. */
 const HORIZON_DAYS = 30;
@@ -33,6 +34,8 @@ const HORIZON_DAYS = 30;
 type View_ = 'upcoming' | 'all';
 
 export default function RecurringScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile } = useAuth();
   const f = useFinancials();
   const txnMeta = f.transactionMeta;
@@ -93,7 +96,7 @@ export default function RecurringScreen() {
         <>
           {/* ── What it nets out to ───────────────────────────────────────── */}
           <View style={styles.summary}>
-            <Text style={CommonStyles.eyebrow}>EVERY YEAR</Text>
+            <Text style={common.eyebrow}>EVERY YEAR</Text>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Coming in</Text>
               <Text style={styles.summaryIn}>${fmt(annualIn)}</Text>
@@ -128,7 +131,7 @@ export default function RecurringScreen() {
               cannot date would print a total the rows below do not reproduce. */}
           {ahead.items.length > 0 && (
             <View style={styles.ahead}>
-              <Ionicons name="time-outline" size={18} color={Colors.textSecondary} />
+              <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
               <View style={styles.aheadBody}>
                 <Text style={styles.aheadTitle}>
                   ${fmt(ahead.total)} expected in the next {HORIZON_DAYS} days
@@ -174,12 +177,12 @@ export default function RecurringScreen() {
             <>
               {income.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={CommonStyles.eyebrow}>COMING IN</Text>
+                  <Text style={common.eyebrow}>COMING IN</Text>
                   <View style={styles.list}>
                     {income.map(s => (
                       <View key={s.name} style={styles.row}>
                         <View style={[styles.icon, styles.iconIn]}>
-                          <Ionicons name="arrow-down-circle-outline" size={17} color={Colors.mint700} />
+                          <Ionicons name="arrow-down-circle-outline" size={17} color={colors.mint700} />
                         </View>
                         <View style={styles.rowBody}>
                           <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
@@ -197,7 +200,7 @@ export default function RecurringScreen() {
               )}
 
               <View style={styles.section}>
-                <Text style={CommonStyles.eyebrow}>GOING OUT</Text>
+                <Text style={common.eyebrow}>GOING OUT</Text>
                 <View style={styles.list}>
                   {expenses.map(e => (
                     <ExpenseRow
@@ -226,6 +229,8 @@ function ExpenseRow({ expense, dateLabel, showAnnual }: {
   dateLabel: string;
   showAnnual?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View
       style={styles.row}
@@ -237,7 +242,7 @@ function ExpenseRow({ expense, dateLabel, showAnnual }: {
       }
     >
       <View style={styles.icon}>
-        <Ionicons name="repeat" size={17} color={Colors.mint700} />
+        <Ionicons name="repeat" size={17} color={colors.mint700} />
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowName} numberOfLines={1}>{expense.name}</Text>
@@ -287,14 +292,14 @@ function formatDay(date: string) {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   summary: {
     gap: Spacing[2],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -302,16 +307,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: Spacing[1],
   },
-  summaryLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
-  summaryIn: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.mint600 },
-  summaryOut: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.gray500 },
-  bar: { height: 6, borderRadius: 3, backgroundColor: Colors.gray100, overflow: 'hidden' },
+  summaryLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  summaryIn: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.mint600 },
+  summaryOut: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.gray500 },
+  bar: { height: 6, borderRadius: 3, backgroundColor: t.colors.gray100, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
-  barIn: { backgroundColor: Colors.mint600 },
-  barOut: { backgroundColor: Colors.gray400 },
+  barIn: { backgroundColor: t.colors.mint600 },
+  barOut: { backgroundColor: t.colors.gray400 },
   summaryNote: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: Spacing[2],
   },
@@ -321,20 +326,20 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   aheadBody: { flex: 1, gap: 3 },
-  aheadTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.mint700 },
-  aheadText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  aheadTitle: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.mint700 },
+  aheadText: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
 
   section: { gap: Spacing[2] },
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
   row: {
@@ -344,27 +349,27 @@ const styles = StyleSheet.create({
     minHeight: 62,
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   icon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     alignItems: 'center', justifyContent: 'center',
   },
-  iconIn: { backgroundColor: Colors.mint50 },
+  iconIn: { backgroundColor: t.colors.mint50 },
   rowBody: { flex: 1, gap: 2 },
-  rowName: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rowMeta: { fontSize: 11, color: Colors.textMuted },
+  rowName: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rowMeta: { fontSize: 11, color: t.colors.textMuted },
   rowAmounts: { alignItems: 'flex-end', gap: 1 },
-  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rowAmountIn: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint600 },
-  rowAnnual: { fontSize: 10, color: Colors.textMuted },
+  rowAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rowAmountIn: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint600 },
+  rowAnnual: { fontSize: 10, color: t.colors.textMuted },
 
   empty: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 21,
     textAlign: 'center',
     paddingVertical: Spacing[8],
   },
-});
+}));

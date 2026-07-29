@@ -10,7 +10,7 @@
 // downstream changes. Shipping manual entry first is not a placeholder; it is
 // the default implementation of an interface that has room for one more.
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
@@ -20,12 +20,14 @@ import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticSuccess } from '../../lib/haptics';
 import { HOME_VALUE_SOURCE_LABEL, type HomeValueSource } from '../../lib/config';
-import { Colors, Typography, Spacing } from '../../lib/theme';
+import { Typography, Spacing } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const SOURCES = (Object.keys(HOME_VALUE_SOURCE_LABEL) as HomeValueSource[])
   .map(v => ({ value: v, label: HOME_VALUE_SOURCE_LABEL[v] }));
 
 export default function HomeValueModal() {
+  const styles = useStyles();
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
   const f = useFinancials();
@@ -184,14 +186,14 @@ function buildDate(month: string, year: string): string | null {
   return `${y}-${String(m).padStart(2, '0')}-01`;
 }
 
-const styles = StyleSheet.create({
-  label: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17, marginTop: Spacing[1] },
+const useStyles = createThemedStyles(t => ({
+  label: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  hint: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 17, marginTop: Spacing[1] },
   dateRow: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
-  previewLabel: { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.semibold },
+  previewLabel: { fontSize: Typography.xs, color: t.colors.textMuted, fontWeight: Typography.semibold },
   previewValue: {
     fontSize: Typography.xl, fontWeight: Typography.extrabold,
-    color: Colors.textPrimary, marginTop: 2,
+    color: t.colors.textPrimary, marginTop: 2,
   },
-  previewSub: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
-});
+  previewSub: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: 2 },
+}));

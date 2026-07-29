@@ -15,7 +15,7 @@
 // because the cost of a wrong confirmation is asymmetric: excluding an ordinary
 // expense overstates surplus, and an overstated surplus oversizes a draw taken
 // against the user's house. A pre-ticked box is an answer the user did not give.
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -27,9 +27,12 @@ import { supabase } from '../../lib/supabase';
 import {
   detectMortgagePayments, checkPaymentAmount, type PaymentCandidate,
 } from '../../lib/mortgagePayments';
-import { Colors, Typography, Spacing, Radius, Semantic, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius, Semantic } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function MortgagePaymentScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { profile, refresh } = useAuth();
   const f = useFinancials();
@@ -86,7 +89,7 @@ export default function MortgagePaymentScreen() {
     >
       {f.loading ? (
         <View style={styles.centre}>
-          <ActivityIndicator color={Colors.mint600} />
+          <ActivityIndicator color={colors.mint600} />
         </View>
       ) : !f.hasLinkedAccounts ? (
         <View style={styles.stateBlock}>
@@ -119,7 +122,7 @@ export default function MortgagePaymentScreen() {
               date without the user asking. */}
           {check?.material && (
             <View style={styles.check}>
-              <Ionicons name="information-circle-outline" size={18} color={Colors.textSecondary} />
+              <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
               <View style={styles.checkBody}>
                 <Text style={styles.checkTitle}>
                   Your payments are clearing at ${fmt(check.observed)}
@@ -137,7 +140,7 @@ export default function MortgagePaymentScreen() {
                   accessibilityLabel={`Use $${fmt(check.observed)} as my monthly payment`}
                 >
                   {savingAmount
-                    ? <ActivityIndicator size="small" color={Colors.mint700} />
+                    ? <ActivityIndicator size="small" color={colors.mint700} />
                     : <Text style={styles.checkBtnText}>Use ${fmt(check.observed)}</Text>}
                 </TouchableOpacity>
                 {amountError && <Text style={styles.error}>{amountError}</Text>}
@@ -147,14 +150,14 @@ export default function MortgagePaymentScreen() {
 
           {check && !check.material && (
             <View style={styles.confirmedNote}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={Colors.mint700} />
+              <Ionicons name="checkmark-circle-outline" size={16} color={colors.mint700} />
               <Text style={styles.confirmedNoteText}>
                 Your payments match the ${fmt(check.onFile)} your plan is running on.
               </Text>
             </View>
           )}
 
-          <Text style={CommonStyles.eyebrow}>WHAT WE FOUND</Text>
+          <Text style={common.eyebrow}>WHAT WE FOUND</Text>
 
           {candidates.map(c => (
             <CandidateRow
@@ -188,6 +191,8 @@ function CandidateRow({ candidate, busy, onToggle }: {
   busy: boolean;
   onToggle: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.row, candidate.confirmed && styles.rowConfirmed]}
@@ -207,7 +212,7 @@ function CandidateRow({ candidate, busy, onToggle }: {
       }
     >
       <View style={[styles.box, candidate.confirmed && styles.checkboxOn]}>
-        {candidate.confirmed && <Ionicons name="checkmark" size={15} color={Colors.white} />}
+        {candidate.confirmed && <Ionicons name="checkmark" size={15} color={colors.white} />}
       </View>
 
       <View style={styles.rowBody}>
@@ -218,7 +223,7 @@ function CandidateRow({ candidate, busy, onToggle }: {
         </Text>
         {candidate.reasons.map((r, i) => (
           <View key={i} style={styles.reason}>
-            <Ionicons name="ellipse" size={4} color={Colors.textMuted} />
+            <Ionicons name="ellipse" size={4} color={colors.textMuted} />
             <Text style={styles.reasonText}>{r}</Text>
           </View>
         ))}
@@ -229,11 +234,11 @@ function CandidateRow({ candidate, busy, onToggle }: {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   centre: { paddingVertical: Spacing[10], alignItems: 'center' },
 
   stateBlock: { gap: Spacing[4], paddingVertical: Spacing[4] },
-  stateBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  stateBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
   stateBtn: {
     alignSelf: 'flex-start',
     minHeight: 44,
@@ -241,27 +246,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
-  stateBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  stateBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   check: {
     flexDirection: 'row',
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderWidth: 1,
-    borderColor: Colors.gray200,
+    borderColor: t.colors.gray200,
   },
   checkBody: { flex: 1, gap: Spacing[2] },
   checkTitle: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  checkText: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  checkText: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
   checkBtn: {
     alignSelf: 'flex-start',
     minHeight: 44,
@@ -269,10 +274,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
-  checkBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  checkBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   confirmedNote: {
     flexDirection: 'row',
@@ -281,37 +286,37 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[3],
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
   },
-  confirmedNoteText: { flex: 1, fontSize: Typography.xs, color: Colors.mint700, lineHeight: 17 },
+  confirmedNoteText: { flex: 1, fontSize: Typography.xs, color: t.colors.mint700, lineHeight: 17 },
 
   row: {
     flexDirection: 'row',
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
-  rowConfirmed: { borderColor: Colors.mint600, backgroundColor: Colors.mint50 },
+  rowConfirmed: { borderColor: t.colors.mint600, backgroundColor: t.colors.mint50 },
   box: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
-  checkboxOn: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  checkboxOn: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
   rowBody: { flex: 1, gap: 3 },
-  rowName: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rowMeta: { fontSize: Typography.xs, color: Colors.textMuted },
+  rowName: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rowMeta: { fontSize: Typography.xs, color: t.colors.textMuted },
   reason: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  reasonText: { flex: 1, fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
+  reasonText: { flex: 1, fontSize: 11, color: t.colors.textSecondary, lineHeight: 16 },
 
-  error: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
-});
+  error: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
+}));

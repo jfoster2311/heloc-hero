@@ -1,6 +1,7 @@
 // components/ui/ChipField.tsx
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface Option<T> {
   value: T;
@@ -15,6 +16,7 @@ interface Props<T> {
 }
 
 export default function ChipField<T extends string | number>({ label, options, value, onChange }: Props<T>) {
+  const styles = useStyles();
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -40,23 +42,23 @@ export default function ChipField<T extends string | number>({ label, options, v
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   container:    { marginBottom: Spacing[4] },
-  label:        { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary, marginBottom: Spacing[2] },
+  label:        { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary, marginBottom: Spacing[2] },
   row:          { flexDirection: 'row', gap: Spacing[2] },
   chip: {
     flex:             1,
     paddingVertical:  Spacing[3],
     borderRadius:     Radius.md,
     borderWidth:      1.5,
-    borderColor:      Colors.border,
-    backgroundColor:  Colors.gray50,
+    borderColor:      t.colors.border,
+    backgroundColor:  t.colors.gray50,
     alignItems:       'center',
   },
   chipActive: {
-    backgroundColor: Colors.mint600,
-    borderColor:     Colors.mint600,
+    backgroundColor: t.colors.mint600,
+    borderColor:     t.colors.mint600,
   },
-  chipText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  chipTextActive: { color: Colors.white },
-});
+  chipText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  chipTextActive: { color: t.colors.white },
+}));

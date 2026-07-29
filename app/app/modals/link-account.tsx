@@ -1,8 +1,5 @@
 // app/modals/link-account.tsx
-import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -11,7 +8,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { invokeFunction } from '../../lib/supabase';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { PlaidAccountType } from '../../lib/types';
 
 // react-native-plaid-link-sdk is a NATIVE module: it exists in dev and prod
@@ -87,6 +85,8 @@ function describeLinkError(err: unknown, lead: string): string {
 }
 
 export default function LinkAccountModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { user } = useAuth();
   const { isPro, loading: proLoading } = useIsPro();
@@ -182,11 +182,11 @@ export default function LinkAccountModal() {
         <View style={styles.header}>
           <Text style={styles.title}>Link an Account</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={Colors.textPrimary} />
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
         <View style={styles.gateContainer}>
-          <Ionicons name="lock-closed-outline" size={48} color={Colors.mint400} />
+          <Ionicons name="lock-closed-outline" size={48} color={colors.mint400} />
           <Text style={styles.gateTitle}>Pro Feature</Text>
           <Text style={styles.gateBody}>
             Link bank accounts with Plaid and see live balances with a Pro subscription.
@@ -208,7 +208,7 @@ export default function LinkAccountModal() {
       <View style={styles.header}>
         <Text style={styles.title}>Link an Account</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Ionicons name="close" size={24} color={Colors.textPrimary} />
+          <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -241,7 +241,7 @@ export default function LinkAccountModal() {
                 <Ionicons
                   name={item.icon as any}
                   size={22}
-                  color={selectedType === item.type ? Colors.white : Colors.mint600}
+                  color={selectedType === item.type ? colors.white : colors.mint600}
                 />
               </View>
               <View style={styles.typeText}>
@@ -249,7 +249,7 @@ export default function LinkAccountModal() {
                 <Text style={styles.typeDesc}>{item.desc}</Text>
               </View>
               {selectedType === item.type && (
-                <Ionicons name="checkmark-circle" size={20} color={Colors.mint600} />
+                <Ionicons name="checkmark-circle" size={20} color={colors.mint600} />
               )}
             </TouchableOpacity>
           ))}
@@ -257,7 +257,7 @@ export default function LinkAccountModal() {
 
         {/* Security note */}
         <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark-outline" size={16} color={Colors.mint600} />
+          <Ionicons name="shield-checkmark-outline" size={16} color={colors.mint600} />
           <Text style={styles.securityText}>
             256-bit encryption. We never store your bank credentials. Read-only access.
           </Text>
@@ -273,7 +273,7 @@ export default function LinkAccountModal() {
             onPress={handleSandboxLink}
             disabled={!selectedType || loading}
           >
-            <Ionicons name="flask-outline" size={16} color={Colors.mint600} />
+            <Ionicons name="flask-outline" size={16} color={colors.mint600} />
             <Text style={styles.sandboxBtnText}>Sandbox Quick-Link (dev only)</Text>
           </TouchableOpacity>
         )}
@@ -290,10 +290,10 @@ export default function LinkAccountModal() {
           disabled={!selectedType || loading}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.white} />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <>
-              <Ionicons name="link-outline" size={18} color={Colors.white} />
+              <Ionicons name="link-outline" size={18} color={colors.white} />
               <Text style={styles.connectBtnText}>Connect with Plaid</Text>
             </>
           )}
@@ -303,8 +303,8 @@ export default function LinkAccountModal() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  container: { flex: 1, backgroundColor: t.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,9 +312,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[5],
     paddingVertical: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.colors.border,
   },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
+  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
   closeBtn: { padding: Spacing[1] },
   gateContainer: {
     flex: 1,
@@ -323,30 +323,30 @@ const styles = StyleSheet.create({
     padding: Spacing[8],
     gap: Spacing[4],
   },
-  gateTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.textPrimary },
-  gateBody: { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center', lineHeight: 24 },
+  gateTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  gateBody: { fontSize: Typography.base, color: t.colors.textSecondary, textAlign: 'center', lineHeight: 24 },
   gateBtn: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     paddingVertical: Spacing[4],
     paddingHorizontal: Spacing[8],
     marginTop: Spacing[2],
   },
-  gateBtnText: { color: Colors.white, fontWeight: Typography.semibold, fontSize: Typography.base },
+  gateBtnText: { color: t.colors.white, fontWeight: Typography.semibold, fontSize: Typography.base },
   content: { padding: Spacing[5], gap: Spacing[4] },
   subtitle: {
     fontSize: Typography.base,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 22,
   },
   errorBanner: {
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
-  errorText: { color: Colors.gray400, fontSize: Typography.sm },
+  errorText: { color: t.colors.gray400, fontSize: Typography.sm },
   typeList: { gap: Spacing[3] },
   typeItem: {
     flexDirection: 'row',
@@ -355,43 +355,43 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     borderRadius: Radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.gray50,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.gray50,
   },
   typeItemSelected: {
-    borderColor: Colors.mint600,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint600,
+    backgroundColor: t.colors.mint50,
   },
   typeIcon: {
     width: 44,
     height: 44,
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint100,
+    backgroundColor: t.colors.mint100,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  typeIconSelected: { backgroundColor: Colors.mint600 },
+  typeIconSelected: { backgroundColor: t.colors.mint600 },
   typeText: { flex: 1 },
   typeLabel: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: 2,
   },
-  typeDesc: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  typeDesc: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   securityNote: {
     flexDirection: 'row',
     gap: Spacing[2],
     alignItems: 'flex-start',
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.md,
     padding: Spacing[3],
   },
   securityText: {
     flex: 1,
     fontSize: Typography.xs,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     lineHeight: 18,
   },
   sandboxBtn: {
@@ -402,17 +402,17 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing[3],
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
-  sandboxBtnText: { color: Colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
+  sandboxBtnText: { color: t.colors.mint600, fontSize: Typography.sm, fontWeight: Typography.medium },
   footer: {
     padding: Spacing[4],
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
   },
   connectBtn: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     padding: Spacing[4],
     flexDirection: 'row',
@@ -422,5 +422,5 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   connectBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
-  connectBtnText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
-});
+  connectBtnText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
+}));

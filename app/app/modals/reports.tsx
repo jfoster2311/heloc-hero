@@ -16,7 +16,7 @@
 // most flattering possible misreading on the one screen meant to tell someone
 // the truth about their trend. The date range is printed so the omission is
 // visible rather than silent.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -29,16 +29,16 @@ import {
   buildReportSeries, buildCategorySeries, buildChangeRows,
   type ReportMonth,
 } from '../../lib/reports';
-import {
-  Colors, Typography, Spacing, Radius, CommonStyles,
-  CategoryRamp, CATEGORY_RAMP_MAX,
-} from '../../lib/theme';
+import { Typography, Spacing, Radius, CategoryRamp, CATEGORY_RAMP_MAX } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { MonthPoint } from '../../lib/spending';
 
 const MONTHS = 6;
 type Mode = 'spread' | 'grouped';
 
 export default function ReportsScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -140,8 +140,8 @@ export default function ReportsScreen() {
           : <GroupedChart months={series.months} onSelect={setOpenMonth} />}
 
         <View style={styles.legend}>
-          <LegendItem label="In" color={Colors.mint600} />
-          <LegendItem label="Out" color={Colors.gray400} />
+          <LegendItem label="In" color={colors.mint600} />
+          <LegendItem label="Out" color={colors.gray400} />
           <Text style={styles.legendHint}>Tap a month for the detail</Text>
         </View>
 
@@ -169,7 +169,7 @@ export default function ReportsScreen() {
             categories for the same reason the donut does — a single hue cannot
             carry more legible steps than that. */}
         <View style={styles.section}>
-          <Text style={CommonStyles.eyebrow}>SPENDING BY CATEGORY</Text>
+          <Text style={common.eyebrow}>SPENDING BY CATEGORY</Text>
           <StackedChart months={series.months} series={categorySeries} />
           <View style={styles.stackLegend}>
             {categorySeries.slice(0, CATEGORY_RAMP_MAX).map((s, i) => (
@@ -215,6 +215,7 @@ function SpreadChart({ months, onSelect }: {
   months: ReportMonth[];
   onSelect: (m: ReportMonth) => void;
 }) {
+  const styles = useStyles();
   const peak = Math.max(...months.map(m => Math.max(m.income, m.spend)), 1);
 
   return (
@@ -261,6 +262,7 @@ function GroupedChart({ months, onSelect }: {
   months: ReportMonth[];
   onSelect: (m: ReportMonth) => void;
 }) {
+  const styles = useStyles();
   const peak = Math.max(...months.map(m => Math.max(m.income, m.spend)), 1);
 
   return (
@@ -297,6 +299,7 @@ function StackedChart({ months, series }: {
   months: ReportMonth[];
   series: { category: string; label: string; values: number[] }[];
 }) {
+  const styles = useStyles();
   const peak = Math.max(...months.map(m => m.spend), 1);
 
   return (
@@ -351,6 +354,8 @@ function ModeButton({ icon, label, active, onPress }: {
   active: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.modeBtn, active && styles.modeBtnActive]}
@@ -359,7 +364,7 @@ function ModeButton({ icon, label, active, onPress }: {
       accessibilityState={{ selected: active }}
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={17} color={active ? Colors.white : Colors.textSecondary} />
+      <Ionicons name={icon} size={17} color={active ? colors.white : colors.textSecondary} />
     </TouchableOpacity>
   );
 }
@@ -370,6 +375,7 @@ function Stat({ label, value, emphasis, muted }: {
   emphasis?: boolean;
   muted?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -387,6 +393,7 @@ function Stat({ label, value, emphasis, muted }: {
 }
 
 function LegendItem({ label, color }: { label: string; color: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendSwatch, { backgroundColor: color }]} />
@@ -397,7 +404,7 @@ function LegendItem({ label, color }: { label: string; color: string }) {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -405,29 +412,29 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
   },
   headBody: { flex: 1, gap: 2 },
-  headTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  headRange: { fontSize: Typography.xs, color: Colors.textMuted },
+  headTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  headRange: { fontSize: Typography.xs, color: t.colors.textMuted },
   cluster: { flexDirection: 'row', gap: Spacing[2] },
   modeBtn: {
     width: 44, height: 44,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center', justifyContent: 'center',
   },
-  modeBtnActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
+  modeBtnActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
 
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing[2] },
   col: { flex: 1, alignItems: 'center' },
-  colLabel: { fontSize: 10, color: Colors.textMuted, marginTop: Spacing[2] },
+  colLabel: { fontSize: 10, color: t.colors.textMuted, marginTop: Spacing[2] },
 
   spreadUpper: { height: PLOT / 2, justifyContent: 'flex-end' },
   spreadLower: { height: PLOT / 2, justifyContent: 'flex-start' },
-  baseline: { height: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
+  baseline: { height: 1, alignSelf: 'stretch', backgroundColor: t.colors.border },
   bar: { width: 16, borderRadius: 3 },
-  barIn:  { backgroundColor: Colors.mint600 },
-  barOut: { backgroundColor: Colors.gray400 },
+  barIn:  { backgroundColor: t.colors.mint600 },
+  barOut: { backgroundColor: t.colors.gray400 },
 
   groupSlot: { height: PLOT, justifyContent: 'flex-end' },
   pair: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
@@ -439,8 +446,8 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendSwatch: { width: 10, height: 10, borderRadius: 3 },
-  legendText: { fontSize: 11, color: Colors.textSecondary },
-  legendHint: { flex: 1, textAlign: 'right', fontSize: 11, color: Colors.textMuted },
+  legendText: { fontSize: 11, color: t.colors.textSecondary },
+  legendHint: { flex: 1, textAlign: 'right', fontSize: 11, color: t.colors.textMuted },
 
   stats: { flexDirection: 'row', gap: Spacing[2] },
   stat: {
@@ -448,14 +455,14 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: Spacing[3],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
-  statLabel: { fontSize: 10, color: Colors.textMuted },
-  statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.textPrimary },
-  statValueEmphasis: { color: Colors.mint600 },
-  statValueMuted: { color: Colors.gray500 },
+  statLabel: { fontSize: 10, color: t.colors.textMuted },
+  statValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  statValueEmphasis: { color: t.colors.mint600 },
+  statValueMuted: { color: t.colors.gray500 },
 
   avgRow: {
     flexDirection: 'row',
@@ -464,25 +471,25 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceSunken,
+    backgroundColor: t.colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
-  avgLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
-  avgValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.mint600 },
-  avgValueNeg: { color: Colors.gray500 },
+  avgLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  avgValue: { fontSize: Typography.base, fontWeight: Typography.bold, color: t.colors.mint600 },
+  avgValueNeg: { color: t.colors.gray500 },
 
   section: { gap: Spacing[3] },
   stackLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[3] },
   stackKey: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '46%' },
   stackSwatch: { width: 10, height: 10, borderRadius: 3 },
-  stackKeyText: { flexShrink: 1, fontSize: 11, color: Colors.textSecondary },
+  stackKeyText: { flexShrink: 1, fontSize: 11, color: t.colors.textSecondary },
 
   empty: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 21,
     textAlign: 'center',
     paddingVertical: Spacing[8],
   },
-});
+}));

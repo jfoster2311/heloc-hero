@@ -10,7 +10,7 @@
 // So they are editable, and the consequence is shown while it is being edited
 // rather than discovered later on the decision screen.
 import { useState, useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
@@ -21,13 +21,15 @@ import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
 import { computeSweepAmount, DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
 import { hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography } from '../../lib/theme';
+import { Typography } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
 
 const DEFAULT_BUFFER = DEFAULT_AUTOMATION_SETTINGS.buffer_target;
 const DEFAULT_BILLS  = DEFAULT_AUTOMATION_SETTINGS.upcoming_bills_estimate;
 
 export default function AlertThresholdsModal() {
+  const styles = useStyles();
   const router = useRouter();
   const { profile } = useAuth();
   const { savingsAccount } = useAccounts(profile?.id ?? null);
@@ -175,12 +177,12 @@ function firstBalance(account: LinkedAccount | null | undefined): number | null 
   return account.accounts[0].balances.current;
 }
 
-const styles = StyleSheet.create({
-  previewLabel: { fontSize: Typography.xs, color: Colors.textMuted, fontWeight: Typography.semibold },
+const useStyles = createThemedStyles(t => ({
+  previewLabel: { fontSize: Typography.xs, color: t.colors.textMuted, fontWeight: Typography.semibold },
   previewValue: {
     fontSize: Typography.xl, fontWeight: Typography.extrabold,
-    color: Colors.textPrimary, marginTop: 2,
+    color: t.colors.textPrimary, marginTop: 2,
   },
-  previewSub: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: 2 },
-  error: { fontSize: Typography.xs, color: Colors.textSecondary, textAlign: 'center' },
-});
+  previewSub: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: 2 },
+  error: { fontSize: Typography.xs, color: t.colors.textSecondary, textAlign: 'center' },
+}));

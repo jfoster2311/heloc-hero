@@ -24,8 +24,7 @@
 // store is still being asked, nothing stands in for the price at all: a
 // placeholder shown as though it were settled is the failure worth avoiding.
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Linking, Alert,
+  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -42,10 +41,13 @@ import {
   PACKAGE_MATCH, PRO_FEATURES, FREE_FEATURES,
 } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Shadows, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows, OnDark } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { BillingPeriod } from '../../lib/types';
 
 export default function UpgradeModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { isPro, refresh: refreshPro } = useIsPro();
 
@@ -200,7 +202,7 @@ export default function UpgradeModal() {
       <View style={styles.content}>
         {isPro && (
           <View style={styles.currentBanner}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={Colors.mint700} />
+            <Ionicons name="checkmark-circle-outline" size={18} color={colors.mint700} />
             <Text style={styles.currentText}>Pro is active on this Apple ID.</Text>
           </View>
         )}
@@ -280,7 +282,7 @@ export default function UpgradeModal() {
             accessibilityRole="button"
             accessibilityLabel="Could not reach the App Store. Tap to try again."
           >
-            <Ionicons name="cloud-offline-outline" size={18} color={Colors.textSecondary} />
+            <Ionicons name="cloud-offline-outline" size={18} color={colors.textSecondary} />
             <Text style={styles.retryText}>
               We couldn&apos;t reach the App Store for current pricing. The figure above is
               US list pricing, not your final price.
@@ -300,7 +302,7 @@ export default function UpgradeModal() {
           <Text style={styles.cardTitle}>What you get</Text>
           {PRO_FEATURES.map(f => (
             <View key={f} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={16} color={Colors.mint600} />
+              <Ionicons name="checkmark" size={16} color={colors.mint600} />
               <Text style={styles.featureText}>{f}</Text>
             </View>
           ))}
@@ -318,7 +320,7 @@ export default function UpgradeModal() {
         >
           {/* Only a genuinely free intro offer earns the word "free" here. */}
           {purchasing
-            ? <ActivityIndicator color={Colors.white} />
+            ? <ActivityIndicator color={colors.white} />
             : (
               <Text style={styles.ctaText}>
                 {isPro ? 'Pro is active' : hasTrial ? 'Start free trial' : 'Subscribe'}
@@ -341,7 +343,7 @@ export default function UpgradeModal() {
             accessibilityLabel="Restore purchases"
           >
             {restoring
-              ? <ActivityIndicator size="small" color={Colors.mint600} />
+              ? <ActivityIndicator size="small" color={colors.mint600} />
               : <Text style={styles.actionBtnText}>Restore purchases</Text>}
           </TouchableOpacity>
 
@@ -359,7 +361,7 @@ export default function UpgradeModal() {
           <Text style={styles.cardTitle}>Free, always</Text>
           {FREE_FEATURES.map(f => (
             <View key={f} style={styles.featureRow}>
-              <Ionicons name="checkmark" size={16} color={Colors.gray400} />
+              <Ionicons name="checkmark" size={16} color={colors.gray400} />
               <Text style={styles.featureTextMuted}>{f}</Text>
             </View>
           ))}
@@ -406,6 +408,7 @@ function introSentence(intro: any): string {
 function PeriodBtn({ label, badge, active, onPress }: {
   label: string; badge?: string; active: boolean; onPress: () => void;
 }) {
+  const styles = useStyles();
   return (
     <TouchableOpacity
       style={[styles.periodBtn, active && styles.periodBtnActive]}
@@ -422,8 +425,8 @@ function PeriodBtn({ label, badge, active, onPress }: {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  safe: { flex: 1, backgroundColor: t.colors.background },
   scroll: { paddingBottom: Spacing[10] },
   heroTop: {
     flexDirection: 'row',
@@ -439,16 +442,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.lg,
     padding: Spacing[4],
   },
-  currentText: { flex: 1, fontSize: Typography.sm, color: Colors.mint700 },
+  currentText: { flex: 1, fontSize: Typography.sm, color: t.colors.mint700 },
 
   periodToggle: {
     flexDirection: 'row',
     gap: Spacing[2],
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[1],
   },
@@ -460,73 +463,73 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 1,
   },
-  periodBtnActive: { backgroundColor: Colors.surface, ...Shadows.card },
-  periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  periodTextActive: { color: Colors.textPrimary, fontWeight: Typography.semibold },
-  periodBadge: { fontSize: 10, color: Colors.textMuted },
-  periodBadgeActive: { color: Colors.mint600 },
+  periodBtnActive: { backgroundColor: t.colors.surface, ...Shadows.card },
+  periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  periodTextActive: { color: t.colors.textPrimary, fontWeight: Typography.semibold },
+  periodBadge: { fontSize: 10, color: t.colors.textMuted },
+  periodBadgeActive: { color: t.colors.mint600 },
 
   priceCard: { alignItems: 'center', gap: Spacing[1], paddingVertical: Spacing[2] },
   price: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -0.6,
   },
-  pricePer: { fontSize: Typography.base, fontWeight: Typography.regular, color: Colors.textMuted },
-  priceSub: { fontSize: Typography.sm, color: Colors.textSecondary },
-  priceNote: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing[1] },
-  trialNote: { fontSize: Typography.sm, color: Colors.mint600, marginTop: Spacing[1] },
+  pricePer: { fontSize: Typography.base, fontWeight: Typography.regular, color: t.colors.textMuted },
+  priceSub: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  priceNote: { fontSize: Typography.xs, color: t.colors.textMuted, textAlign: 'center', marginTop: Spacing[1] },
+  trialNote: { fontSize: Typography.sm, color: t.colors.mint600, marginTop: Spacing[1] },
 
   retryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
-  retryText: { flex: 1, fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 17 },
-  retryAction: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  retryText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
+  retryAction: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
-  errorBanner: { backgroundColor: Colors.gray50, borderRadius: Radius.md, padding: Spacing[4] },
-  errorText: { color: Colors.textSecondary, fontSize: Typography.sm },
+  errorBanner: { backgroundColor: t.colors.gray50, borderRadius: Radius.md, padding: Spacing[4] },
+  errorText: { color: t.colors.textSecondary, fontSize: Typography.sm },
 
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
     gap: Spacing[3],
     ...Shadows.card,
   },
-  cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
-  featureText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  featureTextMuted: { flex: 1, fontSize: Typography.sm, color: Colors.textMuted, lineHeight: 20 },
+  featureText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  featureTextMuted: { flex: 1, fontSize: Typography.sm, color: t.colors.textMuted, lineHeight: 20 },
   noAutomation: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
     paddingTop: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
+    borderTopColor: t.colors.gray100,
   },
-  freeNote: { fontSize: Typography.xs, color: Colors.textMuted },
+  freeNote: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   cta: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctaDisabled: { opacity: 0.45 },
-  ctaText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
+  ctaText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.semibold },
   unavailableNote: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     textAlign: 'center',
     lineHeight: 17,
     marginTop: -Spacing[2],
@@ -540,14 +543,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
-  actionBtnText: { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
+  actionBtnText: { fontSize: Typography.sm, color: t.colors.textSecondary, fontWeight: Typography.medium },
 
   legal: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 17,
     paddingHorizontal: Spacing[1],
   },
-});
+}));

@@ -19,8 +19,7 @@
 // still catches a typo for everyone typing by hand.
 import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Linking,
+  View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -34,7 +33,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const MIN_PASSWORD = 8;
 const NAVIGATE_TIMEOUT_MS = 12_000;
@@ -46,6 +46,8 @@ const NAVIGATE_TIMEOUT_MS = 12_000;
 const PASSWORD_RULES = `minlength: ${MIN_PASSWORD};`;
 
 export default function SignupScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { refresh: refreshProfile } = useAuth();
   const { submit: submitOnboarding, update: updateOnboarding } = useOnboardingStore();
@@ -228,7 +230,7 @@ export default function SignupScreen() {
               <Ionicons
                 name={problem.retryable ? 'cloud-offline-outline' : 'alert-circle-outline'}
                 size={18}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
                 style={styles.problemIcon}
               />
               <View style={styles.flex}>
@@ -311,7 +313,7 @@ export default function SignupScreen() {
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color={Colors.textMuted}
+                  color={colors.textMuted}
                 />
               </TouchableOpacity>
             }
@@ -346,7 +348,7 @@ export default function SignupScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
           >
             {loading
-              ? <ActivityIndicator color={Colors.white} />
+              ? <ActivityIndicator color={colors.white} />
               : <Text style={styles.submitText}>Create account</Text>}
           </TouchableOpacity>
 
@@ -377,8 +379,8 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  root: { flex: 1, backgroundColor: t.colors.background },
   flex: { flex: 1 },
 
   header: { paddingBottom: Spacing[6], backgroundColor: Aurora.deepest },
@@ -398,22 +400,22 @@ const styles = StyleSheet.create({
   problem: {
     flexDirection: 'row',
     gap: Spacing[3],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[4],
     marginBottom: Spacing[5],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
   problemIcon: { marginTop: 1 },
   problemTitle: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   problemText: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: 2,
   },
@@ -421,13 +423,13 @@ const styles = StyleSheet.create({
   problemActionText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
 
   eye: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   submit: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     minHeight: 54,
     alignItems: 'center',
@@ -436,16 +438,16 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  submitText: { color: Colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
+  submitText: { color: t.colors.white, fontSize: Typography.base, fontWeight: Typography.bold },
 
   terms: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
     textAlign: 'center',
     marginTop: Spacing[5],
   },
-  termsLink: { color: Colors.mint700, fontWeight: Typography.medium },
+  termsLink: { color: t.colors.mint700, fontWeight: Typography.medium },
 
   footer: {
     flexDirection: 'row',
@@ -454,8 +456,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing[5],
     minHeight: 44,
   },
-  footerText: { color: Colors.textSecondary, fontSize: Typography.sm },
-  footerLink: { color: Colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
+  footerText: { color: t.colors.textSecondary, fontSize: Typography.sm },
+  footerLink: { color: t.colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
 
   // ── Confirmation ───────────────────────────────────────────────────────────
   confirmRoot: { flex: 1, backgroundColor: Aurora.deepest },
@@ -508,4 +510,4 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.46)',
     textAlign: 'center',
   },
-});
+}));

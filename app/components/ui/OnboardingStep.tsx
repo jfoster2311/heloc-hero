@@ -1,11 +1,11 @@
 // components/ui/OnboardingStep.tsx
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface Props {
   step: number;
@@ -26,6 +26,8 @@ export default function OnboardingStep({
   onBack, onNext, nextLabel = 'Continue',
   nextDisabled = false, loading = false, children,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -46,7 +48,7 @@ export default function OnboardingStep({
         <View style={styles.header}>
           {onBack ? (
             <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+              <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
           ) : <View style={styles.backBtn} />}
 
@@ -65,7 +67,7 @@ export default function OnboardingStep({
                   ]}
                 >
                   {done && (
-                    <Ionicons name="checkmark" size={8} color={Colors.white} />
+                    <Ionicons name="checkmark" size={8} color={colors.white} />
                   )}
                 </View>
               );
@@ -84,7 +86,7 @@ export default function OnboardingStep({
           {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
           {whyWeAsk && (
             <View style={styles.whyWeAsk}>
-              <Ionicons name="lock-closed-outline" size={13} color={Colors.textMuted} />
+              <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
               <Text style={styles.whyWeAskText}>{whyWeAsk}</Text>
             </View>
           )}
@@ -102,7 +104,7 @@ export default function OnboardingStep({
               {loading ? 'Saving…' : nextLabel}
             </Text>
             {!loading && (
-              <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+              <Ionicons name="arrow-forward" size={18} color={colors.white} />
             )}
           </TouchableOpacity>
         </View>
@@ -111,15 +113,15 @@ export default function OnboardingStep({
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  safe: { flex: 1, backgroundColor: t.colors.background },
   progressTrack: {
     height: 3,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
   },
   progressFill: {
     height: 3,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: 2,
   },
   header: {
@@ -139,7 +141,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.gray200,
+    backgroundColor: t.colors.gray200,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -147,10 +149,10 @@ const styles = StyleSheet.create({
     width: 28,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
   },
   dotDone: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
   },
   content: {
     paddingHorizontal: Spacing[6],
@@ -159,13 +161,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: Spacing[2],
     lineHeight: 34,
   },
   subtitle: {
     fontSize: Typography.base,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     marginBottom: Spacing[6],
     lineHeight: 24,
   },
@@ -178,18 +180,18 @@ const styles = StyleSheet.create({
   },
   whyWeAskText: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     flexShrink: 1,
   },
   footer: {
     padding: Spacing[4],
     paddingBottom: Spacing[5],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.colors.border,
   },
   nextBtn: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     padding: Spacing[4],
     flexDirection: 'row',
@@ -200,8 +202,8 @@ const styles = StyleSheet.create({
   },
   nextBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
   nextBtnText: {
-    color: Colors.white,
+    color: t.colors.white,
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
   },
-});
+}));

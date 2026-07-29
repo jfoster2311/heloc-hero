@@ -26,7 +26,7 @@
 // would imply a per-account pull that does not exist. It is one call for every
 // connection, which is also the cheaper shape: Plaid bills per call.
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -37,7 +37,8 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { invokeFunction } from '../../lib/supabase';
 import { STALE_SYNC_HOURS } from '../../lib/config';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { PlaidAccountType } from '../../lib/types';
 
 /** Where the entered figures for each account type actually live. */
@@ -64,6 +65,8 @@ const TYPE_LABEL: Record<PlaidAccountType, string> = {
 };
 
 export default function AccountDetailsModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { type } = useLocalSearchParams<{ type?: string }>();
   const { profile } = useAuth();
@@ -136,7 +139,7 @@ export default function AccountDetailsModal() {
     return (
       <ModalScreen title="Connection">
         <View style={styles.centre}>
-          <ActivityIndicator color={Colors.mint600} />
+          <ActivityIndicator color={colors.mint600} />
         </View>
       </ModalScreen>
     );
@@ -147,7 +150,7 @@ export default function AccountDetailsModal() {
       <ModalScreen title="Connection">
         <Card>
           <View style={styles.centre}>
-            <Ionicons name="unlink-outline" size={24} color={Colors.textMuted} />
+            <Ionicons name="unlink-outline" size={24} color={colors.textMuted} />
             <Text style={styles.emptyText}>
               This connection is no longer linked. Nothing else has changed — anything
               you entered by hand is still on file.
@@ -216,8 +219,8 @@ export default function AccountDetailsModal() {
           accessibilityState={{ busy: syncing }}
         >
           {syncing
-            ? <ActivityIndicator size="small" color={Colors.mint700} />
-            : <Ionicons name="refresh-outline" size={16} color={Colors.mint700} />}
+            ? <ActivityIndicator size="small" color={colors.mint700} />
+            : <Ionicons name="refresh-outline" size={16} color={colors.mint700} />}
           <Text style={styles.syncText}>
             {syncing ? 'Syncing…' : 'Sync all balances now'}
           </Text>
@@ -289,7 +292,7 @@ export default function AccountDetailsModal() {
         />
         {unlinking ? (
           <View style={styles.unlinkBusy}>
-            <ActivityIndicator size="small" color={Colors.gray400} />
+            <ActivityIndicator size="small" color={colors.gray400} />
             <Text style={styles.unlinkBusyText}>Disconnecting…</Text>
           </View>
         ) : (
@@ -337,11 +340,11 @@ function relative(ms: number): string {
   return `${days}d ago`;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   centre: { alignItems: 'center', justifyContent: 'center', gap: Spacing[3], paddingVertical: Spacing[6] },
   emptyText: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -350,15 +353,15 @@ const styles = StyleSheet.create({
   name: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     textAlign: 'center',
   },
-  type: { fontSize: Typography.sm, color: Colors.textMuted },
+  type: { fontSize: Typography.sm, color: t.colors.textMuted },
 
   balanceLabel: {
     fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 1,
     marginBottom: Spacing[2],
   },
@@ -366,7 +369,7 @@ const styles = StyleSheet.create({
   currency: {
     fontSize: 24,
     fontWeight: Typography.bold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     marginTop: 6,
     marginRight: 2,
   },
@@ -376,11 +379,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 44,
     fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     letterSpacing: -1,
   },
-  provenance: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
-  provenanceStale: { color: Colors.gray500, fontWeight: Typography.medium },
+  provenance: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[2] },
+  provenanceStale: { color: t.colors.gray500, fontWeight: Typography.medium },
 
   syncBtn: {
     flexDirection: 'row',
@@ -390,17 +393,17 @@ const styles = StyleSheet.create({
     minHeight: 44,
     marginTop: Spacing[4],
     borderRadius: Radius.md,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   syncBtnBusy: { opacity: 0.7 },
-  syncText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  syncText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   sectionLabel: {
     fontSize: 11,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 1,
     marginBottom: Spacing[1],
   },
@@ -410,13 +413,13 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     minHeight: 56,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   subLast: { borderBottomWidth: 0 },
-  subName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
-  subMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
-  subBalance: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  subAvail: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+  subName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textPrimary },
+  subMeta: { fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
+  subBalance: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  subAvail: { fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
 
   unlinkBusy: {
     flexDirection: 'row',
@@ -424,5 +427,5 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
     minHeight: 56,
   },
-  unlinkBusyText: { fontSize: Typography.sm, color: Colors.textSecondary },
-});
+  unlinkBusyText: { fontSize: Typography.sm, color: t.colors.textSecondary },
+}));

@@ -1,7 +1,8 @@
 // components/ui/AmountCardField.tsx
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import SliderField from './SliderField';
 import { hapticSelection } from '../../lib/haptics';
 
@@ -25,6 +26,7 @@ interface Props {
 export default function AmountCardField({
   label, value, presets, customMin, customMax, customStep = 1_000, format, hint, onChange,
 }: Props) {
+  const styles = useStyles();
   const matchesPreset = presets.some(p => p.value === value);
   const [customMode, setCustomMode] = useState(!matchesPreset);
   const showCustom = customMode || !matchesPreset;
@@ -88,9 +90,9 @@ export default function AmountCardField({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   container: { marginBottom: Spacing[4] },
-  label:     { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary, marginBottom: Spacing[2] },
+  label:     { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary, marginBottom: Spacing[2] },
   grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2] },
   card: {
     minWidth:         '31%',
@@ -102,15 +104,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[2],
     borderRadius:     Radius.md,
     borderWidth:      1.5,
-    borderColor:      Colors.border,
-    backgroundColor:  Colors.gray50,
+    borderColor:      t.colors.border,
+    backgroundColor:  t.colors.gray50,
   },
   cardActive: {
-    backgroundColor: Colors.mint600,
-    borderColor:     Colors.mint600,
+    backgroundColor: t.colors.mint600,
+    borderColor:     t.colors.mint600,
   },
-  cardText:       { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textSecondary },
-  cardTextActive: { color: Colors.white },
+  cardText:       { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textSecondary },
+  cardTextActive: { color: t.colors.white },
   customWrap:     { marginTop: Spacing[3] },
-  hint:           { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[2] },
-});
+  hint:           { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[2] },
+}));

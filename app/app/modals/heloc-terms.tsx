@@ -16,7 +16,7 @@
 // plan. Given the collateral is a primary residence, that distinction is the
 // product.
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
@@ -32,7 +32,8 @@ import {
   INTEREST_CALC_LABEL, INTEREST_CALC_EXPLAINER, type InterestCalcMethod,
 } from '../../lib/config';
 import { hapticSuccess } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
 
 const PAYMENT_OPTIONS = [
@@ -44,6 +45,7 @@ const CALC_OPTIONS = (Object.keys(INTEREST_CALC_LABEL) as InterestCalcMethod[])
   .map(v => ({ value: v, label: INTEREST_CALC_LABEL[v] }));
 
 export default function HelocTermsModal() {
+  const styles = useStyles();
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
   const { helocAccount } = useAccounts(profile?.id ?? null);
@@ -314,23 +316,23 @@ function buildDate(month: string, year: string): string | null {
   return `${y}-${String(m).padStart(2, '0')}-01`;
 }
 
-const styles = StyleSheet.create({
-  staleCard: { backgroundColor: Colors.mint50, borderRadius: Radius.lg, padding: Spacing[4] },
-  staleText: { fontSize: Typography.sm, color: Colors.mint700, lineHeight: 20 },
+const useStyles = createThemedStyles(t => ({
+  staleCard: { backgroundColor: t.colors.mint50, borderRadius: Radius.lg, padding: Spacing[4] },
+  staleText: { fontSize: Typography.sm, color: t.colors.mint700, lineHeight: 20 },
 
-  label: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
+  label: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  hint: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
   derivedValue: {
     fontSize: Typography.xl, fontWeight: Typography.bold,
-    color: Colors.textPrimary, marginTop: Spacing[2],
+    color: t.colors.textPrimary, marginTop: Spacing[2],
   },
   explainer: {
-    fontSize: Typography.xs, color: Colors.textSecondary,
+    fontSize: Typography.xs, color: t.colors.textSecondary,
     lineHeight: 18, marginTop: Spacing[3],
   },
   warnText: {
-    fontSize: Typography.xs, color: Colors.textSecondary,
+    fontSize: Typography.xs, color: t.colors.textSecondary,
     lineHeight: 18, marginTop: Spacing[3], fontWeight: Typography.medium,
   },
   dateRow: { flexDirection: 'row', gap: Spacing[3], marginTop: Spacing[3] },
-});
+}));

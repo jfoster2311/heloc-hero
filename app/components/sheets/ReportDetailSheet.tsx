@@ -19,11 +19,12 @@
 // In this palette "favourable" is mint and "unfavourable" is muted grey, never
 // red — and the arrow is always drawn, so the direction survives with the colour
 // removed entirely.
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DetailSheet from '../ui/DetailSheet';
 import TrendBarChart from '../ui/TrendBarChart';
-import { Colors, Typography, Spacing, Radius, Semantic, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius, Semantic } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { ChangeRow, ReportMonth } from '../../lib/reports';
 import type { MonthPoint } from '../../lib/spending';
 
@@ -40,6 +41,8 @@ export interface ReportDetailSheetProps {
 export default function ReportDetailSheet({
   month, rows, history, onClose,
 }: ReportDetailSheetProps) {
+  const { common } = useTheme();
+  const styles = useStyles();
   if (!month) {
     return (
       <DetailSheet visible={false} title="Details" onClose={onClose}>
@@ -51,7 +54,7 @@ export default function ReportDetailSheet({
   return (
     <DetailSheet visible title={`${month.label} details`} onClose={onClose}>
       <View style={styles.head}>
-        <Text style={CommonStyles.eyebrow}>NET THAT MONTH</Text>
+        <Text style={common.eyebrow}>NET THAT MONTH</Text>
         <Text style={[styles.net, month.net < 0 && styles.netNegative]}>
           {month.net < 0 ? '−' : ''}${fmt(Math.abs(month.net))}
         </Text>
@@ -105,6 +108,7 @@ export default function ReportDetailSheet({
 }
 
 function Row({ row, nested }: { row: ChangeRow; nested?: boolean }) {
+  const styles = useStyles();
   return (
     <View style={[styles.tr, nested && styles.trNested]}>
       <Text
@@ -130,6 +134,8 @@ function Row({ row, nested }: { row: ChangeRow; nested?: boolean }) {
  * the row shows "new" rather than an infinite rise.
  */
 function ChangePill({ row }: { row: ChangeRow }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   if (row.favorable === null || row.arrow === null) {
     return <Text style={styles.flat}>—</Text>;
   }
@@ -148,7 +154,7 @@ function ChangePill({ row }: { row: ChangeRow }) {
       <Ionicons
         name={row.arrow}
         size={11}
-        color={good ? Colors.mint700 : Colors.gray500}
+        color={good ? colors.mint700 : colors.gray500}
       />
       <Text style={[styles.pillText, good ? styles.pillTextGood : styles.pillTextBad]}>
         {row.percent === null
@@ -161,20 +167,20 @@ function ChangePill({ row }: { row: ChangeRow }) {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   head: { alignItems: 'center', gap: 2, paddingTop: Spacing[2] },
   net: {
     fontSize: Typography.displaySm,
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
     letterSpacing: -1,
   },
-  netNegative: { color: Colors.gray500 },
-  headSub: { fontSize: Typography.xs, color: Colors.textMuted },
+  netNegative: { color: t.colors.gray500 },
+  headSub: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   noCompare: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     textAlign: 'center',
   },
@@ -188,7 +194,7 @@ const styles = StyleSheet.create({
   th: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     letterSpacing: 1,
   },
   thLabel: { flex: 1 },
@@ -196,10 +202,10 @@ const styles = StyleSheet.create({
   thChange: { width: 74, textAlign: 'right' },
 
   table: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
   tr: {
@@ -208,25 +214,25 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
     minHeight: 48,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
-  trNested: { minHeight: 40, backgroundColor: Colors.surfaceSunken },
+  trNested: { minHeight: 40, backgroundColor: t.colors.surfaceSunken },
   tdLabel: {
     flex: 1,
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   tdLabelNested: {
     fontWeight: Typography.regular,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     paddingLeft: Spacing[3],
   },
   tdAmount: {
     width: 82,
     textAlign: 'right',
     fontSize: Typography.sm,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   tdChange: { width: 74, alignItems: 'flex-end' },
 
@@ -238,12 +244,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.full,
   },
-  pillGood: { backgroundColor: Colors.mint50 },
-  pillBad:  { backgroundColor: Colors.gray100 },
+  pillGood: { backgroundColor: t.colors.mint50 },
+  pillBad:  { backgroundColor: t.colors.gray100 },
   pillText: { fontSize: 11, fontWeight: Typography.semibold },
-  pillTextGood: { color: Colors.mint700 },
+  pillTextGood: { color: t.colors.mint700 },
   pillTextBad:  { color: Semantic.overCeiling },
-  flat: { fontSize: 11, color: Colors.textMuted },
+  flat: { fontSize: 11, color: t.colors.textMuted },
 
-  footnote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
-});
+  footnote: { fontSize: 11, color: t.colors.textMuted, lineHeight: 16 },
+}));

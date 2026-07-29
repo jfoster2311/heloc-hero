@@ -15,7 +15,7 @@
 // who wants to keep more emergency room should be able to say so without
 // arguing with a recommendation every month.
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
@@ -26,12 +26,14 @@ import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSuccess } from '../../lib/haptics';
 import { formatMonths } from '../../lib/projections';
 import { RATE_STRESS_STEPS_BPS } from '../../lib/config';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** Thresholds offered, not a free-text percentage. A 63% cap helps nobody. */
 const THRESHOLD_STEPS = [0.6, 0.7, 0.8, 0.9];
 
 export default function AssumptionsModal() {
+  const styles = useStyles();
   const router = useRouter();
   const { profile, updateProfile } = useAuth();
   const f = useFinancials();
@@ -375,8 +377,8 @@ function fmtK(n: number) {
   return Math.round(n).toLocaleString('en-US');
 }
 
-const styles = StyleSheet.create({
-  sectionTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+const useStyles = createThemedStyles(t => ({
+  sectionTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
 
   derivedHead: {
     flexDirection: 'row', alignItems: 'center',
@@ -386,57 +388,57 @@ const styles = StyleSheet.create({
   compareCol: { flex: 1, gap: 1 },
   compareDivider: {
     width: 1, alignSelf: 'stretch',
-    backgroundColor: Colors.borderSubtle,
+    backgroundColor: t.colors.borderSubtle,
     marginHorizontal: Spacing[4],
   },
   compareHead: {
     fontSize: Typography.xs, fontWeight: Typography.bold,
-    color: Colors.textMuted, letterSpacing: 0.6, marginBottom: Spacing[2],
+    color: t.colors.textMuted, letterSpacing: 0.6, marginBottom: Spacing[2],
   },
   compareValue: {
-    fontSize: Typography.lg, fontWeight: Typography.semibold, color: Colors.textPrimary,
+    fontSize: Typography.lg, fontWeight: Typography.semibold, color: t.colors.textPrimary,
   },
-  compareLabel: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  compareLabel: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   gapLine: {
-    fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20,
+    fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20,
     marginTop: Spacing[4], paddingTop: Spacing[3],
-    borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
+    borderTopWidth: 1, borderTopColor: t.colors.borderSubtle,
   },
-  auditLine: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 17 },
+  auditLine: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 17 },
   adoptBtn: {
     minHeight: 48, borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.mint50,
-    borderWidth: 1, borderColor: Colors.mint200,
+    backgroundColor: t.colors.mint50,
+    borderWidth: 1, borderColor: t.colors.mint200,
   },
-  adoptText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  adoptText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
   basisNote: {
-    fontSize: Typography.xs, color: Colors.textMuted,
+    fontSize: Typography.xs, color: t.colors.textMuted,
     lineHeight: 17, marginBottom: Spacing[2],
   },
-  hint: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
+  hint: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
 
   derived: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: Spacing[2],
   },
-  derivedLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
-  derivedValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  derivedLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  derivedValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   // Negative numbers use muted grey, never red.
-  derivedNegative: { color: Colors.gray400 },
-  warn: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18, marginTop: Spacing[2] },
+  derivedNegative: { color: t.colors.gray400 },
+  warn: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: Spacing[2] },
 
   thresholdRow: { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[3] },
   thresholdChip: {
     flex: 1, minHeight: 46,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
   },
-  thresholdChipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
-  thresholdText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textSecondary },
-  thresholdTextActive: { color: Colors.white },
+  thresholdChipActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
+  thresholdText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textSecondary },
+  thresholdTextActive: { color: t.colors.white },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
@@ -444,14 +446,14 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     width: 24, height: 24, borderRadius: Radius.sm,
-    borderWidth: 1.5, borderColor: Colors.border,
+    borderWidth: 1.5, borderColor: t.colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  checkboxOn: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
-  checkmark: { color: Colors.white, fontSize: 14, fontWeight: '800' },
-  toggleLabel: { flex: 1, fontSize: Typography.sm, color: Colors.textPrimary, lineHeight: 20 },
+  checkboxOn: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
+  checkmark: { color: t.colors.white, fontSize: 14, fontWeight: '800' },
+  toggleLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textPrimary, lineHeight: 20 },
 
-  result: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 21 },
+  result: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
 
   stressRow: { flexDirection: 'row', gap: Spacing[2], flexWrap: 'wrap', marginTop: Spacing[3] },
   stressChip: {
@@ -459,11 +461,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[3],
     alignItems: 'center', justifyContent: 'center',
     borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
   },
-  stressChipActive: { backgroundColor: Colors.mint600, borderColor: Colors.mint600 },
-  stressText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textSecondary },
-  stressTextActive: { color: Colors.white },
-  stressResult: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: Spacing[3] },
-});
+  stressChipActive: { backgroundColor: t.colors.mint600, borderColor: t.colors.mint600 },
+  stressText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textSecondary },
+  stressTextActive: { color: t.colors.white },
+  stressResult: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20, marginTop: Spacing[3] },
+}));

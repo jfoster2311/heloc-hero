@@ -1,7 +1,8 @@
 // components/ui/SliderField.tsx
 import { useRef, useState } from 'react';
-import { View, Text, PanResponder, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { View, Text, PanResponder } from 'react-native';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticSelection } from '../../lib/haptics';
 
 const THUMB = 38;
@@ -26,6 +27,7 @@ function snap(raw: number, step: number, min: number, max: number): number {
 }
 
 export default function SliderField({ label, value, min, max, step = 1, format, hint, onChange }: Props) {
+  const styles = useStyles();
   const [trackWidth, setTrackWidth] = useState(1);
 
   const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
@@ -97,21 +99,21 @@ export default function SliderField({ label, value, min, max, step = 1, format, 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   container:  { marginBottom: Spacing[4] },
   labelRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
-  label:      { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  valueText:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint600 },
+  label:      { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  valueText:  { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint600 },
   trackWrap:  { height: Math.max(HIT_HEIGHT, THUMB), justifyContent: 'center' },
   track: {
     height:          TRACK_HEIGHT,
     borderRadius:    TRACK_HEIGHT / 2,
-    backgroundColor: Colors.gray200,
+    backgroundColor: t.colors.gray200,
     overflow:        'hidden',
   },
   fill: {
     height:          '100%',
-    backgroundColor: Colors.mint400,
+    backgroundColor: t.colors.mint400,
     borderRadius:    TRACK_HEIGHT / 2,
   },
   thumb: {
@@ -119,9 +121,9 @@ const styles = StyleSheet.create({
     width:           THUMB,
     height:          THUMB,
     borderRadius:    THUMB / 2,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderWidth:     3,
-    borderColor:     Colors.surface,
+    borderColor:     t.colors.surface,
     shadowColor:     '#000',
     shadowOffset:    { width: 0, height: 2 },
     shadowOpacity:   0.18,
@@ -129,5 +131,5 @@ const styles = StyleSheet.create({
     elevation:       3,
     top:             (Math.max(HIT_HEIGHT, THUMB) - THUMB) / 2,
   },
-  hint: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing[1] },
-});
+  hint: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[1] },
+}));

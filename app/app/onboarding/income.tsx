@@ -1,10 +1,11 @@
 // app/onboarding/income.tsx
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import AmountCardField, { AmountPreset } from '../../components/ui/AmountCardField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 function fmtDollar(v: number) {
   return '$' + Math.round(v).toLocaleString('en-US') + '/mo';
@@ -14,6 +15,8 @@ const INCOME_PRESETS: AmountPreset[] = [4_000, 6_000, 8_000, 12_000].map(v => ({
 const EXPENSE_PRESETS: AmountPreset[] = [2_500, 4_000, 5_500, 8_000].map(v => ({ value: v, label: fmtDollar(v) }));
 
 export default function IncomeStep() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
@@ -31,9 +34,9 @@ export default function IncomeStep() {
   const isValid = income > 0 && expenses > 0;
 
   function getSurplusColor() {
-    if (grossPct >= 25) return Colors.mint600;
-    if (grossPct >= 10) return Colors.mint400;
-    return Colors.gray400;
+    if (grossPct >= 25) return colors.mint600;
+    if (grossPct >= 10) return colors.mint400;
+    return colors.gray400;
   }
 
   function getSurplusMessage() {
@@ -99,7 +102,7 @@ export default function IncomeStep() {
             <View style={styles.helocSurplusCard}>
               <View style={styles.helocSurplusRow}>
                 <Text style={styles.helocSurplusLabel}>After mortgage payment</Text>
-                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? Colors.mint600 : Colors.gray400 }]}>
+                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? colors.mint600 : colors.gray400 }]}>
                   ${helocSurplus.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo
                 </Text>
               </View>
@@ -114,24 +117,24 @@ export default function IncomeStep() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   surplusCard: {
     borderRadius: Radius.lg, padding: Spacing[4],
     alignItems: 'center', borderWidth: 2,
-    backgroundColor: Colors.gray50, gap: Spacing[1],
+    backgroundColor: t.colors.gray50, gap: Spacing[1],
   },
-  surplusLabel: { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
+  surplusLabel: { fontSize: Typography.sm, color: t.colors.textSecondary, fontWeight: Typography.medium },
   surplusValue: { fontSize: Typography['3xl'], fontWeight: Typography.extrabold },
-  surplusPct:   { fontSize: Typography.sm, color: Colors.textMuted },
-  surplusMsg:   { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: Spacing[2] },
+  surplusPct:   { fontSize: Typography.sm, color: t.colors.textMuted },
+  surplusMsg:   { fontSize: Typography.sm, color: t.colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: Spacing[2] },
 
   helocSurplusCard: {
-    backgroundColor: Colors.mint50, borderRadius: Radius.md,
-    padding: Spacing[4], borderWidth: 1, borderColor: Colors.mint200,
+    backgroundColor: t.colors.mint50, borderRadius: Radius.md,
+    padding: Spacing[4], borderWidth: 1, borderColor: t.colors.mint200,
     gap: Spacing[1],
   },
   helocSurplusRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  helocSurplusLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  helocSurplusLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
   helocSurplusValue: { fontSize: Typography.base, fontWeight: Typography.extrabold },
-  helocSurplusSub:   { fontSize: Typography.xs, color: Colors.mint600, lineHeight: 16, marginTop: 2 },
-});
+  helocSurplusSub:   { fontSize: Typography.xs, color: t.colors.mint600, lineHeight: 16, marginTop: 2 },
+}));

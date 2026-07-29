@@ -4,18 +4,21 @@
 // someone picking "Very good" at onboarding and re-picking it later on the score
 // screen would watch their score move without changing their answer.
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { CREDIT_RANGES, FREE_CREDIT_REPORT_URL } from '../../lib/helocScore';
 
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const RANGES = CREDIT_RANGES;
 
 export default function CreditScoreStep() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { data, update, prevStep } = useOnboardingStore();
   const [selected, setSelected] = useState<number>(data.creditScore ?? 720);
@@ -67,7 +70,7 @@ export default function CreditScoreStep() {
                 <Text style={styles.rangeScore}>{r.range}</Text>
               </View>
               {active && (
-                <Ionicons name="checkmark-circle" size={22} color={Colors.mint600} />
+                <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
               )}
             </TouchableOpacity>
           );
@@ -93,17 +96,17 @@ export default function CreditScoreStep() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   errorBanner: {
     // Grey, not the pink this used to be — the palette has no red in it.
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[3],
     marginBottom: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
-  errorText: { color: Colors.gray400, fontSize: Typography.sm },
+  errorText: { color: t.colors.gray400, fontSize: Typography.sm },
   rangeList: { gap: Spacing[3], marginBottom: Spacing[5] },
   rangeItem: {
     flexDirection: 'row',
@@ -111,33 +114,33 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.gray50,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.gray50,
     gap: Spacing[3],
     minHeight: 64,
   },
-  rangeItemActive: { borderColor: Colors.mint600, backgroundColor: Colors.mint50 },
+  rangeItemActive: { borderColor: t.colors.mint600, backgroundColor: t.colors.mint50 },
   rangeText: { flex: 1 },
   rangeLabel: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   rangeScore: {
     fontSize: Typography.sm,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     marginTop: 2,
   },
   hint: {
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.md,
     padding: Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.mint200,
+    borderLeftColor: t.colors.mint200,
   },
   hintText: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
   },
-});
+}));

@@ -19,8 +19,7 @@
 //    unmounting the screen, so any hitch left a button spinning forever.
 import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -32,7 +31,8 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError } from '../../lib/haptics';
-import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /**
  * If the auth listener has not navigated within this window, something is
@@ -42,6 +42,8 @@ import { Colors, Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/
 const NAVIGATE_TIMEOUT_MS = 12_000;
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const passwordRef = useRef<TextInput>(null);
   const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,7 +134,7 @@ export default function LoginScreen() {
               <Ionicons
                 name={problem.retryable ? 'cloud-offline-outline' : 'alert-circle-outline'}
                 size={18}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
                 style={styles.problemIcon}
               />
               <View style={styles.flex}>
@@ -186,7 +188,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color={Colors.textMuted}
+                  color={colors.textMuted}
                 />
               </TouchableOpacity>
             }
@@ -212,7 +214,7 @@ export default function LoginScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
           >
             {loading
-              ? <ActivityIndicator color={Colors.white} />
+              ? <ActivityIndicator color={colors.white} />
               : <Text style={styles.submitText}>Sign in</Text>}
           </TouchableOpacity>
 
@@ -230,8 +232,8 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  root: { flex: 1, backgroundColor: t.colors.background },
   flex: { flex: 1 },
 
   header: { paddingBottom: Spacing[6], backgroundColor: Aurora.deepest },
@@ -250,22 +252,22 @@ const styles = StyleSheet.create({
   problem: {
     flexDirection: 'row',
     gap: Spacing[3],
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     borderRadius: Radius.md,
     padding: Spacing[4],
     marginBottom: Spacing[5],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.gray400,
+    borderLeftColor: t.colors.gray400,
   },
   problemIcon: { marginTop: 1 },
   problemTitle: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   problemText: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     marginTop: 2,
   },
@@ -275,10 +277,10 @@ const styles = StyleSheet.create({
   eye: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   forgot: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing[1] },
-  forgotText: { color: Colors.mint700, fontSize: Typography.sm, fontWeight: Typography.medium },
+  forgotText: { color: t.colors.mint700, fontSize: Typography.sm, fontWeight: Typography.medium },
 
   submit: {
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     borderRadius: Radius.md,
     minHeight: 54,
     alignItems: 'center',
@@ -288,7 +290,7 @@ const styles = StyleSheet.create({
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
   submitText: {
-    color: Colors.white,
+    color: t.colors.white,
     fontSize: Typography.base,
     fontWeight: Typography.bold,
   },
@@ -300,10 +302,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing[6],
     minHeight: 44,
   },
-  footerText: { color: Colors.textSecondary, fontSize: Typography.sm },
+  footerText: { color: t.colors.textSecondary, fontSize: Typography.sm },
   footerLink: {
-    color: Colors.mint700,
+    color: t.colors.mint700,
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
   },
-});
+}));

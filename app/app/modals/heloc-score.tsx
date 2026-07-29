@@ -15,7 +15,7 @@
 // The credit factor is self-reported, from a range the user picks. We never pull
 // it and the copy never implies we do; the screen points them at where they can
 // get it free instead.
-import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -28,13 +28,16 @@ import {
   computeHelocScore, READY_THRESHOLD, CREDIT_RANGES, FREE_CREDIT_REPORT_URL,
   type ScoreFactor,
 } from '../../lib/helocScore';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 // The bands and the free-report link both live in lib/helocScore.ts, because
 // onboarding collects the same answer and the two had drifted to different
 // midpoints for the same band.
 
 export default function HelocScoreScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile, refresh } = useAuth();
   const f = useFinancials();
   const [saving, setSaving] = useState(false);
@@ -85,13 +88,13 @@ export default function HelocScoreScreen() {
       }
     >
       {f.loading ? (
-        <View style={styles.centre}><ActivityIndicator color={Colors.mint600} /></View>
+        <View style={styles.centre}><ActivityIndicator color={colors.mint600} /></View>
       ) : (
         <>
           <View style={styles.gaugeBlock}>
             <GaugeArc
               pct={score.total}
-              color={Colors.mint600}
+              color={colors.mint600}
               label={score.label}
               value={String(score.total)}
               sub={score.ready ? 'ready to cycle' : `${READY_THRESHOLD} is ready`}
@@ -108,7 +111,7 @@ export default function HelocScoreScreen() {
               honest ranking — not by what is easiest to write copy for. */}
           {!score.ready && score.improvements.length > 0 && (
             <View style={styles.next}>
-              <Text style={CommonStyles.eyebrow}>WHERE YOU&apos;D GAIN THE MOST</Text>
+              <Text style={common.eyebrow}>WHERE YOU&apos;D GAIN THE MOST</Text>
               {score.improvements.slice(0, 3).map((imp, i) => (
                 <View key={imp.id} style={styles.nextRow}>
                   <View style={styles.nextRank}>
@@ -125,7 +128,7 @@ export default function HelocScoreScreen() {
           )}
 
           {/* ── The working ──────────────────────────────────────────────── */}
-          <Text style={CommonStyles.eyebrow}>HOW IT ADDS UP</Text>
+          <Text style={common.eyebrow}>HOW IT ADDS UP</Text>
           <View style={styles.factors}>
             {score.factors.map(fac => (
               <FactorRow
@@ -165,7 +168,7 @@ export default function HelocScoreScreen() {
                         <Text style={styles.rangeScore}>{r.range}</Text>
                       </View>
                       {active && (
-                        <Ionicons name="checkmark-circle" size={20} color={Colors.mint600} />
+                        <Ionicons name="checkmark-circle" size={20} color={colors.mint600} />
                       )}
                     </TouchableOpacity>
                   );
@@ -180,7 +183,7 @@ export default function HelocScoreScreen() {
                 accessibilityRole="link"
                 accessibilityLabel="Get your credit report free at annualcreditreport.com"
               >
-                <Ionicons name="open-outline" size={15} color={Colors.mint700} />
+                <Ionicons name="open-outline" size={15} color={colors.mint700} />
                 <Text style={styles.linkText}>
                   Don&apos;t know it? Get it free at annualcreditreport.com — the official
                   site, no card needed. Your bank or card issuer likely shows a score too.
@@ -206,6 +209,7 @@ function FactorRow({ factor, onPress }: {
   factor: ScoreFactor;
   onPress?: () => void;
 }) {
+  const styles = useStyles();
   const Row = onPress ? TouchableOpacity : View;
   const pct = factor.max > 0 ? (factor.points / factor.max) * 100 : 0;
 
@@ -249,13 +253,13 @@ function FactorRow({ factor, onPress }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   centre: { paddingVertical: Spacing[10], alignItems: 'center' },
 
   gaugeBlock: { alignItems: 'center', gap: Spacing[4] },
   headline: {
     fontSize: Typography.base,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 22,
     textAlign: 'center',
   },
@@ -264,25 +268,25 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
   nextRow: { flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start' },
   nextRank: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     alignItems: 'center', justifyContent: 'center',
     marginTop: 1,
   },
-  nextRankText: { fontSize: 11, fontWeight: Typography.bold, color: Colors.white },
+  nextRankText: { fontSize: 11, fontWeight: Typography.bold, color: t.colors.white },
   nextBody: { flex: 1, gap: 2 },
-  nextLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  nextAdvice: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  nextLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  nextAdvice: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
   nextPoints: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
 
   factors: { gap: Spacing[2] },
@@ -290,9 +294,9 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
   factorHead: {
     flexDirection: 'row',
@@ -300,22 +304,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing[2],
   },
-  factorLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  factorPoints: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.textPrimary },
-  factorMax: { fontWeight: Typography.regular, color: Colors.textMuted },
-  factorNa: { fontSize: Typography.xs, color: Colors.textMuted },
+  factorLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  factorPoints: { fontSize: Typography.sm, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  factorMax: { fontWeight: Typography.regular, color: t.colors.textMuted },
+  factorNa: { fontSize: Typography.xs, color: t.colors.textMuted },
   factorTrack: {
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.gray100,
+    backgroundColor: t.colors.gray100,
     overflow: 'hidden',
   },
-  factorFill: { height: 5, borderRadius: 3, backgroundColor: Colors.mint600 },
-  factorDetail: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  factorFill: { height: 5, borderRadius: 3, backgroundColor: t.colors.mint600 },
+  factorDetail: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
   factorAction: {
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     marginTop: 2,
   },
 
@@ -323,12 +327,12 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceSunken,
+    backgroundColor: t.colors.surfaceSunken,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
-  creditTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  creditBody: { fontSize: Typography.xs, color: Colors.textSecondary, lineHeight: 18 },
+  creditTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  creditBody: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
   ranges: { gap: Spacing[2] },
   range: {
     flexDirection: 'row',
@@ -338,16 +342,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
   },
-  rangeActive: { borderColor: Colors.mint600, backgroundColor: Colors.mint50 },
+  rangeActive: { borderColor: t.colors.mint600, backgroundColor: t.colors.mint50 },
   rangeBody: { flex: 1 },
-  rangeLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rangeScore: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 1 },
+  rangeLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rangeScore: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 1 },
 
   link: { flexDirection: 'row', gap: Spacing[2], alignItems: 'flex-start' },
-  linkText: { flex: 1, fontSize: 11, color: Colors.textSecondary, lineHeight: 17 },
+  linkText: { flex: 1, fontSize: 11, color: t.colors.textSecondary, lineHeight: 17 },
 
-  error: { fontSize: Typography.xs, color: Colors.textSecondary },
-});
+  error: { fontSize: Typography.xs, color: t.colors.textSecondary },
+}));

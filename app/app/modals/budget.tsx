@@ -12,7 +12,7 @@
 // a payoff date, someone tightening a grocery budget would watch their mortgage
 // payoff jump forward by two years, which is a lie the arithmetic would tell
 // with total confidence. The closing note on this screen says so out loud.
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useCallback } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -34,11 +34,14 @@ import {
   type SpendCategory, type CategorizedTxn,
 } from '../../lib/spending';
 import { getBarColor, budgetStatus, allocate } from '../../lib/budget';
-import { Colors, Typography, Spacing, Radius, Semantic, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius, Semantic } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const TREND_MONTHS = 6;
 
 export default function BudgetScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -238,7 +241,7 @@ export default function BudgetScreen() {
             </View>
 
             {/* ── Every category ─────────────────────────────────────────── */}
-            <Text style={[CommonStyles.eyebrow, styles.listLabel]}>ALL CATEGORIES</Text>
+            <Text style={[common.eyebrow, styles.listLabel]}>ALL CATEGORIES</Text>
             <View style={styles.list}>
               {rows.map(r => {
                 const status = budgetStatus(r.amount, r.ceiling);
@@ -258,7 +261,7 @@ export default function BudgetScreen() {
                     accessibilityHint="Opens this category to set a budget"
                   >
                     <View style={styles.rowIcon}>
-                      <Ionicons name={r.meta.icon} size={17} color={Colors.mint700} />
+                      <Ionicons name={r.meta.icon} size={17} color={colors.mint700} />
                     </View>
 
                     <View style={styles.rowBody}>
@@ -288,7 +291,7 @@ export default function BudgetScreen() {
                       </View>
                     </View>
 
-                    <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+                    <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -302,7 +305,7 @@ export default function BudgetScreen() {
                 they are looking down a list of thirteen budgets and none of
                 them is "Childcare". */}
             <View style={styles.manage}>
-              <Text style={CommonStyles.eyebrow}>YOUR OWN CATEGORIES</Text>
+              <Text style={common.eyebrow}>YOUR OWN CATEGORIES</Text>
 
               {f.categories.custom.length === 0 && !creating && (
                 <Text style={styles.manageEmpty}>
@@ -328,7 +331,7 @@ export default function BudgetScreen() {
                 ) : (
                   <View key={c.id} style={styles.manageRow}>
                     <View style={styles.rowIcon}>
-                      <Ionicons name={c.icon} size={17} color={Colors.mint700} />
+                      <Ionicons name={c.icon} size={17} color={colors.mint700} />
                     </View>
                     <Text style={styles.manageLabel} numberOfLines={1}>{c.label}</Text>
                     <TouchableOpacity
@@ -345,7 +348,7 @@ export default function BudgetScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${c.label}`}
                     >
-                      <Ionicons name="trash-outline" size={17} color={Colors.textSecondary} />
+                      <Ionicons name="trash-outline" size={17} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 )
@@ -368,7 +371,7 @@ export default function BudgetScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Add a category"
                 >
-                  <Ionicons name="add" size={17} color={Colors.mint700} />
+                  <Ionicons name="add" size={17} color={colors.mint700} />
                   <Text style={styles.addBtnText}>Add a category</Text>
                 </TouchableOpacity>
               )}
@@ -432,6 +435,7 @@ function AllocRow({ label, value, hint, emphasis }: {
   hint?: string;
   emphasis?: boolean;
 }) {
+  const styles = useStyles();
   const negative = value < 0;
   return (
     <View style={styles.allocRow}>
@@ -455,11 +459,11 @@ function AllocRow({ label, value, hint, emphasis }: {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   month: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     textAlign: 'center',
   },
 
@@ -471,10 +475,10 @@ const styles = StyleSheet.create({
   },
 
   allocation: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[2],
   },
@@ -486,35 +490,35 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   allocBody: { flex: 1, gap: 1 },
-  allocLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
+  allocLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
   allocLabelEmphasis: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  allocHint: { fontSize: 11, color: Colors.textMuted },
-  allocValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  allocValueMuted: { color: Colors.gray500 },
+  allocHint: { fontSize: 11, color: t.colors.textMuted },
+  allocValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  allocValueMuted: { color: t.colors.gray500 },
   allocValueEmphasis: {
     fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
-    color: Colors.mint600,
+    color: t.colors.mint600,
   },
-  allocValueNeg: { color: Colors.gray500 },
-  allocRule: { height: 1, backgroundColor: Colors.borderSubtle, marginVertical: Spacing[1] },
+  allocValueNeg: { color: t.colors.gray500 },
+  allocRule: { height: 1, backgroundColor: t.colors.borderSubtle, marginVertical: Spacing[1] },
   overCommitted: {
     fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 18,
     paddingBottom: Spacing[3],
   },
 
   listLabel: { marginTop: Spacing[2] },
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
   row: {
@@ -524,11 +528,11 @@ const styles = StyleSheet.create({
     minHeight: 64,
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   rowIcon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center', justifyContent: 'center',
   },
   rowBody: { flex: 1, gap: 6 },
@@ -538,7 +542,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing[2],
   },
-  rowLabel: { flexShrink: 1, fontSize: Typography.sm, color: Colors.textSecondary },
+  rowLabel: { flexShrink: 1, fontSize: Typography.sm, color: t.colors.textSecondary },
   rowFigures: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   overWord: {
     fontSize: 10,
@@ -547,8 +551,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  rowValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rowOf: { fontWeight: Typography.regular, color: Colors.textMuted },
+  rowValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rowOf: { fontWeight: Typography.regular, color: t.colors.textMuted },
 
   track: {
     height: 6,
@@ -559,11 +563,11 @@ const styles = StyleSheet.create({
   fill: { height: 6, borderRadius: 3 },
 
   stateBlock: { gap: Spacing[3], paddingVertical: Spacing[6] },
-  stateBody: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
-  errorNote: { fontSize: Typography.xs, color: Colors.textSecondary },
+  stateBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  errorNote: { fontSize: Typography.xs, color: t.colors.textSecondary },
 
   manage: { gap: Spacing[2], marginTop: Spacing[2] },
-  manageEmpty: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 18 },
+  manageEmpty: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18 },
   manageRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -571,15 +575,15 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
   manageLabel: {
     flex: 1,
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
   manageBtn: {
     minHeight: 44,
@@ -591,7 +595,7 @@ const styles = StyleSheet.create({
   manageBtnText: {
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
   addBtn: {
     flexDirection: 'row',
@@ -602,8 +606,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: Colors.mint600,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint600,
+    backgroundColor: t.colors.mint50,
   },
-  addBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
-});
+  addBtnText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
+}));

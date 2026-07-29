@@ -1,6 +1,6 @@
 // app/onboarding/home-info.tsx
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import FormField from '../../components/ui/FormField';
@@ -8,7 +8,8 @@ import SliderField from '../../components/ui/SliderField';
 import ChipField from '../../components/ui/ChipField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { calcMonthlyPayment, calcRemainingBalance } from '../../lib/projections';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const TERM_OPTIONS = [
   { value: 15, label: '15 yr' },
@@ -26,6 +27,7 @@ function fmtRate(v: number) {
 }
 
 export default function HomeInfoStep() {
+  const styles = useStyles();
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
@@ -184,30 +186,30 @@ export default function HomeInfoStep() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   equityCard: {
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius:    Radius.lg,
     padding:         Spacing[4],
     alignItems:      'center',
     borderWidth:     1,
-    borderColor:     Colors.mint200,
+    borderColor:     t.colors.mint200,
     marginTop:       Spacing[2],
   },
   equityLabel: {
     fontSize:   Typography.sm,
-    color:      Colors.mint700,
+    color:      t.colors.mint700,
     fontWeight: Typography.medium,
   },
   equityValue: {
     fontSize:   Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color:      Colors.mint600,
+    color:      t.colors.mint600,
     marginTop:  Spacing[1],
   },
   equityPct: {
     fontSize:  Typography.sm,
-    color:     Colors.mint600,
+    color:     t.colors.mint600,
     marginTop: 2,
   },
-});
+}));

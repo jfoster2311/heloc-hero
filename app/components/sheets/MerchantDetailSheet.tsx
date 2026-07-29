@@ -9,11 +9,12 @@
 //
 // So the year totals get equal billing with the month. They are the figures
 // that make a habit visible.
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import DetailSheet from '../ui/DetailSheet';
 import TransactionRow from '../ui/TransactionRow';
 import TrendBarChart from '../ui/TrendBarChart';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight } from '../../lib/haptics';
 import type {
   MerchantDetail, CategorizedTxn, CategoryMeta, SpendCategory,
@@ -32,6 +33,8 @@ export interface MerchantDetailSheetProps {
 export default function MerchantDetailSheet({
   merchant, metaFor, categoryFor, onClose, onOpenTransaction,
 }: MerchantDetailSheetProps) {
+  const { common } = useTheme();
+  const styles = useStyles();
   if (!merchant) {
     return (
       <DetailSheet visible={false} title="Merchant detail" onClose={onClose}>
@@ -71,7 +74,7 @@ export default function MerchantDetailSheet({
           only distinction worth drawing is which month you are looking at. */}
       {merchant.history.some(p => p.amount > 0) && (
         <View style={styles.chartBlock}>
-          <Text style={CommonStyles.eyebrow}>BY MONTH</Text>
+          <Text style={common.eyebrow}>BY MONTH</Text>
           <TrendBarChart
             points={merchant.history}
             colorMode="selection"
@@ -111,7 +114,7 @@ export default function MerchantDetailSheet({
       )}
 
       <View style={styles.listBlock}>
-        <Text style={CommonStyles.eyebrow}>EVERY CHARGE</Text>
+        <Text style={common.eyebrow}>EVERY CHARGE</Text>
         <View style={styles.list}>
           {merchant.rows.map(r => {
             const m = metaFor(r.txn.transaction_id);
@@ -137,6 +140,7 @@ export default function MerchantDetailSheet({
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -172,21 +176,21 @@ function formatDay(date: string) {
   });
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   avatar: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: Colors.mint600,
+    backgroundColor: t.colors.mint600,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: Colors.white,
+    color: t.colors.white,
   },
   identityBody: { flex: 1, gap: 2 },
-  name: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  sub: { fontSize: Typography.xs, color: Colors.textMuted },
+  name: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
+  sub: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   chartBlock: { gap: Spacing[3] },
 
@@ -198,35 +202,35 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
   },
-  statLabel: { fontSize: 11, color: Colors.textMuted },
+  statLabel: { fontSize: 11, color: t.colors.textMuted },
   statValue: {
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
   },
-  statSub: { fontSize: 10, color: Colors.textMuted },
+  statSub: { fontSize: 10, color: t.colors.textMuted },
 
   insight: {
     fontSize: Typography.sm,
-    color: Colors.mint700,
+    color: t.colors.mint700,
     lineHeight: 20,
     padding: Spacing[4],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
 
   listBlock: { gap: Spacing[2] },
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
-});
+}));

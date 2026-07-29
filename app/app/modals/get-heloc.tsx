@@ -1,12 +1,15 @@
 // app/modals/get-heloc.tsx — HELOC guide for users who don't have one yet
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { eligibleLenders } from '../../lib/lenders';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function GetHelocModal() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const lenders = eligibleLenders();
 
@@ -15,7 +18,7 @@ export default function GetHelocModal() {
       <View style={styles.header}>
         <Text style={styles.title}>Open a HELOC</Text>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="close" size={24} color={Colors.textPrimary} />
+          <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -30,7 +33,7 @@ export default function GetHelocModal() {
         <View style={styles.requirementCard}>
           <View style={styles.requirementRow}>
             <View style={styles.requirementIcon}>
-              <Ionicons name="checkmark-circle" size={22} color={Colors.mint600} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
             </View>
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>Interest-only draw period</Text>
@@ -41,9 +44,9 @@ export default function GetHelocModal() {
             </View>
           </View>
 
-          <View style={[styles.requirementRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing[4] }]}>
+          <View style={[styles.requirementRow, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing[4] }]}>
             <View style={styles.requirementIcon}>
-              <Ionicons name="checkmark-circle" size={22} color={Colors.mint600} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.mint600} />
             </View>
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>10+ year draw period</Text>
@@ -108,7 +111,7 @@ export default function GetHelocModal() {
           ))
         ) : (
           <View style={styles.comingSoonCard}>
-            <Ionicons name="time-outline" size={20} color={Colors.textMuted} />
+            <Ionicons name="time-outline" size={20} color={colors.textMuted} />
             <Text style={styles.comingSoonText}>
               We're vetting lenders that meet both requirements. In the meantime, search for
               "interest-only HELOC 10-year draw" at local credit unions and online lenders. Always
@@ -128,53 +131,57 @@ export default function GetHelocModal() {
 }
 
 function ListRow({ icon, text }: { icon: string; text: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.listRow}>
-      <Ionicons name={icon as never} size={16} color={Colors.mint600} />
+      <Ionicons name={icon as never} size={16} color={colors.mint600} />
       <Text style={styles.listRowText}>{text}</Text>
     </View>
   );
 }
 
 function AvoidRow({ text }: { text: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.listRow}>
-      <Ionicons name="close-circle-outline" size={16} color={Colors.gray400} />
+      <Ionicons name="close-circle-outline" size={16} color={colors.gray400} />
       <Text style={styles.listRowText}>{text}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const useStyles = createThemedStyles(t => ({
+  container: { flex: 1, backgroundColor: t.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing[5],
     paddingVertical: Spacing[4],
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.colors.border,
   },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
+  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
   content: { padding: Spacing[5], gap: Spacing[4], paddingBottom: Spacing[10] },
 
   sectionTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginTop: Spacing[2],
   },
   sectionBody: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     marginTop: -Spacing[2],
   },
 
   requirementCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing[5],
     gap: Spacing[4],
@@ -186,74 +193,74 @@ const styles = StyleSheet.create({
   requirementTitle: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
+    color: t.colors.textPrimary,
     marginBottom: 4,
   },
   requirementBody: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
   },
 
   listCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing[5],
     gap: Spacing[3],
     ...Shadows.card,
   },
   listRow: { flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start' },
-  listRowText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  listRowText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 
   avoidCard: {
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.lg,
     padding: Spacing[5],
     gap: Spacing[3],
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
 
   lenderCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing[4],
     gap: Spacing[2],
     ...Shadows.card,
   },
   lenderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  lenderName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  lenderName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   partnerBadge: {
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: Colors.mint200,
+    borderColor: t.colors.mint200,
   },
-  partnerBadgeText: { fontSize: Typography.xs, color: Colors.mint700, fontWeight: Typography.medium },
-  lenderApr: { fontSize: Typography.sm, color: Colors.textSecondary },
-  lenderDisclosure: { fontSize: Typography.xs, color: Colors.textMuted, lineHeight: 16 },
+  partnerBadgeText: { fontSize: Typography.xs, color: t.colors.mint700, fontWeight: Typography.medium },
+  lenderApr: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  lenderDisclosure: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 16 },
   applyBtn: { alignSelf: 'flex-start', paddingVertical: Spacing[1] },
-  applyBtnText: { fontSize: Typography.sm, color: Colors.mint600, fontWeight: Typography.semibold },
+  applyBtnText: { fontSize: Typography.sm, color: t.colors.mint600, fontWeight: Typography.semibold },
 
   comingSoonCard: {
     flexDirection: 'row',
     gap: Spacing[3],
     alignItems: 'flex-start',
-    backgroundColor: Colors.gray50,
+    backgroundColor: t.colors.gray50,
     borderRadius: Radius.lg,
     padding: Spacing[5],
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
-  comingSoonText: { flex: 1, fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: 20 },
+  comingSoonText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
 
   disclaimer: {
     fontSize: Typography.xs,
-    color: Colors.textMuted,
+    color: t.colors.textMuted,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: Spacing[2],
   },
-});
+}));

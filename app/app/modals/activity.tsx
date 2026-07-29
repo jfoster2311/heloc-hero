@@ -10,7 +10,7 @@
 // call with the same classification, and the count of what was held out is
 // stated rather than hidden. Collapsed by default because the list is the
 // reason someone opened this screen, not the total they already saw.
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -27,7 +27,8 @@ import {
   periodRange, summarizePeriod,
   type CategorizedTxn, type CategoryMeta, type SpendCategory,
 } from '../../lib/spending';
-import { Colors, Typography, Spacing, Radius, CommonStyles } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 type Sort = 'newest' | 'oldest' | 'largest';
 
@@ -38,6 +39,8 @@ const SORTS: { id: Sort; label: string }[] = [
 ];
 
 export default function ActivityScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -115,13 +118,13 @@ export default function ActivityScreen() {
 
         {/* ── Search ─────────────────────────────────────────────────────── */}
         <View style={styles.search}>
-          <Ionicons name="search" size={16} color={Colors.textMuted} />
+          <Ionicons name="search" size={16} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
             placeholder="Search by payee or category"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             autoCorrect={false}
             returnKeyType="search"
             accessibilityLabel="Search transactions"
@@ -133,7 +136,7 @@ export default function ActivityScreen() {
               accessibilityRole="button"
               accessibilityLabel="Clear search"
             >
-              <Ionicons name="close-circle" size={17} color={Colors.textMuted} />
+              <Ionicons name="close-circle" size={17} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -168,11 +171,11 @@ export default function ActivityScreen() {
             accessibilityState={{ expanded: summaryOpen }}
             accessibilityLabel="Summary for this period"
           >
-            <Text style={CommonStyles.eyebrow}>SUMMARY</Text>
+            <Text style={common.eyebrow}>SUMMARY</Text>
             <Ionicons
               name={summaryOpen ? 'chevron-up' : 'chevron-down'}
               size={16}
-              color={Colors.textMuted}
+              color={colors.textMuted}
             />
           </TouchableOpacity>
 
@@ -271,6 +274,7 @@ function SummaryLine({ label, value, text }: {
   value?: number;
   text?: string;
 }) {
+  const styles = useStyles();
   const negative = value !== undefined && value < 0;
   return (
     <View style={styles.summaryLine}>
@@ -291,8 +295,8 @@ function formatGroupDay(date: string) {
   });
 }
 
-const styles = StyleSheet.create({
-  range: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center' },
+const useStyles = createThemedStyles(t => ({
+  range: { fontSize: Typography.xs, color: t.colors.textMuted, textAlign: 'center' },
 
   search: {
     flexDirection: 'row',
@@ -301,11 +305,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: Spacing[3],
     borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.colors.border,
   },
-  searchInput: { flex: 1, fontSize: Typography.sm, color: Colors.textPrimary },
+  searchInput: { flex: 1, fontSize: Typography.sm, color: t.colors.textPrimary },
   searchClear: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
   sorts: { flexDirection: 'row', gap: Spacing[2] },
@@ -314,20 +318,20 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sortPillActive: { backgroundColor: Colors.mint800, borderColor: Colors.mint800 },
-  sortText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  sortTextActive: { color: Colors.white, fontWeight: Typography.semibold },
+  sortPillActive: { backgroundColor: t.colors.mint800, borderColor: t.colors.mint800 },
+  sortText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  sortTextActive: { color: t.colors.white, fontWeight: Typography.semibold },
 
   summaryCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
   summaryHead: {
@@ -344,26 +348,26 @@ const styles = StyleSheet.create({
     minHeight: 32,
     gap: Spacing[3],
   },
-  summaryLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
-  summaryValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  summaryValueMuted: { color: Colors.gray500 },
-  summaryNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: Spacing[2] },
+  summaryLabel: { fontSize: Typography.sm, color: t.colors.textSecondary },
+  summaryValue: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  summaryValueMuted: { color: t.colors.gray500 },
+  summaryNote: { fontSize: 11, color: t.colors.textMuted, lineHeight: 16, marginTop: Spacing[2] },
 
   group: { gap: Spacing[2] },
-  groupHead: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.textMuted },
+  groupHead: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textMuted },
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
 
   empty: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     textAlign: 'center',
     paddingVertical: Spacing[8],
   },
-});
+}));

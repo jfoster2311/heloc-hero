@@ -11,7 +11,7 @@
 // everything. It deliberately has no ceilings, no comparison to a target and
 // no over/under state: there is nothing to cap on money coming in, and every
 // mark that implies otherwise would be inventing a judgement.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useCallback } from 'react';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
@@ -33,10 +33,8 @@ import {
   merchantTotals, merchantDetail,
   type PeriodId, type SpendCategory, type CategorizedTxn,
 } from '../../lib/spending';
-import {
-  Colors, Typography, Spacing, Radius, CommonStyles,
-  CategoryRamp, CATEGORY_RAMP_MAX,
-} from '../../lib/theme';
+import { Typography, Spacing, Radius, CategoryRamp, CATEGORY_RAMP_MAX } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const TREND_MONTHS = 6;
 /** Rows shown before "See more". Four is a card you can scan. */
@@ -48,6 +46,8 @@ type Side = 'spending' | 'income';
 type Pivot = 'category' | 'merchant';
 
 export default function BreakdownScreen() {
+  const { colors, common } = useTheme();
+  const styles = useStyles();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -266,7 +266,7 @@ export default function BreakdownScreen() {
                     }
                   >
                     <View style={styles.rowIcon}>
-                      <Ionicons name={c.icon} size={17} color={Colors.mint700} />
+                      <Ionicons name={c.icon} size={17} color={colors.mint700} />
                       <View
                         style={[
                           styles.swatch,
@@ -282,7 +282,7 @@ export default function BreakdownScreen() {
                     </View>
                     <Text style={styles.rowAmount}>${fmt(c.amount)}</Text>
                     {side === 'spending' && (
-                      <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+                      <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -301,7 +301,7 @@ export default function BreakdownScreen() {
             {/* ── The tail ───────────────────────────────────────────────── */}
             {side === 'spending' && largest.length > 0 && (
               <View style={styles.section}>
-                <Text style={CommonStyles.eyebrow}>LARGEST CHARGES</Text>
+                <Text style={common.eyebrow}>LARGEST CHARGES</Text>
                 <View style={styles.plainList}>
                   {largest.map(r => {
                     const m = txnMeta.get(r.txn.transaction_id);
@@ -325,7 +325,7 @@ export default function BreakdownScreen() {
 
             {side === 'spending' && frequent.length > 0 && (
               <View style={styles.section}>
-                <Text style={CommonStyles.eyebrow}>MOST FREQUENT</Text>
+                <Text style={common.eyebrow}>MOST FREQUENT</Text>
                 <Text style={styles.sectionNote}>
                   Small charges that repeat are the ones that quietly eat a surplus.
                 </Text>
@@ -418,6 +418,8 @@ function SeeMore({ expanded, hidden, onToggle }: {
   hidden: number;
   onToggle: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   if (hidden <= 0) return null;
   return (
     <TouchableOpacity
@@ -433,7 +435,7 @@ function SeeMore({ expanded, hidden, onToggle }: {
       <Ionicons
         name={expanded ? 'chevron-up' : 'chevron-down'}
         size={15}
-        color={Colors.mint700}
+        color={colors.mint700}
       />
     </TouchableOpacity>
   );
@@ -444,6 +446,8 @@ function MerchantList({ merchants, total, onOpen }: {
   total: number;
   onOpen: (key: string) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.list}>
       {merchants.map(m => (
@@ -468,7 +472,7 @@ function MerchantList({ merchants, total, onOpen }: {
             </Text>
           </View>
           <Text style={styles.rowAmount}>${fmt(m.amount)}</Text>
-          <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+          <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
         </TouchableOpacity>
       ))}
     </View>
@@ -506,45 +510,45 @@ function incomeSegments(inflows: CategorizedTxn[]) {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   periods: { flexDirection: 'row', gap: Spacing[2] },
   periodPill: {
     flex: 1,
     minHeight: 44,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  periodPillActive: { backgroundColor: Colors.mint800, borderColor: Colors.mint800 },
-  periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  periodTextActive: { color: Colors.white, fontWeight: Typography.semibold },
-  range: { fontSize: Typography.xs, color: Colors.textMuted, textAlign: 'center' },
+  periodPillActive: { backgroundColor: t.colors.mint800, borderColor: t.colors.mint800 },
+  periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  periodTextActive: { color: t.colors.white, fontWeight: Typography.semibold },
+  range: { fontSize: Typography.xs, color: t.colors.textMuted, textAlign: 'center' },
 
   ringCard: { alignItems: 'center', paddingVertical: Spacing[2] },
 
   pivotRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
-  pivotLabel: { fontSize: Typography.xs, color: Colors.textMuted, marginRight: 2 },
+  pivotLabel: { fontSize: Typography.xs, color: t.colors.textMuted, marginRight: 2 },
   pivotChip: {
     minHeight: 40,
     justifyContent: 'center',
     paddingHorizontal: Spacing[4],
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.colors.border,
+    backgroundColor: t.colors.surface,
   },
-  pivotChipActive: { backgroundColor: Colors.mint50, borderColor: Colors.mint600 },
-  pivotText: { fontSize: Typography.xs, fontWeight: Typography.medium, color: Colors.textSecondary },
-  pivotTextActive: { color: Colors.mint700, fontWeight: Typography.semibold },
+  pivotChipActive: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint600 },
+  pivotText: { fontSize: Typography.xs, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  pivotTextActive: { color: t.colors.mint700, fontWeight: Typography.semibold },
 
   list: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
   row: {
@@ -554,28 +558,28 @@ const styles = StyleSheet.create({
     minHeight: 64,
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
+    borderBottomColor: t.colors.borderSubtle,
   },
   rowIcon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     alignItems: 'center', justifyContent: 'center',
   },
   merchantInitial: {
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
-    color: Colors.mint700,
+    color: t.colors.mint700,
   },
   swatch: {
     position: 'absolute',
     right: -1, bottom: -1,
     width: 11, height: 11, borderRadius: 6,
-    borderWidth: 2, borderColor: Colors.surface,
+    borderWidth: 2, borderColor: t.colors.surface,
   },
   rowBody: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.textPrimary },
-  rowMeta: { fontSize: 11, color: Colors.textMuted },
-  rowAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.textPrimary },
+  rowLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
+  rowMeta: { fontSize: 11, color: t.colors.textMuted },
+  rowAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
 
   seeMore: {
     flexDirection: 'row',
@@ -585,18 +589,18 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.mint200,
-    backgroundColor: Colors.mint50,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
   },
-  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.mint700 },
+  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   section: { gap: Spacing[2] },
-  sectionNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
+  sectionNote: { fontSize: 11, color: t.colors.textMuted, lineHeight: 16 },
   plainList: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     paddingHorizontal: Spacing[4],
   },
 
@@ -606,21 +610,21 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: Spacing[3],
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: t.colors.borderSubtle,
     minHeight: 72,
     justifyContent: 'center',
   },
-  chipCount: { fontSize: Typography.sm, fontWeight: Typography.extrabold, color: Colors.mint700 },
-  chipName: { fontSize: Typography.xs, color: Colors.textPrimary },
-  chipAmount: { fontSize: 11, color: Colors.textMuted },
+  chipCount: { fontSize: Typography.sm, fontWeight: Typography.extrabold, color: t.colors.mint700 },
+  chipName: { fontSize: Typography.xs, color: t.colors.textPrimary },
+  chipAmount: { fontSize: 11, color: t.colors.textMuted },
 
   empty: {
     fontSize: Typography.sm,
-    color: Colors.textSecondary,
+    color: t.colors.textSecondary,
     lineHeight: 20,
     textAlign: 'center',
     paddingVertical: Spacing[8],
   },
-});
+}));

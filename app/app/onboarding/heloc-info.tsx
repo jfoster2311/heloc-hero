@@ -1,6 +1,6 @@
 // app/onboarding/heloc-info.tsx
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
@@ -8,7 +8,8 @@ import FormField from '../../components/ui/FormField';
 import AmountCardField, { AmountPreset } from '../../components/ui/AmountCardField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import type { HelocStatus } from '../../lib/lenders';
-import { Colors, Typography, Spacing, Radius } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
+import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 function fmtDollar(v: number) {
   return '$' + Math.round(v).toLocaleString('en-US');
@@ -26,6 +27,8 @@ function buildHelocPresets(surplus: number): AmountPreset[] {
 }
 
 export default function HelocInfoStep() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
@@ -92,7 +95,7 @@ export default function HelocInfoStep() {
             <Ionicons
               name={opt.icon as never}
               size={18}
-              color={helocStatus === opt.value ? Colors.white : Colors.textMuted}
+              color={helocStatus === opt.value ? colors.white : colors.textMuted}
             />
             <Text style={[styles.toggleText, helocStatus === opt.value && styles.toggleTextActive]}>
               {opt.label}
@@ -132,7 +135,7 @@ export default function HelocInfoStep() {
       ) : (
         <>
           <View style={styles.noHelocInfo}>
-            <Ionicons name="information-circle-outline" size={20} color={Colors.mint600} />
+            <Ionicons name="information-circle-outline" size={20} color={colors.mint600} />
             <Text style={styles.noHelocText}>
               No problem. After setup, we'll guide you through what to look for and how to
               find the right HELOC for this strategy.
@@ -157,7 +160,7 @@ export default function HelocInfoStep() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(t => ({
   statusList: {
     gap:          Spacing[3],
     marginBottom: Spacing[5],
@@ -171,29 +174,29 @@ const styles = StyleSheet.create({
     padding:        Spacing[4],
     borderRadius:   Radius.md,
     borderWidth:    1.5,
-    borderColor:    Colors.border,
-    backgroundColor: Colors.gray50,
+    borderColor:    t.colors.border,
+    backgroundColor: t.colors.gray50,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.mint600,
-    borderColor:     Colors.mint600,
+    backgroundColor: t.colors.mint600,
+    borderColor:     t.colors.mint600,
   },
-  toggleText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
-  toggleTextActive: { color: Colors.white },
+  toggleText:       { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
+  toggleTextActive: { color: t.colors.white },
   noHelocInfo: {
     flexDirection:   'row',
     gap:             Spacing[3],
-    backgroundColor: Colors.mint50,
+    backgroundColor: t.colors.mint50,
     borderRadius:    Radius.md,
     padding:         Spacing[4],
     borderLeftWidth: 3,
-    borderLeftColor: Colors.mint400,
+    borderLeftColor: t.colors.mint400,
     marginBottom:    Spacing[5],
   },
   noHelocText: {
     flex:       1,
     fontSize:   Typography.sm,
-    color:      Colors.mint700,
+    color:      t.colors.mint700,
     lineHeight: 20,
   },
-});
+}));
