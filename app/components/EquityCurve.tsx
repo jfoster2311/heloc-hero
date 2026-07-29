@@ -67,13 +67,30 @@ export default function EquityCurve({
   // waypoint, NOT the debt-free date and NOT `finalEquity` — labelling a
   // one-year view with the figure from year thirty is the single way this
   // control could lie, and it would lie in the flattering direction.
-  const endEquity = accPts.length > 0 ? accPts[accPts.length - 1].equity : series.finalEquity;
-  const endDate   = windowed ? addMonths(new Date(), accPts.length) : debtFreeDate;
+  const lastPt    = accPts[accPts.length - 1];
+  const endEquity = lastPt ? lastPt.equity : series.finalEquity;
+  // `month` is the index from the series and month 0 is TODAY, so a 12-entry
+  // window ends at month 11. Counting the entries instead put the axis date a
+  // month into the future — small, but it is a date on a projection, and the
+  // series already carries the true index.
+  const endMonths = lastPt ? lastPt.month : 0;
+  const endDate   = windowed ? addMonths(new Date(), endMonths) : debtFreeDate;
 
-  // Floor sits at zero unless the user is underwater, in which case clipping
-  // the negative part would hide the only thing worth seeing.
-  const min = Math.min(0, ...acc, ...base);
-  const max = Math.max(series.finalEquity, ...acc, ...base);
+  // ── Bounds, and why the two views frame differently ───────────────────────
+  // Full curve: floor at zero, ceiling at the projection's end. Equity genuinely
+  // travels most of that distance, so the frame is the story, and the area fill
+  // beneath the line measures from a real zero.
+  //
+  // Windowed: a year of equity growth is a few percent of the whole range. Held
+  // in a 0-to-final frame it renders as a flat line hugging one edge — the zoom
+  // would change the axis labels and nothing the user could see. So the window
+  // zooms to its own data, with headroom so the line does not graze the frame
+  // (LineChart maps min/max straight to the edges and clips).
+  const lo = Math.min(...acc, ...base);
+  const hi = Math.max(...acc, ...base);
+  const pad = (hi - lo) * 0.12 || 1;
+  const min = windowed ? lo - pad : Math.min(0, lo);
+  const max = windowed ? hi + pad : Math.max(series.finalEquity, hi);
 
   return (
     <View style={styles.wrap}>
@@ -81,7 +98,7 @@ export default function EquityCurve({
         accessibilityRole="image"
         accessibilityLabel={
           windowed
-            ? `Projected equity over the next ${accPts.length} months, reaching ` +
+            ? `Projected equity over the next ${endMonths} months, reaching ` +
               `${money(endEquity)} by ${fmtMonthYear(endDate)}.`
             : `Projected equity, rising to ${money(series.finalEquity)} by ` +
               `${fmtMonthYear(debtFreeDate)}, when nothing is owed against the house.`
@@ -97,7 +114,12 @@ export default function EquityCurve({
               values: acc,
               color: Aurora.glowSoft,
               width: 2.5,
-              fillColor: 'rgba(18,183,106,0.16)',
+              // No fill on a zoomed window. The fill is drawn down to the frame
+              // floor, and on a window that floor is not zero — a filled area
+              // measured from a truncated baseline reads as magnitude and would
+              // overstate it badly. Zooming a LINE is fair; zooming an AREA is
+              // the oldest misleading chart there is.
+              fillColor: windowed ? undefined : 'rgba(18,183,106,0.16)',
               glow: true,
             },
           ]}
@@ -122,7 +144,9 @@ export default function EquityCurve({
         mortgage and anything drawn on the line.
         {windowed
           ? ' This is a window on the projection ahead, not a record of where your' +
-            ' equity has been — no balance history is stored.'
+            ' equity has been — no balance history is stored. The vertical scale is' +
+            ' zoomed to this window and does not start at zero, so the slope reads' +
+            ' steeper than on the full curve.'
           : settleMonths > 0
             ? ` The mortgage clears in ${fmtMonthYear(payoffDate)} with about ` +
               `${money(series.helocOutstandingAtPayoff)} still on the line; the curve runs on to ` +
