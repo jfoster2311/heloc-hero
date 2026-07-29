@@ -667,8 +667,14 @@ export default function DashboardScreen() {
                 eyebrow="HOME EQUITY"
                 icon="home-outline"
                 value={f.equity !== null ? `$${fmtK(f.equity)}` : '—'}
+                // "Combined", because the figure includes the drawn line as well
+                // as the mortgage. Plain "loan-to-value" conventionally means the
+                // first mortgage alone, so mid-cycle — with the line drawn — this
+                // tile was quoting a number a user would reasonably read as their
+                // mortgage LTV while it was several points higher than that. It
+                // is also the wording the Accounts hero uses for the same value.
                 sub={f.combinedLTV !== null
-                  ? `${Math.round(f.combinedLTV * 100)}% loan-to-value`
+                  ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value`
                   : 'add your home value'}
                 onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
                 accessibilityHint="Opens the Accounts tab"
@@ -700,11 +706,19 @@ export default function DashboardScreen() {
               onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
               accessibilityHint="Opens the Accounts tab"
             />
+            {/* "PROJECTED SAVING", not "INTEREST SAVED". This tile sits a few
+                inches below the Interest card, whose entire premise is that the
+                realized figure leads because the projection is the bigger number
+                and the less trustworthy one. Labelling the projection in the past
+                tense undercut that: the two figures differ by an order of
+                magnitude early on, and the larger one carried the more definite
+                word. The caveat belongs in the eyebrow, which is the part of a
+                tile that actually gets read. */}
             <NavTile
-              eyebrow="INTEREST SAVED"
+              eyebrow="PROJECTED SAVING"
               icon="trending-down-outline"
               value={`$${fmtK(f.projection.interestSaved)}`}
-              sub="projected over the plan"
+              sub="interest, over the whole plan"
               onPress={() => { hapticLight(); router.push('/tabs/calculator' as never); }}
               accessibilityHint="Opens the Calculator tab"
             />
