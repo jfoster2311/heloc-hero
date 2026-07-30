@@ -237,7 +237,15 @@ export interface Allocation {
    * interrupting for, and the reason this is signed rather than clamped.
    */
   unallocated: number;
-  /** True when the ceilings alone exceed income, before the mortgage payment. */
+  /**
+   * True when the ceilings AND the mortgage payment together exceed income.
+   *
+   * The comment here used to say "the ceilings alone … before the mortgage
+   * payment", which is not what the expression below computes. Including the
+   * payment is the right behaviour — it is the most committed dollar in the
+   * month — so the comment was the error, but a stale one on a boolean that
+   * gates an interruption is worth being exact about.
+   */
   overCommitted: boolean;
 }
 
