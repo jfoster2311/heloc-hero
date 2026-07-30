@@ -381,9 +381,16 @@ export default function RevealScreen() {
             HELOC Hero is a strategy engine that does three things no budget app can:
           </Text>
           <View style={styles.thingsList}>
-            <ThingRow icon="calculator-outline"   text="Calculates the exact principal dump amount each cycle" />
-            <ThingRow icon="time-outline"         text="Times each dump to maximize daily interest reduction" />
-            <ThingRow icon="trending-down-outline" text="Shows a live payoff curve that updates with your real balances" />
+            {/* Each of these has to name something lib/ actually does.
+                "Times each dump to maximize daily interest reduction" was here
+                and nothing in the app times anything — there is no optimiser,
+                and the closest thing is computeStrike reporting when the
+                balance reaches the replenish threshold. "The exact dump amount"
+                overstated safeToMove too, which rounds DOWN to $500 precisely
+                so it reads as a recommendation rather than an instruction. */}
+            <ThingRow icon="calculator-outline"   text="Works out how much is safe to move, and what it costs your cash buffer" />
+            <ThingRow icon="time-outline"         text="Tracks how far the line has to be repaid before your next dump opens" />
+            <ThingRow icon="trending-down-outline" text="Shows a payoff curve that updates as your balances change" />
           </View>
         </View>
 
