@@ -208,9 +208,20 @@ export default function DashboardScreen() {
   const remindersEnabled = isPaidTier(tier);
 
   useCycleReminders(profile?.id, {
-    helocDrawn:          f.helocDrawn ?? 0,
+    // Not coerced. The dump reminder's date is computed from this, and it is
+    // delivered when the user is not in the app to sanity-check it.
+    helocDrawn:          f.helocDrawn,
+    // The same target the meter above counts down to — `strike` is computed
+    // from f.helocLimit and f.replenishThreshold a few lines up, so passing its
+    // own target back is what keeps the notification and the meter in step.
+    replenishTarget:     strike.state === 'no_line' ? null : strike.target,
+    helocRate:           f.helocRate,
     monthlySurplus:      Math.max(0, f.surplus),
     dumpAmount:          f.safeToMove.recommendedAmount ?? 0,
+    // The Safe to Sweep card's own figure, so the notification cannot name a
+    // number the screen it links to disagrees with.
+    sweepAmount:         sweep.state === 'no_line' || sweep.state === 'unknown_balance'
+                           ? null : sweep.committed,
     enabled:             remindersEnabled,
     // A set (non-assumed) rate is the signal that terms exist to re-confirm.
     hasHelocTerms:       !f.helocRateAssumed,

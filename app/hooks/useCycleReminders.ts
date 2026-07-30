@@ -26,9 +26,21 @@ export interface UseCycleRemindersResult {
 }
 
 export interface CycleInputs {
-  helocDrawn: number;
+  /**
+   * Null when there is a line whose balance we do not have. Not coerced: the
+   * dump reminder's date is computed from this, and a zero would mean "already
+   * replenished" — the app telling someone their line is clear on no evidence,
+   * in a notification, while they are not even in the app to check it.
+   */
+  helocDrawn: number | null;
+  /** Where the balance has to fall to before the next dump opens. */
+  replenishTarget: number | null;
+  /** Decimal APR on the line — interest comes out of the surplus first. */
+  helocRate: number;
   monthlySurplus: number;
   dumpAmount: number;
+  /** What is committed to the line this month — computeSafeToSweep's own figure. */
+  sweepAmount: number | null;
   /** Skip scheduling entirely when the user has no paid access. */
   enabled: boolean;
   /** True once the user has entered HELOC terms worth re-confirming. */
@@ -90,14 +102,18 @@ export function useCycleReminders(
   useEffect(() => {
     if (!cycle.enabled || loading || !granted) return;
     syncCycleReminders({
-      helocDrawn:     cycle.helocDrawn,
-      monthlySurplus: cycle.monthlySurplus,
-      dumpAmount:     cycle.dumpAmount,
-      dumpAlertsOn:   dumpOn,
-      sweepAlertsOn:  sweepOn,
+      helocDrawn:      cycle.helocDrawn,
+      replenishTarget: cycle.replenishTarget,
+      helocRate:       cycle.helocRate,
+      monthlySurplus:  cycle.monthlySurplus,
+      dumpAmount:      cycle.dumpAmount,
+      sweepAmount:     cycle.sweepAmount,
+      dumpAlertsOn:    dumpOn,
+      sweepAlertsOn:   sweepOn,
     });
   }, [
-    cycle.enabled, cycle.helocDrawn, cycle.monthlySurplus, cycle.dumpAmount,
+    cycle.enabled, cycle.helocDrawn, cycle.replenishTarget, cycle.helocRate,
+    cycle.monthlySurplus, cycle.dumpAmount, cycle.sweepAmount,
     sweepOn, dumpOn, loading, granted,
   ]);
 

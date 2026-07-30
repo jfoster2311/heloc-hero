@@ -12,6 +12,7 @@
 //
 // The native module is absent in Expo Go, so every call is guarded and every
 // entry point degrades to a no-op rather than throwing.
+import { computeStrike } from './strike';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type NotificationsModule = any;
@@ -143,32 +144,77 @@ export async function schedule(
 // ─── Cycle prompts ────────────────────────────────────────────────────────────
 
 export interface CycleState {
-  /** HELOC balance still owed. 0 means the line is replenished. */
-  helocDrawn: number;
+  /**
+   * HELOC balance still owed. Null when there is a line whose balance we do not
+   * have — see hooks/useCycleReminders. Never coerce it: a zero here reads as
+   * "already replenished" and books a notification saying so.
+   */
+  helocDrawn: number | null;
+  /** Where the balance has to fall to for the next dump to open. */
+  replenishTarget: number | null;
+  /** Decimal APR on the line. */
+  helocRate: number;
   /** What the user frees up each month. */
   monthlySurplus: number;
   /** What they would move once replenished. */
   dumpAmount: number;
+  /**
+   * What is actually committed to the line this month — `sweep.committed` from
+   * computeSafeToSweep, passed in rather than recomputed.
+   *
+   * The reminder used to name the whole monthly surplus, which contradicted the
+   * Safe to Sweep card the user would open on tapping it: that card's entire
+   * purpose is that only part of the surplus is owed to the line and the rest is
+   * genuinely free to spend. Null falls back to naming no figure at all.
+   */
+  sweepAmount: number | null;
   /** Whether they've asked to be told about dumps / sweeps. */
   dumpAlertsOn: boolean;
   sweepAlertsOn: boolean;
 }
 
 /**
- * When the HELOC should be clear, from surplus alone. Null when it never will
- * be — no point promising a date the maths does not support.
+ * When the next dump is projected to open.
+ *
+ * This used to be `ceil(helocDrawn / monthlySurplus)` computed right here, and
+ * it was wrong twice over in opposite directions:
+ *
+ *  1. It ignored the line's interest. The balance does not fall by the whole
+ *     surplus — interest is charged first, and what repays is the remainder.
+ *     A line whose interest exceeds the surplus never replenishes at all, and
+ *     this happily returned a date for it.
+ *  2. It counted down to ZERO, when the product gates the next dump at
+ *     `limit × replenishThreshold` — a balance well above zero.
+ *
+ * So the notification named a date the dashboard's own meter disagreed with,
+ * which is exactly the failure lib/strike.ts's header warns about. The fix is
+ * not to reimplement the arithmetic correctly here; it is to have one
+ * implementation. `computeStrike` is it, and the meter renders the same call.
  */
 export function projectedReplenishDate(
-  helocDrawn: number,
-  monthlySurplus: number,
+  cycle: Pick<CycleState, 'helocDrawn' | 'replenishTarget' | 'helocRate' | 'monthlySurplus'>,
   now = new Date(),
 ): Date | null {
-  if (helocDrawn <= 0) return now;
-  if (monthlySurplus <= 0) return null;
-  const months = Math.ceil(helocDrawn / monthlySurplus);
-  if (!Number.isFinite(months) || months > 600) return null;
+  if (cycle.helocDrawn === null || cycle.replenishTarget === null) return null;
+
+  // computeStrike works from a limit and a threshold; the caller has already
+  // resolved those into the target balance, so hand it back an equivalent pair.
+  // Threshold 1 with limit = target means "the target IS the target", which is
+  // the identity that keeps this from re-deriving anything.
+  const strike = computeStrike({
+    helocDrawn:         cycle.helocDrawn,
+    helocLimit:         cycle.replenishTarget > 0 ? cycle.replenishTarget : null,
+    monthlySurplus:     cycle.monthlySurplus,
+    helocRate:          cycle.helocRate,
+    replenishThreshold: 1,
+  });
+
+  if (strike.state === 'open') return now;
+  if (strike.monthsToGo === null) return null;
+  if (strike.monthsToGo > 600) return null;
+
   const d = new Date(now);
-  d.setMonth(d.getMonth() + months);
+  d.setMonth(d.getMonth() + strike.monthsToGo);
   return d;
 }
 
@@ -183,14 +229,19 @@ export async function syncCycleReminders(
   const scheduled: ReminderId[] = [];
   if (!notificationsAvailable()) return scheduled;
 
-  // Dump prompt — when the line is projected to be clear again.
+  // Dump prompt — when the balance is projected to reach the threshold.
   await cancel(REMINDER_IDS.dumpReady);
   if (state.dumpAlertsOn && state.dumpAmount > 0) {
-    const date = projectedReplenishDate(state.helocDrawn, state.monthlySurplus, now);
+    const date = projectedReplenishDate(state, now);
     if (date && date.getTime() > now.getTime()) {
       const ok = await schedule(
         REMINDER_IDS.dumpReady,
-        'Your HELOC should be clear',
+        // Was "Your HELOC should be clear", which named the wrong event: this
+        // fires when the balance reaches the replenish threshold, which is a
+        // long way above zero. Someone opening the app to a line still carrying
+        // most of its target balance would reasonably conclude the app was
+        // broken — and the one they should distrust is the notification.
+        'Your next dump should be open',
         `If the last few months held, you can move about $${round(state.dumpAmount)} onto your principal. Open HELOC Hero to check the numbers first.`,
         date,
       );
@@ -198,14 +249,18 @@ export async function syncCycleReminders(
     }
   }
 
-  // Sweep prompt — a monthly nudge to move surplus across.
+  // Sweep prompt — a monthly nudge to move what is committed.
   await cancel(REMINDER_IDS.sweepDue);
   if (state.sweepAlertsOn && state.monthlySurplus > 0) {
     const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 10, 0, 0);
     const ok = await schedule(
       REMINDER_IDS.sweepDue,
       'Time to sweep your surplus',
-      `About $${round(state.monthlySurplus)} is due to go to your HELOC this month. You make the transfer — we'll track it.`,
+      state.sweepAmount !== null && state.sweepAmount > 0
+        ? `About $${round(state.sweepAmount)} is owed to your line this month. ` +
+          "You make the transfer — we'll track it."
+        : "Open HELOC Hero to see what is owed to your line this month. You make " +
+          "the transfer — we'll track it.",
       next,
     );
     if (ok) scheduled.push(REMINDER_IDS.sweepDue);
