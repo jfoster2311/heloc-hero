@@ -33,6 +33,7 @@ import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
 import { analyzeMove, suggestedMove, CAUTION_UTILIZATION } from '../../lib/moveDecision';
 import { bufferMonths } from '../../lib/safeToMove';
+import SuccessReveal from '../../components/ui/SuccessReveal';
 import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
@@ -50,6 +51,7 @@ export default function MoveMoneyModal() {
   const { profile } = useAuth();
   const {
     mortgageAccount, helocAccount, savingsAccount, loading: accountsLoading,
+    refresh: refreshAccounts,
   } = useAccounts(profile?.id ?? null);
 
   const helocBalance = firstBalance(helocAccount);
@@ -118,6 +120,20 @@ export default function MoveMoneyModal() {
   const bufferBefore  = bufferMonths(liquidCash, Math.max(0, limit - drawn), expenses);
   const bufferAfter   = bufferMonths(liquidCash, analysis.availableAfter, expenses);
 
+  /**
+   * The move as it stood when it was written, frozen.
+   *
+   * `analysis` is derived from the Plaid balances, and logging fires a refresh —
+   * so once fresh balances land, every figure in it silently re-bases onto the
+   * post-move world. Reading it in the reward would restate the projection for a
+   * SECOND dump on top of the one just made. Snapshotting the whole object is
+   * the cheap fix and it cannot drift field by field.
+   */
+  const [logged, setLogged] = useState<{
+    amount: number;
+    analysis: typeof analysis;
+  } | null>(null);
+
   async function handleLogMove() {
     if (!profile?.id || !canLog) return;
     setLogging(true);
@@ -134,11 +150,122 @@ export default function MoveMoneyModal() {
       Alert.alert('Could not record it', `${error.message}\n\nNothing was saved. Please try again.`);
       return;
     }
-    // Tell every mounted history view to re-read before we navigate, so the
-    // dashboard the user lands back on already reflects what they just did.
-    notifyDumpLogged();
+
+    setLogged({ amount, analysis });
     hapticSuccess();
-    router.back();
+
+    // Correct here, unlike on the sweep sheet: useDumpHistory selects
+    // `.eq('action', 'dump')`, so this row IS one it counts. The dashboard's
+    // realized-interest figure and dump count genuinely move on the back of it,
+    // which is why the reward below is allowed to say so.
+    notifyDumpLogged();
+    // The balances themselves are the bank's. Ask for a fresh read so the
+    // mortgage and the line catch up; fire-and-forget, because a failed refresh
+    // must not turn a recorded move into an error.
+    void refreshAccounts();
+  }
+
+  // ── The reward ──────────────────────────────────────────────────────────
+  // A state of the sheet, not a dismiss, for the same reason as the sweep: the
+  // work happens in the user's bank and the only thing this app can give back
+  // for it is acknowledgement.
+  //
+  // What it may claim is narrower than it looks. The figures are PROJECTIONS from
+  // analyzeMove, not money in hand, so they are labelled that way — and
+  // `netInterestSaved` can be negative, which is a real outcome of a real move on
+  // an expensive line. A reveal that congratulated the user either way would be
+  // the one place in the app where a loss is dressed as a win, so the losing case
+  // gets a neutral acknowledgement and states the cost plainly.
+  if (logged !== null) {
+    const a = logged.analysis;
+    // `mortgageStalls` means the payment does not cover interest, so every
+    // projection derived from it is meaningless — not merely unflattering. It
+    // cannot be allowed to read as a win.
+    const ahead = a.netInterestSaved > 0 && !a.mortgageStalls;
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Move recorded</Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.closeBtn}
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <SuccessReveal
+              title={`$${fmt(logged.amount)} onto your mortgage`}
+              caption={ahead
+                ? 'Logged. Your dump history and the interest you have removed both include it now.'
+                : 'Logged. At this rate on your line the move does not come out ahead — the figures below are what it actually costs.'}
+              rows={[
+                ahead
+                  ? {
+                      label: 'Projected interest saved, net of the line',
+                      value: `$${fmt(a.netInterestSaved)}`,
+                      emphasis: true,
+                    }
+                  : {
+                      label: 'Projected net cost, after mortgage interest saved',
+                      value: `$${fmt(Math.abs(a.netInterestSaved))}`,
+                      emphasis: true,
+                    },
+                {
+                  label: 'Projected off your payoff',
+                  // '—' when the payment cannot cover interest, mirroring the
+                  // decision screen: the arithmetic behind this figure is
+                  // meaningless on a loan that never amortizes.
+                  value: a.mortgageStalls ? '—' : formatMonths(a.monthsOffPayoff),
+                },
+                // When the draw cannot be repaid from surplus, helocInterestCost
+                // is 0 — and analyzeMove's own doc flags that it then "would read
+                // as free". The honest figure in that case is the monthly carry
+                // with no end date, which is what the decision screen shows too.
+                a.replenishable
+                  ? {
+                      label: 'Interest the line charges while you replenish',
+                      value: `$${fmt(a.helocInterestCost)}`,
+                    }
+                  : {
+                      label: 'Interest the line charges, indefinitely',
+                      value: `$${fmt(a.monthlyInterestAtNewBalance)}/mo`,
+                    },
+                {
+                  label: 'Credit still available on the line',
+                  value: `$${fmt(a.availableAfter)}`,
+                },
+              ]}
+              announcement={
+                ahead
+                  ? `$${fmt(logged.amount)} recorded against your mortgage. Projected to save ` +
+                    `$${fmt(a.netInterestSaved)} of interest, net of what your line charges.`
+                  : `$${fmt(logged.amount)} recorded against your mortgage. At this rate the move ` +
+                    `is projected to cost $${fmt(Math.abs(a.netInterestSaved))} net.`
+              }
+            />
+          </View>
+
+          <Text style={styles.rewardNote}>
+            Projected from the figures on the previous screen, not a guarantee. Your mortgage and
+            line balances are reported by your bank — we have asked for a fresh read, and they
+            will update once it arrives.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.choice, styles.choicePrimary]}
+            onPress={() => { hapticLight(); router.back(); }}
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+          >
+            <Text style={styles.choicePrimaryText}>Done</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -578,6 +705,13 @@ const useStyles = createThemedStyles(t => ({
     color: t.colors.textSecondary,
   },
   choicePrimary: { backgroundColor: t.colors.mint50, borderColor: t.colors.mint200 },
+  rewardNote: {
+    fontSize: Typography.xs,
+    color: t.colors.textMuted,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: Spacing[2],
+  },
   choicePrimaryText: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
