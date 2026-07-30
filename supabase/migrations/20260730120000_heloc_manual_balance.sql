@@ -1,6 +1,6 @@
 -- A hand-entered HELOC balance, because "unknown" was being read as "zero".
 --
--- NOT YET APPLIED to the live project. See the note at the bottom.
+-- Applied to the live project 2026-07-30 via apply_migration, and verified.
 --
 -- The drawn balance is the one HELOC figure Plaid does supply, so until now it
 -- had no column: it arrived on `linked_accounts` and nowhere else. But linking
