@@ -124,10 +124,22 @@ function runCycling(
     balance = Math.max(0, balance - principal);
 
     // Replenish HELOC from monthly surplus (after covering HELOC interest).
+    //
+    // Anything left over once the line is clear goes at the mortgage rather
+    // than evaporating. It used to be `helocDrawn = max(0, drawn - payment)`,
+    // which silently discarded the overshoot — real money, in the month the
+    // line is repaid, every single cycle. Measured against paying the same
+    // surplus straight at principal, the leak cost $2.4k–$4.3k over a plan and
+    // was large enough to invert the verdict: on a 5.5% line against a 7.5%
+    // mortgage — where cycling genuinely wins — the model had it LOSING by
+    // $4,331, when it in fact wins by $2,703.
     const helocInterest = helocDrawn * helocMonthlyRate;
     interest += helocInterest;
-    const helocPayment = Math.max(0, monthlySurplus - helocInterest);
-    helocDrawn = Math.max(0, helocDrawn - helocPayment);
+    const available   = Math.max(0, monthlySurplus - helocInterest);
+    const toLine      = Math.min(available, helocDrawn);
+    helocDrawn -= toLine;
+    const helocPayment = toLine;
+    balance = Math.max(0, balance - (available - toLine));
 
     months++;
     if (collect) {

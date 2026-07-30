@@ -30,7 +30,14 @@ export interface RealizedInputs {
 }
 
 export interface Realized {
-  /** Mortgage interest removed, net of HELOC interest paid. Null when no moves. */
+  /**
+   * Mortgage interest removed, net of HELOC interest paid.
+   *
+   * Null for TWO different reasons, and consumers have to tell them apart with
+   * `totalMoved`: nothing has been logged yet, or the moves that were logged
+   * carry a balance the surplus cannot repay, so the line's cost has no end
+   * date and there is no net to state. See MoveAnalysis.netInterestSaved.
+   */
   net: number | null;
   mortgageInterestRemoved: number;
   helocInterestPaid: number;

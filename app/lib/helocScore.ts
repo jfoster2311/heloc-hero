@@ -129,11 +129,18 @@ export function computeHelocScore(inputs: ScoreInputs): ScoreResult {
     helocBalance, helocLimit, creditScore, homeValue, mortgageBalance,
   } = inputs;
 
+  // A line on file with no balance for it. Both factors below net off the drawn
+  // amount, so `?? 0` would score an unverified line as pristine: utilization
+  // took the full 10 points for a line that might be maxed, and equity
+  // understated the LTV by the whole drawn balance. Two factors inflated at
+  // once, on the score that tells someone whether to borrow against their house.
+  const balanceUnknown = (helocLimit ?? 0) > 0 && helocBalance === null;
+
   const factors: ScoreFactor[] = [
     surplusFactor(monthlyIncome, monthlyExpenses, monthlyPayment),
-    equityFactor(homeValue, mortgageBalance, helocBalance),
+    equityFactor(homeValue, mortgageBalance, helocBalance, balanceUnknown),
     creditFactor(creditScore),
-    utilizationFactor(helocBalance, helocLimit),
+    utilizationFactor(helocBalance, helocLimit, balanceUnknown),
   ];
 
   // Normalised over what could be judged, so an inapplicable factor neither
@@ -150,7 +157,13 @@ export function computeHelocScore(inputs: ScoreInputs): ScoreResult {
     // whatever happens to be easiest to word.
     .sort((a, b) => (b.max - b.points) - (a.max - a.points));
 
-  const incomplete = creditScore === null || homeValue === null || monthlyIncome <= 0;
+  // `balanceUnknown` belongs here too. Without it the score normalises over the
+  // two factors that survive, then presents the result — 85 and "ready", on the
+  // same inputs that score 67 once a real balance arrives — with a headline
+  // claiming it is a read on where the user stands. Two of the four factors
+  // being unjudgeable is the definition of incomplete.
+  const incomplete =
+    creditScore === null || homeValue === null || monthlyIncome <= 0 || balanceUnknown;
 
   return {
     total,
@@ -220,6 +233,7 @@ function equityFactor(
   homeValue: number | null,
   mortgageBalance: number | null,
   helocBalance: number | null,
+  balanceUnknown: boolean,
 ): ScoreFactor {
   const max = 25;
   if (homeValue === null || homeValue <= 0 || mortgageBalance === null) {
@@ -228,6 +242,20 @@ function equityFactor(
       detail: 'We don’t know your home value or mortgage balance yet.',
       advice: 'Add your home value and mortgage balance to see how much room a lender ' +
         'would have to work with.',
+    };
+  }
+
+  // Inapplicable rather than computed off a coerced zero. This factor measures
+  // COMBINED borrowing against the home, so a missing line balance understates
+  // the LTV by exactly the drawn amount and hands back points that were never
+  // earned. Held out of both numerator and denominator, like every other
+  // question the user has not answered.
+  if (balanceUnknown) {
+    return {
+      id: 'equity', label: 'Equity in your home', points: 0, max, applicable: false,
+      detail: 'We know your home value and mortgage, but not what is drawn on your line.',
+      advice: 'Add your line balance — equity here counts every debt secured on the ' +
+        'house, so we cannot judge it without that one.',
     };
   }
 
@@ -301,6 +329,7 @@ function creditFactor(creditScore: number | null): ScoreFactor {
 function utilizationFactor(
   helocBalance: number | null,
   helocLimit: number | null,
+  balanceUnknown: boolean,
 ): ScoreFactor {
   const max = 10;
   if (helocLimit === null || helocLimit <= 0) {
@@ -308,6 +337,17 @@ function utilizationFactor(
       id: 'utilization', label: 'Line usage', points: 0, max, applicable: false,
       detail: 'No HELOC open yet — nothing to measure.',
       advice: null,
+    };
+  }
+
+  // The clearest case of the whole rule. `1 - used` with `used` coerced to zero
+  // awards FULL marks to a line whose balance we have never seen — and the
+  // detail line below would state "0% of your line is drawn" as fact.
+  if (balanceUnknown) {
+    return {
+      id: 'utilization', label: 'Line usage', points: 0, max, applicable: false,
+      detail: 'We don’t know what is drawn on your line yet.',
+      advice: 'Add your current balance so this can be scored.',
     };
   }
 

@@ -182,7 +182,14 @@ export default function MoveMoneyModal() {
     // `mortgageStalls` means the payment does not cover interest, so every
     // projection derived from it is meaningless — not merely unflattering. It
     // cannot be allowed to read as a win.
-    const ahead = a.netInterestSaved > 0 && !a.mortgageStalls;
+    // Three outcomes, not two. `netInterestSaved` is null when the surplus
+    // never clears the draw — the line's cost has no end date, so there is no
+    // net to state. That case used to fall through to `ahead` carrying the full
+    // mortgage saving with the line charged at zero, which is the one screen in
+    // the app where that could be read as money in hand.
+    const net = a.netInterestSaved;
+    const ahead = net !== null && net > 0 && !a.mortgageStalls;
+    const noNet = net === null;
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
@@ -200,19 +207,30 @@ export default function MoveMoneyModal() {
           <View style={styles.card}>
             <SuccessReveal
               title={`$${fmt(logged.amount)} onto your mortgage`}
-              caption={ahead
+              caption={noNet
+                ? 'Logged. Your surplus does not cover what this draw costs to carry, so the line ' +
+                  'does not get repaid and there is no net saving to project.'
+                : ahead
                 ? 'Logged. Your dump history and the interest you have removed both include it now.'
                 : 'Logged. At this rate on your line the move does not come out ahead — the figures below are what it actually costs.'}
               rows={[
-                ahead
+                noNet
+                  ? {
+                      // The gross, labelled as gross. Naming it "net" here is
+                      // exactly the error this branch exists to prevent.
+                      label: 'Mortgage interest this removes, before the line',
+                      value: `$${fmt(a.mortgageInterestSaved)}`,
+                      emphasis: true,
+                    }
+                  : ahead
                   ? {
                       label: 'Projected interest saved, net of the line',
-                      value: `$${fmt(a.netInterestSaved)}`,
+                      value: `$${fmt(net!)}`,
                       emphasis: true,
                     }
                   : {
                       label: 'Projected net cost, after mortgage interest saved',
-                      value: `$${fmt(Math.abs(a.netInterestSaved))}`,
+                      value: `$${fmt(Math.abs(net!))}`,
                       emphasis: true,
                     },
                 {
@@ -241,11 +259,15 @@ export default function MoveMoneyModal() {
                 },
               ]}
               announcement={
-                ahead
+                noNet
+                  ? `$${fmt(logged.amount)} recorded against your mortgage. Your surplus does not ` +
+                    `cover the $${fmt(a.monthlyInterestAtNewBalance)} a month this draw costs, so ` +
+                    'there is no net saving to project.'
+                  : ahead
                   ? `$${fmt(logged.amount)} recorded against your mortgage. Projected to save ` +
-                    `$${fmt(a.netInterestSaved)} of interest, net of what your line charges.`
+                    `$${fmt(net!)} of interest, net of what your line charges.`
                   : `$${fmt(logged.amount)} recorded against your mortgage. At this rate the move ` +
-                    `is projected to cost $${fmt(Math.abs(a.netInterestSaved))} net.`
+                    `is projected to cost $${fmt(Math.abs(net!))} net.`
               }
             />
           </View>
@@ -428,7 +450,12 @@ export default function MoveMoneyModal() {
                 </View>
               </View>
 
-              {analysis.replenishable && !analysis.mortgageStalls && (
+              {/* `netInterestSaved` is non-null exactly when the draw clears,
+                  which `replenishable` already gates on — the assertion is safe
+                  and the two conditions come from the same branch in
+                  analyzeMove. */}
+              {analysis.replenishable && !analysis.mortgageStalls
+                && analysis.netInterestSaved !== null && (
                 <Text style={styles.netLine}>
                   Net of HELOC interest, this move is projected to save{' '}
                   <Text style={styles.netBold}>${fmt(analysis.netInterestSaved)}</Text>.

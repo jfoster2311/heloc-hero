@@ -49,8 +49,21 @@ export interface MoveAnalysis {
   monthlyInterestAtNewBalance: number;
   /** Mortgage interest avoided by reducing principal now. */
   mortgageInterestSaved: number;
-  /** Mortgage interest saved minus HELOC interest paid. Can be negative. */
-  netInterestSaved: number;
+  /**
+   * Mortgage interest saved minus HELOC interest paid. Can be negative.
+   *
+   * NULL when the draw never clears, and that case is why this is nullable.
+   * `replenish` bails the moment the surplus stops covering the interest, so
+   * `helocInterestCost` comes back as 0 — a cost of nothing for a balance that
+   * is never repaid. Subtracting it produced the FULL mortgage saving, and the
+   * move sheet printed it as "net of what your line charges": measured at
+   * $224,171 net on a $100k draw carrying $708/month with no end date.
+   *
+   * There is no honest number to put here in that case — the carrying cost is
+   * unbounded — so there is no number. Consumers show
+   * `monthlyInterestAtNewBalance` instead.
+   */
+  netInterestSaved: number | null;
   /** Months removed from the mortgage payoff. */
   monthsOffPayoff: number;
   exceedsLimit: boolean;
@@ -137,7 +150,7 @@ export function analyzeMove(inputs: MoveInputs): MoveAnalysis {
     helocInterestCost,
     monthlyInterestAtNewBalance: newDrawn * (helocRate / 12),
     mortgageInterestSaved,
-    netInterestSaved: mortgageInterestSaved - helocInterestCost,
+    netInterestSaved: rep.clears ? mortgageInterestSaved - helocInterestCost : null,
     monthsOffPayoff: before.stalls ? 0 : Math.max(0, before.months - after.months),
     exceedsLimit: helocLimit > 0 && newDrawn > helocLimit,
     crossesCaution: helocLimit > 0 && utilAfter > CAUTION_UTILIZATION,

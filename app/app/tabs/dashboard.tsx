@@ -709,10 +709,19 @@ export default function DashboardScreen() {
               <Text style={styles.bigValue}>
                 {realized.net !== null ? `$${fmt(realized.net)}` : '—'}
               </Text>
+              {/* Null has two meanings here and they need different sentences.
+                  Nothing logged is the empty state; logged-but-no-net means the
+                  surplus cannot repay what those moves drew, so the line's cost
+                  runs indefinitely and no net figure exists. Printing the empty
+                  state for the second would tell someone their recorded moves
+                  had not registered. */}
               <Text style={styles.bigLabel}>
                 {realized.net !== null
                   ? `interest removed by ${fmtMoney(realized.totalMoved)} of logged moves, net of HELOC interest`
-                  : 'No moves logged yet — this fills in from what you actually do'}
+                  : realized.totalMoved > 0
+                    ? `${fmtMoney(realized.totalMoved)} logged, but your surplus does not cover what ` +
+                      'the line charges to carry it — so there is no net saving to show'
+                    : 'No moves logged yet — this fills in from what you actually do'}
               </Text>
 
               {/* The same saving in the unit the product is actually about.

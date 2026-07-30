@@ -182,7 +182,9 @@ export function evaluateMove(inputs: SafeToMoveInputs): SafeToMove {
     (bufferAfter !== null && bufferAfter < BUFFER.comfortMonths) ||
     estReplenishMonths === null ||
     estReplenishMonths > 12 ||
-    (analysis !== null && analysis.netInterestSaved <= 0)
+    // A null net means the draw never clears, which `estReplenishMonths ===
+    // null` above has already caught — so this only has to judge a real figure.
+    (analysis !== null && analysis.netInterestSaved !== null && analysis.netInterestSaved <= 0)
   ) {
     status = 'CAUTION';
   } else {
@@ -257,10 +259,20 @@ function buildReasons(i: ReasonInputs): string[] {
     );
   }
 
-  if (i.analysis && i.analysis.netInterestSaved <= 0) {
+  if (i.analysis && i.analysis.netInterestSaved !== null && i.analysis.netInterestSaved <= 0) {
     out.push(
       'At these rates the HELOC interest costs more than the mortgage interest ' +
       'this move avoids.',
+    );
+  }
+
+  // The stronger version of the same warning, and it used to be unreachable:
+  // an unrepayable draw returned a net of zero cost, so the sentence above
+  // could not fire and nothing said the balance never goes away.
+  if (i.analysis && i.analysis.netInterestSaved === null) {
+    out.push(
+      `Your surplus does not cover the ${money(i.analysis.monthlyInterestAtNewBalance)} a ` +
+      'month this draw would cost, so the line would not get repaid.',
     );
   }
 
