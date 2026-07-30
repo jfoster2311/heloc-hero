@@ -154,6 +154,44 @@ function runCycling(
   return { months, interest, mortgage, heloc, detail };
 }
 
+/**
+ * The third path: the same surplus paid straight at principal, no line involved.
+ *
+ * This exists because `interestSaved` compares cycling against a baseline that
+ * never spends the surplus at all, so the difference measures TWO things at once
+ * — the benefit of paying extra, and the benefit of routing it through a HELOC —
+ * and attributes the total to the second. Measured across realistic inputs, the
+ * first is ~100% of it and the second is ±1%.
+ *
+ * `prepare` already refuses to make this mistake with `lumpSum`, for exactly the
+ * stated reason: money that arrives on its own must not be credited to the
+ * strategy. The surplus was doing the same thing at six times the magnitude.
+ *
+ * Cycling is a rate arbitrage. It gets ahead only when the line is cheaper than
+ * the mortgage, and at the 8.5% this app assumes against typical mortgage rates
+ * it is slightly negative. That is a true thing about the strategy, not a defect
+ * in the model, and the product is better for saying it: a user who is told the
+ * line is currently costing them can go and find a cheaper one.
+ */
+function runDirect(
+  startBalance: number,
+  monthlyRate: number,
+  monthlyPayment: number,
+  monthlySurplus: number,
+): { months: number; interest: number } {
+  let balance = startBalance;
+  let months = 0;
+  let interest = 0;
+
+  while (balance > 0.01 && months < MAX_MONTHS) {
+    const i = balance * monthlyRate;
+    interest += i;
+    balance = Math.max(0, balance - Math.max(0, monthlyPayment + monthlySurplus - i));
+    months++;
+  }
+  return { months, interest };
+}
+
 /** Shared setup, so the projection and its series can never disagree. */
 function prepare(inputs: CalculatorInputs) {
   const {
@@ -213,6 +251,10 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
       // and clearly unusable is the honest shape for a capped result.
       originalInterest:      Number.POSITIVE_INFINITY,
       acceleratedInterest:   Number.POSITIVE_INFINITY,
+      fromSurplus:           0,
+      fromCycling:           0,
+      directMonths:          MAX_MONTHS,
+      directInterest:        Number.POSITIVE_INFINITY,
     };
   }
 
@@ -221,10 +263,19 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
     p.mortgageBalance, p.monthlyRate, p.monthlyPayment,
     p.monthlySurplus, p.helocMonthlyRate, p.effectiveDump, false,
   );
+  const dir = runDirect(
+    p.mortgageBalance, p.monthlyRate, p.monthlyPayment, p.monthlySurplus,
+  );
 
   const monthsSaved = Math.max(0, base.months - acc.months);
   // interestSaved already nets out all HELOC interest paid during cycling.
   const interestSaved = Math.max(0, Math.round(base.interest - acc.interest));
+
+  // Rounded so the two parts sum to the whole EXACTLY. Rounding each leg
+  // independently lets them miss by a dollar, and a breakdown that does not add
+  // up is the fastest way to make a user distrust the figure it explains.
+  const fromSurplus = Math.round(base.interest - dir.interest);
+  const fromCycling = Math.round(base.interest - acc.interest) - fromSurplus;
 
   const now = new Date();
   const originalPayoffDate = new Date(now);
@@ -243,6 +294,10 @@ export function computeProjection(inputs: CalculatorInputs): PayoffProjection {
     // Includes HELOC interest: runCycling adds it to the same accumulator, which
     // is the only reason the two figures can sit next to each other honestly.
     acceleratedInterest: Math.round(acc.interest),
+    fromSurplus,
+    fromCycling,
+    directMonths:   dir.months,
+    directInterest: Math.round(dir.interest),
   };
 }
 

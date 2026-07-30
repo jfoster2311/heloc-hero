@@ -187,6 +187,26 @@ export interface PayoffProjection {
    */
   originalInterest: number;
   acceleratedInterest: number;
+  /**
+   * What `interestSaved` is actually made of.
+   *
+   * `interestSaved` is measured against doing nothing at all — a baseline that
+   * never spends the surplus — so it contains two separate effects and labels
+   * the sum as the strategy's work. These split it:
+   *
+   *   fromSurplus + fromCycling === interestSaved
+   *
+   * `fromSurplus` is what paying the same money straight at principal achieves
+   * with no HELOC involved. `fromCycling` is what routing it through the line
+   * adds on top, and it is NEGATIVE whenever the line costs more than the
+   * mortgage — which is the ordinary case at the 8.5% this app assumes. Any
+   * surface stating the headline must be able to state this breakdown.
+   */
+  fromSurplus: number;
+  fromCycling: number;
+  /** Payoff months when the surplus goes straight at principal. */
+  directMonths: number;
+  directInterest: number;
 }
 
 export interface CalculatorInputs {

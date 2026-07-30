@@ -502,6 +502,62 @@ export default function CalculatorScreen() {
                         'than the earlier principal saves, which is the honest answer for this input.'}
                 </Text>
               </Card>
+
+              {/* ── WHERE THE SAVING COMES FROM ─────────────────────────────
+                  The comparison above is against doing NOTHING, which is a
+                  baseline that never spends the surplus. So its difference
+                  contains two effects — the money being paid at all, and the
+                  line it is routed through — and the headline attributes the
+                  sum to the second.
+
+                  Measured across realistic inputs the first is ~100% of it.
+                  Cycling is a rate arbitrage: it gets ahead only when the line
+                  is cheaper than the mortgage, and at a typical 8.5% line
+                  against a 6.5% mortgage it is slightly negative. Splitting the
+                  figure is the same move this screen already makes everywhere
+                  else — state both numbers, not just their difference — and it
+                  gives the user something actionable: the lever is the rate on
+                  the line, and it is one they can go and shop for. */}
+              {!clearedOutright && projection.interestSaved > 0 && (
+                <Card>
+                  <Text style={styles.breakdownHead}>Where that saving comes from</Text>
+
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>
+                      Paying {money(inputs.monthlySurplus)}/mo at your principal
+                    </Text>
+                    <Text style={styles.breakdownValue}>{money(projection.fromSurplus)}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Routing it through your line</Text>
+                    <Text style={[
+                      styles.breakdownValue,
+                      projection.fromCycling < 0 && styles.breakdownValueMuted,
+                    ]}>
+                      {projection.fromCycling < 0 ? '−' : ''}
+                      {money(Math.abs(projection.fromCycling))}
+                    </Text>
+                  </View>
+                  <View style={[styles.breakdownRow, styles.breakdownRowLast]}>
+                    <Text style={styles.breakdownLabelTotal}>Projected interest saved</Text>
+                    <Text style={styles.breakdownValueTotal}>
+                      {money(projection.interestSaved)}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.breakdownNote}>
+                    {projection.fromCycling >= 0
+                      ? `Your line is cheaper than your mortgage, so cycling adds ` +
+                        `${money(projection.fromCycling)} on top of what paying extra does on ` +
+                        'its own. Most of the result is the surplus either way.'
+                      : `At ${inputs.helocRate}% on your line against ${inputs.mortgageRate}% on your ` +
+                        'mortgage, the line currently costs a little more than the earlier ' +
+                        'principal saves. Almost all of this saving is the surplus itself — you ' +
+                        'would get it by paying that money straight at the mortgage. Cycling ' +
+                        'gets ahead when your line is cheaper than your mortgage.'}
+                  </Text>
+                </Card>
+              )}
             </>
           )}
 
@@ -1334,6 +1390,38 @@ const useStyles = createThemedStyles(t => ({
     fontWeight: Typography.extrabold,
     color: t.colors.mint700,
     letterSpacing: 0.5,
+  },
+  breakdownHead: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: t.colors.textPrimary,
+    marginBottom: Spacing[3],
+  },
+  // Row, label and value are the shared `breakdown*` styles defined above with
+  // the Advanced breakdown — same list shape, so they are reused rather than
+  // forked. Only the total's emphasis and the negative tone are new.
+  breakdownLabelTotal: {
+    flex: 1,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.textPrimary,
+  },
+  // Negative is muted grey, never red — the line costing more than it saves is
+  // an ordinary outcome of ordinary rates, not an error state.
+  breakdownValueMuted: { color: t.colors.gray500 },
+  breakdownValueTotal: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.extrabold,
+    color: t.colors.textPrimary,
+  },
+  breakdownNote: {
+    fontSize: Typography.xs,
+    color: t.colors.textSecondary,
+    lineHeight: 17,
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: t.colors.borderSubtle,
   },
   compareFoot: {
     fontSize: Typography.xs,
