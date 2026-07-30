@@ -24,14 +24,14 @@
 // 2nd learns one thing from the resulting fee: that this strategy is dangerous.
 // They would be right, and they would have learned it from us.
 import { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import { Card, SourceNote } from '../../components/ui/primitives';
+import SuccessReveal from '../../components/ui/SuccessReveal';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
-import { notifyDumpLogged } from '../../hooks/useDumpHistory';
 import { supabase } from '../../lib/supabase';
 import { computeCashRunway, RUNWAY_HORIZON_DAYS } from '../../lib/cashRunway';
 import { detectRecurringExpenses } from '../../lib/recurring';
@@ -101,6 +101,20 @@ export default function LogSweepScreen() {
   // did would be the same error the Learn tab was rewritten to remove.
   const dailyInterestSaved = (value * rate) / 365;
 
+  // Frozen at log time, both of them, and the second is not optional.
+  //
+  // `logged` is the amount written, so the reward states that rather than
+  // whatever the adjust buttons say afterwards. `drawnAtLog` is the line balance
+  // BEFORE the refresh fired below — without it, a fast Plaid round trip returns
+  // the already-reduced balance, `drawn - logged` subtracts the sweep a second
+  // time, and the reward congratulates the user with a figure that is too low by
+  // exactly the amount they just moved.
+  const [logged, setLogged] = useState<number | null>(null);
+  const [drawnAtLog, setDrawnAtLog] = useState(0);
+  // Same reason: strike.toGo is derived from helocDrawn, so it moves with the
+  // refresh too.
+  const [toGoAtLog, setToGoAtLog] = useState(0);
+
   async function handleLog() {
     if (!profile?.id || value <= 0) return;
     setLogging(true);
@@ -119,9 +133,71 @@ export default function LogSweepScreen() {
       Alert.alert('Could not record it', `${error.message}\n\nNothing was saved. Please try again.`);
       return;
     }
-    notifyDumpLogged();
+
+    setLogged(value);
+    setDrawnAtLog(drawn);
+    setToGoAtLog(strike.toGo);
     hapticSuccess();
-    router.back();
+
+    // NOT notifyDumpLogged(). That wakes useDumpHistory, which selects
+    // `.eq('action', 'dump')` — so it would re-read, find the same dumps, and
+    // change nothing. Worse, `totalDumped` feeds computeRealized, and a sweep is
+    // not a principal payment against the mortgage: counting it there would
+    // inflate the realized-interest figure the dashboard leads with.
+    //
+    // What genuinely moves after a sweep is the LINE's balance, and that figure
+    // comes from Plaid rather than from this log — so the honest way to make the
+    // dashboard reflect it is to go and fetch it. Fire-and-forget: the reward
+    // below does not wait on the network, and a failed refresh must not turn a
+    // recorded transfer into an error.
+    void f.refresh();
+  }
+
+  // ── The reward ──────────────────────────────────────────────────────────
+  // Deliberately a STATE of this sheet rather than a dismiss. Closing straight
+  // back to the dashboard was the whole problem: the user performs the work in
+  // another app, comes back, taps once, and the sheet vanishes — so the only
+  // acknowledgement for the habit was the sheet disappearing.
+  //
+  // Every row here is arithmetic on figures already on screen. Nothing counts up
+  // and nothing claims the balance has changed: the line's balance comes from the
+  // bank, so the caption says a fresh read has been requested rather than
+  // implying the number in front of them already moved.
+  if (logged !== null) {
+    const dailyOnLogged = (logged * rate) / 365;
+    return (
+      <ModalScreen
+        title="Sweep recorded"
+        save={{ label: 'Done', onPress: () => router.back() }}
+        footnote="Your line's balance is reported by your bank, not by this app. We have asked for a fresh read — it will land on the dashboard once your bank returns it."
+      >
+        <Card>
+          <SuccessReveal
+            title={`${money(logged)} swept`}
+            caption="Logged against your line. That is one cycle closer to the next dump."
+            rows={[
+              {
+                label: 'Interest your line stops charging',
+                value: `${money(dailyOnLogged)}/day`,
+                emphasis: true,
+              },
+              {
+                label: 'Balance on the line, once your bank reports it',
+                value: money(Math.max(0, drawnAtLog - logged)),
+              },
+              ...(toGoAtLog > 0 ? [{
+                label: 'Still to repay before the next dump',
+                value: money(Math.max(0, toGoAtLog - logged)),
+              }] : []),
+            ]}
+            announcement={
+              `${money(logged)} swept and recorded. That stops about ` +
+              `${money(dailyOnLogged)} a day of interest on your line.`
+            }
+          />
+        </Card>
+      </ModalScreen>
+    );
   }
 
   return (
@@ -275,11 +351,6 @@ export default function LogSweepScreen() {
         </View>
       )}
 
-      {logging && (
-        <View style={styles.busy}>
-          <ActivityIndicator size="small" color={colors.accentInk} />
-        </View>
-      )}
     </ModalScreen>
   );
 }
@@ -391,5 +462,4 @@ const useStyles = createThemedStyles(t => ({
   adjustText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
   adjustTextActive: { color: t.colors.mint700, fontWeight: Typography.semibold },
 
-  busy: { alignItems: 'center', paddingVertical: Spacing[2] },
 }));
