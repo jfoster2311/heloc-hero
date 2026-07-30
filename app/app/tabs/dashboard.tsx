@@ -84,7 +84,7 @@ export default function DashboardScreen() {
   const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
   const f = useFinancials();
-  const { totalDumped, count: dumpCount } = useDumpHistory(profile?.id);
+  const { totalDumped, count: dumpCount, entries: dumpEntries } = useDumpHistory(profile?.id);
   const [moveDismissed, setMoveDismissed] = useState(false);
 
   // Both read straight off state that already exists. Nothing about progress is
@@ -194,6 +194,17 @@ export default function DashboardScreen() {
     f.mortgageBalance, f.helocDrawn,
   ]);
 
+  // The board's first tile is this calendar year, and it is the only tile that
+  // can carry logged activity — see the header note in components/FreedomBoard.
+  const thisYearDumps = useMemo(() => {
+    const y = new Date().getFullYear();
+    const rows = dumpEntries.filter(e => new Date(e.created_at).getFullYear() === y);
+    return {
+      count: rows.length,
+      total: rows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0),
+    };
+  }, [dumpEntries]);
+
   const remindersEnabled = isPaidTier(tier);
 
   useCycleReminders(profile?.id, {
@@ -275,6 +286,10 @@ export default function DashboardScreen() {
         {/* ── HERO — the payoff clock ───────────────────────────────────── */}
         <Hero
           intensity={0.85}
+          // This hero carries a payoff date, a caption, the board, a progress
+          // line and a disclaimer, so the aurora is deep by the time it reaches
+          // the page. The standard band ends it too abruptly — see fadeHeight.
+          fadeHeight={Spacing[12]}
           topBar={
             <View style={styles.topBar}>
               <Text style={styles.greeting}>
@@ -316,6 +331,8 @@ export default function DashboardScreen() {
               originalMonths={f.projection.originalMonths}
               acceleratedMonths={f.projection.acceleratedMonths}
               hasRealData={f.hasRealData}
+              payoffLabel={fmtMonthYear(payoffDate)}
+              thisYear={thisYearDumps}
             />
             {pct !== null && (
               <Text style={styles.progressText}>
@@ -916,7 +933,9 @@ const useStyles = createThemedStyles(t => ({
 
   content: {
     paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[1],
+    // Was 4pt, which put the provenance chip hard against the bottom of the
+    // dissolve — the page began before the hero had finished ending.
+    paddingTop: Spacing[4],
     gap: Spacing[4],
   },
 

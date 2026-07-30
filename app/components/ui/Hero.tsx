@@ -34,7 +34,36 @@ interface HeroProps {
   fadeTo?: string;
   /** Adds the top safe-area inset. Off when the screen already handled it. */
   insetTop?: boolean;
+  /**
+   * How far the dissolve runs. Defaults to the standard band.
+   *
+   * A knob rather than a constant because the right length depends on how tall
+   * the hero above it is: a hero carrying one numeral ends soon after the eye
+   * arrives, and 32pt is plenty to land it on the page. The dashboard's hero
+   * also carries a board and a disclaimer, so the field is deep enough that the
+   * same 32pt reads as a hard edge with a stripe on it rather than a dissolve.
+   */
+  fadeHeight?: number;
   style?: StyleProp<ViewStyle>;
+}
+
+/**
+ * `#RRGGBB` → `rgba(r,g,b,a)`, and null for anything it does not recognise.
+ *
+ * Exists for one reason, which is a real artefact rather than a nicety: a
+ * gradient from `rgba(0,0,0,0)` to an opaque colour does NOT fade to that
+ * colour — it interpolates through transparent BLACK, so the midpoint of the
+ * seam is a half-opaque grey. Over a deep green field dissolving into a pale
+ * mint page that lands as a dark smudge across the full width of the screen,
+ * about a third of the way down the very band whose entire job is to be
+ * invisible. Fading the target colour's own alpha from 0 to 1 has no midpoint
+ * to go wrong.
+ */
+function alphaOf(color: string, a: number): string | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 export default function Hero({
@@ -44,11 +73,23 @@ export default function Hero({
   intensity = 0.9,
   fadeTo,
   insetTop = true,
+  fadeHeight = Spacing[8],
   style,
 }: HeroProps) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+
+  const target = fadeTo ?? colors.background;
+  const clear = alphaOf(target, 0);
+  // Three stops rather than two: a straight ramp puts half the colour in the
+  // first half of the band, which reads as the field ending early and then a
+  // flat strip. Weighting the arrival late keeps the field looking continuous
+  // until it is genuinely gone.
+  const fadeColors: readonly [string, string, ...string[]] = clear
+    ? [clear, alphaOf(target, 0.55)!, target]
+    : ['rgba(0,0,0,0)', target, target];
+
   return (
     <AuroraBackground
       style={[styles.root, insetTop && { paddingTop: insets.top + Spacing[3] }, style]}
@@ -60,8 +101,9 @@ export default function Hero({
 
       {/* Dissolves into the page instead of stopping at a hard edge. */}
       <LinearGradient
-        colors={['rgba(0,0,0,0)', fadeTo ?? colors.background]}
-        style={styles.fade}
+        colors={fadeColors}
+        locations={[0, 0.62, 1]}
+        style={[styles.fade, { height: fadeHeight }]}
         pointerEvents="none"
       />
     </AuroraBackground>
@@ -98,12 +140,13 @@ const useStyles = createThemedStyles(t => ({
     paddingBottom: Spacing[10],
     gap: Spacing[2],
   },
+  // Height comes from the fadeHeight prop; everything else is fixed so the
+  // band cannot drift between screens.
   fade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: Spacing[8],
   },
   eyebrow: {
     fontSize: 11,
