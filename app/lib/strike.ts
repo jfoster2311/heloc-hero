@@ -37,6 +37,12 @@ export interface StrikeInputs {
 export type StrikeState =
   /** No line on file — there is no cycle to be in. */
   | 'no_line'
+  /**
+   * A limit is on file but the drawn balance is not. The meter has no position
+   * to draw, and drawing it at "fully replenished" — which is what a coerced
+   * zero produces — would tell a user mid-cycle that their next dump is open.
+   */
+  | 'unknown_balance'
   /** The line is already at or under the threshold: the next dump is available. */
   | 'open'
   /** Repaying, and the surplus covers the interest, so the balance is falling. */
@@ -91,6 +97,10 @@ export function computeStrike(input: StrikeInputs): Strike {
     dailyCost: 0, dailyCostNextMonth: 0,
   };
   if (limit <= 0) return empty;
+  // See lib/safeToMove.ts. `progress` is measured from the limit down to the
+  // target, so a coerced-zero balance sits at the far end of the track and the
+  // meter reads "next dump open" for anyone who entered a limit by hand.
+  if (input.helocDrawn === null) return { ...empty, state: 'unknown_balance' };
 
   const target = limit * threshold;
   const toGo   = Math.max(0, drawn - target);

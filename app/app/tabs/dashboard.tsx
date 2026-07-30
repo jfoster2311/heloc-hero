@@ -432,6 +432,7 @@ export default function DashboardScreen() {
               strike={strike}
               replenishThreshold={f.replenishThreshold}
               onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+              onEnterBalance={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
             />
           )}
 
@@ -552,6 +553,27 @@ export default function DashboardScreen() {
                   Add your HELOC to see how much of your surplus you can spend without
                   pushing back your next dump.
                 </Text>
+              ) : sweep.state === 'unknown_balance' ? (
+                // Everything this card commits is derived from the drawn
+                // balance, so without one the subtraction below would run on
+                // zeros and hand the user their whole surplus as spendable.
+                <>
+                  <Text style={styles.sweepEmpty}>
+                    We have your limit but not what is drawn on it. What is committed to
+                    replenishing depends entirely on that balance, so there is no figure
+                    here we can stand behind yet.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.sweepAction}
+                    onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add your HELOC balance"
+                  >
+                    <Ionicons name="create-outline" size={17} color={colors.accentInk} />
+                    <Text style={styles.sweepActionText}>Add your balance</Text>
+                    <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
+                  </TouchableOpacity>
+                </>
               ) : sweep.state === 'no_surplus' ? (
                 <Text style={styles.sweepEmpty}>
                   Nothing is left over each month yet. Your figures are in Cash flow.
@@ -754,6 +776,11 @@ export default function DashboardScreen() {
             />
           </View>
           <View style={styles.tileRow}>
+            {/* The subtitle used to be `$${fmtK(f.helocDrawn ?? 0)} of …`, which
+                rendered "$0 of $150k drawn" for anyone whose balance the app
+                does not have — a positive claim that their line is untouched,
+                made on no evidence. Unknown says unknown, and points at the
+                screen that fixes it. */}
             <NavTile
               eyebrow="YOUR LINE"
               icon="card-outline"
@@ -761,11 +788,24 @@ export default function DashboardScreen() {
                 ? `${Math.round(f.utilization * 100)}%`
                 : '—'}
               muted={f.utilization !== null && f.utilization > f.replenishThreshold}
-              sub={f.helocLimit && f.helocLimit > 0
-                ? `$${fmtK(f.helocDrawn ?? 0)} of $${fmtK(f.helocLimit)} drawn`
-                : 'add your HELOC'}
-              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-              accessibilityHint="Opens the Accounts tab"
+              sub={!f.helocLimit || f.helocLimit <= 0
+                ? 'add your HELOC'
+                : f.helocDrawn === null
+                  ? `$${fmtK(f.helocLimit)} limit · add your balance`
+                  : `$${fmtK(f.helocDrawn)} of $${fmtK(f.helocLimit)} drawn`}
+              onPress={() => {
+                hapticLight();
+                router.push(
+                  f.helocLimit && f.helocLimit > 0 && f.helocDrawn === null
+                    ? '/modals/heloc-terms' as never
+                    : '/tabs/accounts' as never,
+                );
+              }}
+              accessibilityHint={
+                f.helocLimit && f.helocLimit > 0 && f.helocDrawn === null
+                  ? 'Opens your HELOC details'
+                  : 'Opens the Accounts tab'
+              }
             />
             {/* "PROJECTED SAVING", not "INTEREST SAVED". This tile sits a few
                 inches below the Interest card, whose entire premise is that the

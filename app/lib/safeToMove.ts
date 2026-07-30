@@ -21,6 +21,7 @@ export type MoveStatus = 'CLEAR' | 'CAUTION' | 'HOLD';
 
 export type Blocker =
   | 'no_line'
+  | 'balance_unknown'
   | 'no_surplus'
   | 'amortizing_heloc'
   | 'draw_ended'
@@ -30,6 +31,7 @@ export type Blocker =
 
 export const BLOCKER_TEXT: Record<Blocker, string> = {
   no_line:            'No HELOC limit on file, so there is nothing to draw against.',
+  balance_unknown:    'We do not know what is currently drawn on your line, so we cannot size a move against it.',
   no_surplus:         'Your monthly surplus is zero or negative, so a draw could not be replenished.',
   amortizing_heloc:   'This HELOC amortizes rather than charging interest only. Cycling does not work on it.',
   draw_ended:         'The draw period has closed, so no further draws are possible.',
@@ -101,15 +103,33 @@ export function evaluateMove(inputs: SafeToMoveInputs): SafeToMove {
   } = inputs;
 
   const limit = helocLimit ?? 0;
+
+  // ── A limit with no balance is NOT an undrawn line ───────────────────────
+  // This used to be a bare `helocDrawn ?? 0`, and the drawn balance arrives
+  // only from a linked account. So every user who entered a HELOC limit by hand
+  // — the manual path, which is free-tier and deliberately supported — was
+  // modelled as having a completely undrawn line. `utilCeiling` then came out at
+  // 80% of their whole credit limit and this module returned CLEAR with that as
+  // the recommended amount, to someone who might be sitting mid-cycle with most
+  // of it already drawn.
+  //
+  // Not knowing is a distinct state from knowing it is zero, and only one of
+  // them may produce a recommendation. Anything derived from the balance is null
+  // rather than optimistic, including the buffer: available credit is counted as
+  // liquidity here, so an unknown balance would inflate it by the drawn amount.
+  const balanceKnown = helocDrawn !== null;
   const drawn = helocDrawn ?? 0;
   const availableNow = Math.max(0, limit - drawn);
 
-  const currentUtilization = limit > 0 ? clamp01(drawn / limit) : null;
-  const bufferBefore = bufferMonths(liquidCash, availableNow, monthlyExpenses);
+  const currentUtilization = limit > 0 && balanceKnown ? clamp01(drawn / limit) : null;
+  const bufferBefore = limit > 0 && !balanceKnown
+    ? null
+    : bufferMonths(liquidCash, availableNow, monthlyExpenses);
 
-  // Structural blockers first, then the two derived ones.
+  // Structural blockers first, then the derived ones.
   const blockers = [...inputs.blockers];
   if (limit <= 0) push(blockers, 'no_line');
+  if (limit > 0 && !balanceKnown) push(blockers, 'balance_unknown');
   if (avgMonthlySurplus <= 0) push(blockers, 'no_surplus');
   if (currentUtilization !== null && currentUtilization >= UTILIZATION.hold) {
     push(blockers, 'utilization_maxed');
@@ -129,7 +149,11 @@ export function evaluateMove(inputs: SafeToMoveInputs): SafeToMove {
   const raw = Math.min(utilCeiling, bufferCeiling, availableNow);
   const amount = raw >= 500 ? Math.floor(raw / 500) * 500 : 0;
 
-  const analysis = amount > 0 && limit > 0
+  // `balanceKnown` guards this as well as the status below. `amount` is still a
+  // number when the balance is unknown — utilCeiling reduces to 80% of the whole
+  // limit — and analyzeMove would happily model a draw from an undrawn line, so
+  // the reasoning strings would describe a move that is never offered.
+  const analysis = amount > 0 && limit > 0 && balanceKnown
     ? analyzeMove({
         helocLimit: limit,
         helocDrawn: drawn,
@@ -144,7 +168,9 @@ export function evaluateMove(inputs: SafeToMoveInputs): SafeToMove {
 
   const postMoveUtilization = analysis ? clamp01(analysis.utilAfter) : currentUtilization;
   const availableAfter = analysis ? analysis.availableAfter : availableNow;
-  const bufferAfter = bufferMonths(liquidCash, availableAfter, monthlyExpenses);
+  const bufferAfter = limit > 0 && !balanceKnown
+    ? null
+    : bufferMonths(liquidCash, availableAfter, monthlyExpenses);
   const estReplenishMonths = analysis && analysis.replenishable ? analysis.replenishMonths : null;
 
   // ── The status ───────────────────────────────────────────────────────────

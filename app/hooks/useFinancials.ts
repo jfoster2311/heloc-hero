@@ -62,6 +62,14 @@ export interface Financials {
 
   // ── HELOC ───────────────────────────────────────────────────────────────
   helocDrawn: number | null;
+  /**
+   * Where the drawn balance came from. 'unknown' means there is no balance at
+   * all — which is NOT the same as a zero balance, and every consumer has to
+   * keep the two apart. See lib/safeToMove.ts.
+   */
+  helocDrawnSource: 'plaid' | 'user' | 'unknown';
+  /** When a hand-entered balance was last confirmed. Null when it is live. */
+  helocBalanceEnteredAt: string | null;
   helocAvailable: number | null;
   helocLimit: number | null;
   helocLimitSource: 'plaid_limit' | 'derived' | 'user' | 'unknown';
@@ -195,8 +203,20 @@ function derive(
   const mortgageBalance = mortgage.balance.value;
 
   // ── HELOC ────────────────────────────────────────────────────────────────
+  // A live balance always wins: it is the bank's own figure and it is current,
+  // whereas the entered one is as good as the day it was typed. The fallback
+  // exists because linking is Pro-gated and cycle tracking is not — without it,
+  // a free user could enter a limit and never a balance, and safeToMove, sweep
+  // and strike all read the resulting null as an undrawn line.
   const helocBalances = firstBalances(helocAccount);
-  const helocDrawn    = helocBalances?.current ?? null;
+  const enteredBalance = profile?.heloc_balance ?? null;
+  const helocDrawn    = helocBalances?.current ?? enteredBalance;
+  const helocDrawnSource: 'plaid' | 'user' | 'unknown' =
+    helocBalances?.current != null ? 'plaid'
+      : enteredBalance !== null ? 'user'
+      : 'unknown';
+  const helocBalanceEnteredAt =
+    helocDrawnSource === 'user' ? profile?.heloc_balance_updated_at ?? null : null;
   const limitResult   = deriveCreditLimit(helocBalances, profile?.heloc_credit_limit ?? null);
   const helocLimit    = limitResult.limit;
   const helocAvailable = helocBalances?.available
@@ -306,7 +326,8 @@ function derive(
 
     mortgage, liability, previousLiability, mortgageBalance, baseline,
 
-    helocDrawn, helocAvailable, helocLimit,
+    helocDrawn, helocDrawnSource, helocBalanceEnteredAt,
+    helocAvailable, helocLimit,
     helocLimitSource: limitResult.source,
     helocRate, helocRateAssumed, helocTermsStale,
     drawStatus: draw.status,

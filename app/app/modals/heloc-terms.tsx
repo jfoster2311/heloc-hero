@@ -58,6 +58,7 @@ export default function HelocTermsModal() {
   const [index,       setIndex]       = useState(profile?.heloc_rate_index ?? '');
   const [margin,      setMargin]      = useState(existing.margin != null ? String(round2(existing.margin * 100)) : '');
   const [limit,       setLimit]       = useState(existing.creditLimit != null ? String(existing.creditLimit) : '');
+  const [balance,     setBalance]     = useState(profile?.heloc_balance != null ? String(profile.heloc_balance) : '');
   const [drawMonth,   setDrawMonth]   = useState(monthOf(existing.drawEndDate));
   const [drawYear,    setDrawYear]    = useState(yearOf(existing.drawEndDate));
   const [paymentType, setPaymentType] = useState<HelocPaymentType | null>(existing.paymentType);
@@ -76,15 +77,32 @@ export default function HelocTermsModal() {
 
   const sinceVerified = daysSinceVerified(existing.updatedAt);
 
+  // "0" is a real balance and must survive: parsePositive returns 0 for "0" and
+  // null for "", which is exactly the distinction this field turns on.
+  const balanceNum = parsePositive(balance);
+  const lastBalanceAt = profile?.heloc_balance_updated_at
+    ? new Date(profile.heloc_balance_updated_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      })
+    : null;
+
   async function handleSave() {
     if (!canSave) return;
     setSaving(true);
     const marginNum = parseNumeric(margin);
+    // Only re-stamp when the figure actually moved. Saving a rate edit must not
+    // make a months-old balance claim to have been confirmed today — that
+    // timestamp is the only thing telling the user when to distrust it.
+    const balanceChanged = balanceNum !== (profile?.heloc_balance ?? null);
     await updateProfile({
       heloc_rate:                 rateNum! / 100,
       heloc_rate_index:           index.trim() || null,
       heloc_margin:               marginNum !== null ? marginNum / 100 : null,
       heloc_credit_limit:         parsePositive(limit),
+      heloc_balance:              balanceNum,
+      heloc_balance_updated_at:   balanceChanged
+        ? new Date().toISOString()
+        : profile?.heloc_balance_updated_at ?? null,
       heloc_draw_end_date:        drawDate,
       heloc_payment_type:         paymentType,
       heloc_interest_calc_method: calcMethod,
@@ -175,6 +193,41 @@ export default function HelocTermsModal() {
           />
         )}
       </Card>
+
+      {/* ── Current balance ──────────────────────────────────────────────────
+          Not a term, and on a screen titled "Your HELOC terms" that is worth a
+          rule of its own. It is here because it is the field that unblocks
+          everything else: a limit without a balance leaves safeToMove, sweep
+          and strike with nothing to reason from, and each of them now refuses
+          to guess rather than assuming the line is undrawn.
+
+          Hidden entirely when a bank reports it. A hand-entered figure that
+          silently loses to a live one is a box someone types into for no
+          effect, and a second balance on screen invites the question of which
+          one the app believes. */}
+      {balances?.current == null && (
+        <Card>
+          <FormField
+            label="Current balance"
+            prefix="$"
+            value={balance}
+            onChangeText={setBalance}
+            keyboardType="numeric"
+            hint={
+              lastBalanceAt
+                ? `You last set this ${lastBalanceAt}. Update it after a sweep or a dump so ` +
+                  'your next-dump progress stays right.'
+                : 'What is drawn on the line today. Without it we cannot tell how far ' +
+                  'along the cycle you are, so we will not recommend a move.'
+            }
+            accessibilityLabel="Current HELOC balance"
+          />
+          <Text style={styles.hint}>
+            Enter 0 if the line is open but untouched — that is a real answer, and it is
+            different from leaving this blank.
+          </Text>
+        </Card>
+      )}
 
       {/* ── How interest is charged — the load-bearing question ─────────── */}
       <Card>

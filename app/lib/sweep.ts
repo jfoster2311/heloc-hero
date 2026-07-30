@@ -28,6 +28,13 @@ import { UTILIZATION } from './config';
 export type SweepState =
   /** No line on file, so there is no replenishment to be committed to. */
   | 'no_line'
+  /**
+   * There is a limit, but nothing tells us what is drawn against it. Distinct
+   * from a zero balance and it must stay that way: everything committed on this
+   * card is derived from the drawn figure, so treating unknown as zero reports
+   * the entire surplus as free to spend.
+   */
+  | 'unknown_balance'
   /** Nothing left over this month; there is nothing to allocate. */
   | 'no_surplus'
   /** The surplus does not even cover the line's interest — the balance grows. */
@@ -99,10 +106,16 @@ export function computeSafeToSweep(inputs: SweepInputs): SafeToSweep {
   } = inputs;
 
   const surplus = monthlySurplus;
+  // See the note in lib/safeToMove.ts. A null balance is "we do not know", and
+  // coercing it to zero here made the whole surplus read as free to spend —
+  // every committed figure on this card is derived from the drawn balance, so
+  // an absent one zeroed the interest due AND the amount owed to the threshold,
+  // then reported the remainder as spendable.
+  const balanceKnown = helocDrawn !== null;
   const drawn   = Math.max(0, helocDrawn ?? 0);
   const limit   = helocLimit ?? 0;
 
-  const utilization = limit > 0 ? clamp01(drawn / limit) : null;
+  const utilization = limit > 0 && balanceKnown ? clamp01(drawn / limit) : null;
   const interestDue = drawn * (helocRate / 12);
 
   const empty = {
@@ -113,6 +126,7 @@ export function computeSafeToSweep(inputs: SweepInputs): SafeToSweep {
   // Without a limit there is no threshold to aim at, so no honest commitment
   // figure exists. Saying "spend it all" here would be the flattering guess.
   if (limit <= 0) return { ...empty, state: 'no_line' };
+  if (!balanceKnown) return { ...empty, state: 'unknown_balance' };
   if (surplus <= 0) return { ...empty, state: 'no_surplus', interestDue };
 
   // The gate, straight from safeToMove's utilCeiling. Rounded UP so a rounding

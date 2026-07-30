@@ -30,6 +30,21 @@ export interface UserProfile {
   heloc_rate: number | null;
   heloc_margin: number | null;
   heloc_credit_limit: number | null;
+  /**
+   * The drawn balance, entered by hand.
+   *
+   * Unlike the terms above, this one DOES arrive from a link — it is the only
+   * HELOC figure Plaid supplies. It exists here because a linked account is
+   * Pro-gated while cycle tracking is not, so a free user could enter a limit
+   * and then had no way to say what was drawn against it. Every module that
+   * reasons about the line treated the resulting null as zero, and so told a
+   * user mid-cycle that their line was untouched and a dump was open.
+   *
+   * A live balance always wins over this. See hooks/useFinancials.
+   */
+  heloc_balance: number | null;
+  /** When the user last said so. A hand-entered balance goes stale. */
+  heloc_balance_updated_at: string | null;
   heloc_draw_end_date: string | null;
   heloc_payment_type: 'interest_only' | 'amortizing' | null;
   heloc_terms_updated_at: string | null;

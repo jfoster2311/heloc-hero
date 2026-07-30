@@ -21,11 +21,13 @@ import { createThemedStyles, useTheme } from '../lib/themeContext';
 import type { Strike } from '../lib/strike';
 
 export default function NextStrike({
-  strike, replenishThreshold, onPress,
+  strike, replenishThreshold, onPress, onEnterBalance,
 }: {
   strike: Strike;
   replenishThreshold: number;
   onPress?: () => void;
+  /** Where to go to supply a balance, for the `unknown_balance` state. */
+  onEnterBalance?: () => void;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -39,6 +41,24 @@ export default function NextStrike({
           Add your HELOC and this tracks how much has to come off the line before
           your next dump is available.
         </Text>
+      </Card>
+    );
+  }
+
+  // A limit, but no balance. The track is a position between the limit and the
+  // threshold, and there is no position to draw — so it draws nothing and asks,
+  // rather than falling through to the REPLENISHING chip over an empty meter.
+  if (strike.state === 'unknown_balance') {
+    return (
+      <Card onPress={onEnterBalance} accessibilityLabel="Add your HELOC balance">
+        <CardHead title="Your next dump" icon="flag-outline" />
+        <Text style={styles.empty}>
+          We have your limit but not what is drawn against it, so there is no
+          progress to show yet. Add your current balance and this fills in.
+        </Text>
+        {onEnterBalance && (
+          <Text style={styles.emptyAction}>Add your balance</Text>
+        )}
       </Card>
     );
   }
@@ -146,6 +166,13 @@ function fmtK(n: number) {
 
 const useStyles = createThemedStyles(t => ({
   empty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  emptyAction: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.accentInk,
+    marginTop: Spacing[3],
+    minHeight: 22,
+  },
   stateChip: {
     fontSize: 10,
     fontWeight: Typography.extrabold,
