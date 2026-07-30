@@ -31,8 +31,16 @@ interface Props {
   totalMoved: number;
   /** Decimal fraction, e.g. 0.065. */
   mortgageRate: number;
-  /** Currently drawn on the line — the cost side of the trade. */
-  helocDrawn: number;
+  /**
+   * Currently drawn on the line — the cost side of the trade.
+   *
+   * Null when there is a line whose balance we do not have. It cannot be
+   * coerced to zero: this component's whole claim is that it shows the NET, and
+   * a zero cost side turns it into the gross figure while still calling itself
+   * net — and then says "Nothing is drawn on your line" outright, which is a
+   * fabricated fact about someone's debt.
+   */
+  helocDrawn: number | null;
   /** Decimal fraction, e.g. 0.085. */
   helocRate: number;
 }
@@ -75,7 +83,8 @@ export default function InterestTicker({
   if (totalMoved <= 0) return null;
 
   const avoidedPerDay = (totalMoved * mortgageRate) / 365;
-  const costPerDay = (helocDrawn * helocRate) / 365;
+  const unknownCost = helocDrawn === null;
+  const costPerDay = unknownCost ? 0 : (helocDrawn * helocRate) / 365;
   const netPerDay = avoidedPerDay - costPerDay;
   const soFarToday = netPerDay * dayElapsed(now);
 
@@ -83,8 +92,13 @@ export default function InterestTicker({
 
   return (
     <View style={styles.wrap}>
+      {/* The eyebrow is the honest label for whichever figure is below it. With
+          no balance the cost side cannot be subtracted, so this says "before"
+          rather than letting the gross figure wear the net's headline. */}
       <Text style={styles.eyebrow}>
-        {negative ? 'THE LINE IS COSTING MORE THAN IT SAVES' : 'INTEREST YOU ARE NOT PAYING'}
+        {unknownCost ? 'BEFORE WHAT YOUR LINE CHARGES'
+          : negative ? 'THE LINE IS COSTING MORE THAN IT SAVES'
+          : 'INTEREST YOU ARE NOT PAYING'}
       </Text>
 
       <View style={styles.valueRow}>
@@ -95,7 +109,10 @@ export default function InterestTicker({
       </View>
 
       <Text style={styles.detail}>
-        {negative
+        {unknownCost
+          ? `${money(netPerDay)} a day of mortgage interest avoided. Your line charges ` +
+            'against that, and we cannot subtract it until we know what is drawn.'
+          : negative
           ? `The line costs ${money(costPerDay)} a day against ${money(avoidedPerDay)} of ` +
             'mortgage interest avoided. Replenishing it turns this positive.'
           : `${money(netPerDay)} a day — about ${money(netPerDay * 30)} a month` +

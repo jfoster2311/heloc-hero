@@ -45,9 +45,12 @@ export default function HomeValueModal() {
   const canSave = valueNum !== null && valueNum > 0 && !dateInvalid;
 
   // Live preview, so the consequence of the number is visible before saving.
+  // Withheld when a line's balance is missing: both figures net off the drawn
+  // amount, so the preview would promise equity the user does not have and then
+  // disagree with every other screen once the balance arrives.
   const debt = (f.mortgageBalance ?? 0) + (f.helocDrawn ?? 0);
-  const previewEquity = valueNum !== null ? valueNum - debt : null;
-  const previewLtv    = valueNum && valueNum > 0 ? debt / valueNum : null;
+  const previewEquity = valueNum !== null && !f.helocBalanceUnknown ? valueNum - debt : null;
+  const previewLtv    = valueNum && valueNum > 0 && !f.helocBalanceUnknown ? debt / valueNum : null;
 
   async function handleSave() {
     if (!canSave) return;

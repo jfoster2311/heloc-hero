@@ -253,7 +253,13 @@ export default function AccountsScreen() {
               <HeroCaption>
                 {f.equity !== null && f.combinedLTV !== null
                   ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value, against ${homeValueBasis}`
-                  : 'Add your home value to see equity and combined LTV'}
+                  // Both figures are COMBINED — the drawn line is part of the
+                  // debt — so an unknown line balance does not blur them, it
+                  // overstates equity by exactly the amount drawn. Different
+                  // missing input, different instruction.
+                  : f.helocBalanceUnknown
+                    ? 'Add your line balance to see equity and combined LTV'
+                    : 'Add your home value to see equity and combined LTV'}
               </HeroCaption>
             </>
           )}

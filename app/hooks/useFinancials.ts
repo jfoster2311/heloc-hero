@@ -68,6 +68,14 @@ export interface Financials {
    * keep the two apart. See lib/safeToMove.ts.
    */
   helocDrawnSource: 'plaid' | 'user' | 'unknown';
+  /**
+   * There is a limit on file and no balance for it.
+   *
+   * The condition anything combining the two debts has to check. Distinct from
+   * `helocDrawn === null`, which is also true of every user who has no HELOC at
+   * all and whose figures are therefore complete.
+   */
+  helocBalanceUnknown: boolean;
   /** When a hand-entered balance was last confirmed. Null when it is live. */
   helocBalanceEnteredAt: string | null;
   helocAvailable: number | null;
@@ -222,6 +230,12 @@ function derive(
   const helocAvailable = helocBalances?.available
     ?? (helocLimit !== null && helocDrawn !== null ? Math.max(0, helocLimit - helocDrawn) : null);
 
+  // The single derivation of "there is a line and we do not know what is on it".
+  // Every consumer reads this rather than re-deriving it, because the two
+  // conditions are easy to conflate: a user with no HELOC also has a null
+  // balance, and for them every figure below is perfectly well known.
+  const helocBalanceUnknown = (helocLimit ?? 0) > 0 && helocDrawn === null;
+
   const { rate: helocRate, isAssumed: helocRateAssumed } = resolveHelocRate(profile?.heloc_rate);
   const helocTermsStale = termsAreStale(profile?.heloc_terms_updated_at);
   const utilization = helocLimit && helocLimit > 0 && helocDrawn !== null
@@ -250,8 +264,19 @@ function derive(
   // ── Property ─────────────────────────────────────────────────────────────
   const homeValue = profile?.home_value && profile.home_value > 0 ? profile.home_value : null;
   const totalSecured = (mortgageBalance ?? 0) + (helocDrawn ?? 0);
-  const equity      = homeValue !== null ? homeValue - totalSecured : null;
-  const combinedLTV = homeValue !== null && homeValue > 0 ? totalSecured / homeValue : null;
+  // Both are null when a line exists whose balance we do not have. They are
+  // COMBINED figures — the drawn line is part of the debt — so an unknown
+  // balance does not make them approximate, it makes them wrong in the
+  // flattering direction by exactly the amount drawn. Someone $60k into a line
+  // would be shown $60k of equity they do not have. A dash they can fix beats a
+  // number they cannot check.
+  //
+  // Note this is NOT `helocDrawn === null`: a user with no HELOC at all also has
+  // no drawn balance, and their equity is perfectly well known.
+  const equity      = homeValue !== null && !helocBalanceUnknown
+    ? homeValue - totalSecured : null;
+  const combinedLTV = homeValue !== null && homeValue > 0 && !helocBalanceUnknown
+    ? totalSecured / homeValue : null;
 
   // ── Assumptions ──────────────────────────────────────────────────────────
   const replenishThreshold  = profile?.replenish_threshold ?? UTILIZATION.replenishThreshold;
@@ -326,7 +351,7 @@ function derive(
 
     mortgage, liability, previousLiability, mortgageBalance, baseline,
 
-    helocDrawn, helocDrawnSource, helocBalanceEnteredAt,
+    helocDrawn, helocDrawnSource, helocBalanceUnknown, helocBalanceEnteredAt,
     helocAvailable, helocLimit,
     helocLimitSource: limitResult.source,
     helocRate, helocRateAssumed, helocTermsStale,

@@ -724,7 +724,7 @@ export default function DashboardScreen() {
             <InterestTicker
               totalMoved={realized.totalMoved}
               mortgageRate={f.mortgage.rate.value ?? 0.065}
-              helocDrawn={f.helocDrawn ?? 0}
+              helocDrawn={f.helocBalanceUnknown ? null : f.helocDrawn ?? 0}
               helocRate={f.helocRate}
             />
           </Card>
@@ -756,11 +756,29 @@ export default function DashboardScreen() {
                 // tile was quoting a number a user would reasonably read as their
                 // mortgage LTV while it was several points higher than that. It
                 // is also the wording the Accounts hero uses for the same value.
+                // Two different reasons this can be blank, and they need
+                // different instructions. Equity is a COMBINED figure, so an
+                // unknown line balance overstates it by exactly the drawn
+                // amount — it is withheld rather than guessed, and the subtitle
+                // says which missing input would fill it in.
                 sub={f.combinedLTV !== null
                   ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value`
-                  : 'add your home value'}
-                onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
-                accessibilityHint="Opens the Accounts tab"
+                  : f.helocBalanceUnknown
+                    ? 'add your line balance'
+                    : 'add your home value'}
+                onPress={() => {
+                  hapticLight();
+                  router.push(
+                    f.combinedLTV === null && f.helocBalanceUnknown
+                      ? '/modals/heloc-terms' as never
+                      : '/tabs/accounts' as never,
+                  );
+                }}
+                accessibilityHint={
+                  f.combinedLTV === null && f.helocBalanceUnknown
+                    ? 'Opens your HELOC details'
+                    : 'Opens the Accounts tab'
+                }
               />
             )}
             <NavTile

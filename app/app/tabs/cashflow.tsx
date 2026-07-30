@@ -104,6 +104,10 @@ export default function CashFlowScreen() {
   const payment   = f.payment;
   const helocRate = f.helocRate;
   const refreshing = f.refreshing;
+  // Zero when the balance is unknown, and the caption below has to say so. This
+  // figure is part of `committed`, so an absent balance shrinks what is
+  // committed and inflates the surplus this screen leads with — the flattering
+  // direction, on the number the whole strategy is sized from.
   const helocInterest = (f.helocDrawn ?? 0) * helocRate / 12;
 
   const hasFigures = income > 0;
@@ -300,7 +304,11 @@ export default function CashFlowScreen() {
               <HeroCaption>
                 {hasFigures
                   ? `${committedPct.toFixed(0)}% of your income is already committed` +
-                    (surplus < 0 ? ' — there is nothing left to cycle' : '')
+                    (surplus < 0
+                      ? ' — there is nothing left to cycle'
+                      : f.helocBalanceUnknown
+                        ? ', before what your line charges — add its balance to include that'
+                        : '')
                   : 'Add your income and expenses to see what the strategy has to work with'}
               </HeroCaption>
             </>
