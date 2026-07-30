@@ -50,7 +50,7 @@ import CategoryDetailSheet, {
 } from '../../components/sheets/CategoryDetailSheet';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
-import { useDumpHistory } from '../../hooks/useDumpHistory';
+import { useCycleHistory } from '../../hooks/useCycleHistory';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
 import { useBudgets } from '../../hooks/useBudgets';
 import { EMPTY_TRANSACTION_META } from '../../hooks/useTransactionMeta';
@@ -82,8 +82,9 @@ export default function CashFlowScreen() {
   const f = useFinancials();
   const {
     buckets, totalDumped, count, lastDumpAt, loading: historyLoading,
+    totalSwept, sweepCount, lastSweepAt,
     error: historyError, refresh: refreshHistory,
-  } = useDumpHistory(profile?.id);
+  } = useCycleHistory(profile?.id);
   const overrides = useCategoryOverrides(profile?.id);
   // One instance for the whole app, from useFinancials. Mounting the hook again
   // here would give this screen its own copy of "what is hidden", and the totals
@@ -654,13 +655,23 @@ export default function CashFlowScreen() {
           </Card>
         )}
 
-        {/* ── Cycle history — real logged dumps ───────────────────────────── */}
+        {/* ── Cycle history — both halves of the loop ──────────────────────
+            "Your cycles", not "Your dumps". A cycle is a sweep onto the line and
+            a dump off it, and this card showed only the second one — so the
+            monthly habit the strategy actually runs on was recorded by the app
+            and then never shown back to the user anywhere.
+
+            The chart stays dumps-only on purpose. Dumps are the thing that
+            retires principal, they are lumpy and a few months apart, and a bar
+            per month reads. Sweeps are near-monthly and roughly level, so a
+            second series would say nothing the ledger rows below do not say
+            better while halving the width of the bars that matter. */}
         <Card>
           <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>Your dumps</Text>
-            {count > 0 && (
+            <Text style={styles.cardTitle}>Your cycles</Text>
+            {(count > 0 || sweepCount > 0) && (
               <Text style={styles.cardStatus}>
-                {count} logged · ${fmt(totalDumped)} total
+                {count + sweepCount} move{count + sweepCount === 1 ? '' : 's'} logged
               </Text>
             )}
           </View>
@@ -679,7 +690,7 @@ export default function CashFlowScreen() {
               </TouchableOpacity>
             </View>
           ) : historyLoading ? (
-            <SkeletonGroup label="Loading your dump history">
+            <SkeletonGroup label="Loading your cycle history">
               <View style={styles.chart}>
                 {[38, 64, 22, 80, 50, 70].map((h, i) => (
                   <View key={i} style={styles.barGroup}>
@@ -691,11 +702,12 @@ export default function CashFlowScreen() {
                 ))}
               </View>
             </SkeletonGroup>
-          ) : count === 0 ? (
+          ) : count === 0 && sweepCount === 0 ? (
             <View style={styles.stateBlock}>
               <Text style={styles.emptyBody}>
-                No dumps logged yet. When you move money onto your principal, record it here
-                and this fills in with your real history.
+                Nothing logged yet. Record the money you move — surplus onto your line, and
+                lump sums off it onto your principal — and this fills in with your real
+                history rather than a projection.
               </Text>
               <TouchableOpacity
                 style={styles.emptyBtn}
@@ -707,29 +719,53 @@ export default function CashFlowScreen() {
             </View>
           ) : (
             <>
-              <View style={styles.chart}>
-                {buckets.map((b, i) => (
-                  <View key={i} style={styles.barGroup}>
-                    <View style={styles.barSlot}>
-                      <View
-                        style={[
-                          styles.bar,
-                          {
-                            height: maxBucket > 0 ? Math.max(3, (b.total / maxBucket) * 88) : 3,
-                            backgroundColor: b.total > 0 ? colors.mint600 : colors.gray100,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.barLabel}>{b.label}</Text>
+              {/* Only once there is a dump to chart. A user who has swept for two
+                  months without reaching a dump would otherwise get six empty
+                  bars, which reads as "nothing you did counted". */}
+              {count > 0 && (
+                <>
+                  <View style={styles.chart}>
+                    {buckets.map((b, i) => (
+                      <View key={i} style={styles.barGroup}>
+                        <View style={styles.barSlot}>
+                          <View
+                            style={[
+                              styles.bar,
+                              {
+                                height: maxBucket > 0 ? Math.max(3, (b.total / maxBucket) * 88) : 3,
+                                backgroundColor: b.total > 0 ? colors.mint600 : colors.gray100,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.barLabel}>{b.label}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
+                  <Text style={styles.chartNote}>Dumps, last 6 months</Text>
+                </>
+              )}
+
+              {/* The ledger. Two directions, never summed: one retires mortgage
+                  principal, the other repays the line that funded it, and adding
+                  them would double-count the same dollars going round the loop. */}
+              <View style={[styles.ledger, count > 0 && styles.ledgerRuled]}>
+                <LedgerRow
+                  label="Dumped onto your principal"
+                  amount={totalDumped}
+                  count={count}
+                  at={lastDumpAt}
+                />
+                <LedgerRow
+                  label="Swept back onto your line"
+                  amount={totalSwept}
+                  count={sweepCount}
+                  at={lastSweepAt}
+                />
               </View>
               <Text style={styles.chartNote}>
-                Last 6 months
-                {lastDumpAt
-                  ? ` · most recent ${lastDumpAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                  : ''}
+                Your own record of transfers you made. These are two directions round the same
+                loop, so they are not added together.
               </Text>
             </>
           )}
@@ -1059,6 +1095,37 @@ function SurplusChart({ months }: { months: { key: string; label: string; surplu
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/**
+ * One direction of the cycle ledger.
+ *
+ * A zero is rendered rather than hidden. "Swept back onto your line · none yet"
+ * is the row most likely to prompt the habit this whole strategy runs on, and
+ * dropping it would leave the card silently describing dumps again.
+ */
+function LedgerRow({ label, amount, count, at }: {
+  label: string;
+  amount: number;
+  count: number;
+  at: Date | null;
+}) {
+  const styles = useStyles();
+  return (
+    <View style={styles.ledgerRow}>
+      <View style={styles.ledgerText}>
+        <Text style={styles.ledgerLabel}>{label}</Text>
+        <Text style={styles.ledgerMeta}>
+          {count === 0
+            ? 'none logged yet'
+            : `${count} logged${at ? ` · most recent ${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}`}
+        </Text>
+      </View>
+      <Text style={[styles.ledgerAmount, count === 0 && styles.ledgerAmountEmpty]}>
+        ${fmt(amount)}
+      </Text>
     </View>
   );
 }
@@ -1394,4 +1461,30 @@ const useStyles = createThemedStyles(t => ({
   bar: { width: 18, borderRadius: 4 },
   barLabel: { fontSize: 11, color: t.colors.textMuted },
   chartNote: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[3] },
+
+  ledger: { gap: Spacing[1] },
+  // Only when it follows the chart. Standing alone it is the card's whole
+  // content and a rule at the top would be dividing it from the title.
+  ledgerRuled: {
+    marginTop: Spacing[4],
+    paddingTop: Spacing[4],
+    borderTopWidth: 1,
+    borderTopColor: t.colors.borderSubtle,
+  },
+  ledgerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    minHeight: 44,
+  },
+  ledgerText: { flex: 1, gap: 1 },
+  ledgerLabel: { fontSize: Typography.sm, color: t.colors.textPrimary },
+  ledgerMeta: { fontSize: Typography.xs, color: t.colors.textMuted },
+  ledgerAmount: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: t.colors.textPrimary,
+  },
+  ledgerAmountEmpty: { color: t.colors.textMuted, fontWeight: Typography.medium },
 }));

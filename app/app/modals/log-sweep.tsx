@@ -32,6 +32,7 @@ import { Card, SourceNote } from '../../components/ui/primitives';
 import SuccessReveal from '../../components/ui/SuccessReveal';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
+import { useCycleHistory, notifyCycleLogged } from '../../hooks/useCycleHistory';
 import { supabase } from '../../lib/supabase';
 import { computeCashRunway, RUNWAY_HORIZON_DAYS } from '../../lib/cashRunway';
 import { detectRecurringExpenses } from '../../lib/recurring';
@@ -46,6 +47,7 @@ export default function LogSweepScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const f = useFinancials();
+  const history = useCycleHistory(profile?.id);
   const [logging, setLogging] = useState(false);
 
   const drawn = f.helocDrawn ?? 0;
@@ -114,6 +116,12 @@ export default function LogSweepScreen() {
   // Same reason: strike.toGo is derived from helocDrawn, so it moves with the
   // refresh too.
   const [toGoAtLog, setToGoAtLog] = useState(0);
+  // And the same reason a third time. `notifyCycleLogged()` makes every mounted
+  // history view re-read, including this screen's own — so by the time the
+  // reward renders, `history.sweptThisMonth` may or may not have caught up.
+  // Freezing the prior total and adding the logged amount to it is right either
+  // way; reading the hook here would show a figure that silently changes.
+  const [priorThisMonth, setPriorThisMonth] = useState(0);
 
   async function handleLog() {
     if (!profile?.id || value <= 0) return;
@@ -137,14 +145,17 @@ export default function LogSweepScreen() {
     setLogged(value);
     setDrawnAtLog(drawn);
     setToGoAtLog(strike.toGo);
+    setPriorThisMonth(history.sweptThisMonth);
     hapticSuccess();
 
-    // NOT notifyDumpLogged(). That wakes useDumpHistory, which selects
-    // `.eq('action', 'dump')` — so it would re-read, find the same dumps, and
-    // change nothing. Worse, `totalDumped` feeds computeRealized, and a sweep is
-    // not a principal payment against the mortgage: counting it there would
-    // inflate the realized-interest figure the dashboard leads with.
-    //
+    // Safe to call now, and it was not always: useCycleHistory used to select
+    // `.eq('action', 'dump')`, so this row was written and then read by nothing.
+    // It reads both actions and keeps them in separate buckets — `totalDumped`
+    // still excludes sweeps, because a sweep is a repayment on the line rather
+    // than a principal payment, and counting it there would inflate the
+    // realized-interest figure the dashboard leads with.
+    notifyCycleLogged();
+
     // What genuinely moves after a sweep is the LINE's balance, and that figure
     // comes from Plaid rather than from this log — so the honest way to make the
     // dashboard reflect it is to go and fetch it. Fire-and-forget: the reward
@@ -188,6 +199,12 @@ export default function LogSweepScreen() {
               ...(toGoAtLog > 0 ? [{
                 label: 'Still to repay before the next dump',
                 value: money(Math.max(0, toGoAtLog - logged)),
+              }] : []),
+              // Only once there is more than this transfer in it. On the first
+              // sweep of a month the row would just restate the headline.
+              ...(priorThisMonth > 0 ? [{
+                label: `Swept in ${monthName()}, this one included`,
+                value: money(priorThisMonth + logged),
               }] : []),
             ]}
             announcement={
@@ -262,6 +279,37 @@ export default function LogSweepScreen() {
           </>
         )}
       </Card>
+
+      {/* ── What is already on the record this month ────────────────────────
+          The reason this screen needed a reader at all. A sweep used to be
+          written and never shown again, so someone who swept on the 3rd and
+          came back on the 5th had nothing in the app to tell them, and the
+          honest options were to log it twice or not at all.
+
+          It does NOT adjust the figure above, and says so. `runway.freeNow` is
+          computed from the live checking balance and `drawn` from the live line
+          balance — both of which a real transfer has already moved — so
+          subtracting the logged amount a second time would understate what is
+          free by exactly the amount already swept. This block is the record,
+          not an input to the arithmetic. */}
+      {history.sweptThisMonth > 0 && (
+        <Card>
+          <Text style={styles.eyebrow}>ALREADY RECORDED IN {monthName().toUpperCase()}</Text>
+          <View style={styles.effectRow}>
+            <Text style={styles.effectLabel}>Swept onto your line</Text>
+            <Text style={styles.effectValue}>{money(history.sweptThisMonth)}</Text>
+          </View>
+          {history.lastSweepAt && (
+            <Text style={styles.caveat}>
+              Most recent {history.lastSweepAt.toLocaleDateString('en-US', {
+                weekday: 'short', day: 'numeric', month: 'short',
+              })}. The suggested figure at the top of this screen comes from your balances
+              as they stand now, so it already accounts for that transfer — this is here so
+              you do not record the same one twice.
+            </Text>
+          )}
+        </Card>
+      )}
 
       {/* ── What is due, so the subtraction is checkable ─────────────────── */}
       {runway.events.length > 0 && (
@@ -367,6 +415,10 @@ function Step({ n, text, last }: { n: number; text: string; last?: boolean }) {
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
+}
+
+function monthName(): string {
+  return new Date().toLocaleDateString('en-US', { month: 'long' });
 }
 
 /** "Tue 5 Aug" — a date a person can check against their own week. */

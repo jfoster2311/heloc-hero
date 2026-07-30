@@ -60,7 +60,7 @@ import { calcRemainingBalance } from '../../lib/projections';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
-import { useDumpHistory } from '../../hooks/useDumpHistory';
+import { useCycleHistory } from '../../hooks/useCycleHistory';
 import { useCycleReminders } from '../../hooks/useCycleReminders';
 import { useBudgets } from '../../hooks/useBudgets';
 import { computeHelocScore } from '../../lib/helocScore';
@@ -84,7 +84,7 @@ export default function DashboardScreen() {
   const { profile, tier } = useAuth();
   const { isPro } = useIsPro();
   const f = useFinancials();
-  const { totalDumped, count: dumpCount, entries: dumpEntries } = useDumpHistory(profile?.id);
+  const { totalDumped, count: dumpCount, entries: dumpEntries } = useCycleHistory(profile?.id);
   const [moveDismissed, setMoveDismissed] = useState(false);
 
   // Both read straight off state that already exists. Nothing about progress is

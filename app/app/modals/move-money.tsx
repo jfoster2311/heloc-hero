@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
-import { notifyDumpLogged } from '../../hooks/useDumpHistory';
+import { notifyCycleLogged } from '../../hooks/useCycleHistory';
 import { SkeletonGroup, SkeletonLines } from '../../components/ui/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { parsePositive } from '../../lib/parseNumeric';
@@ -154,11 +154,12 @@ export default function MoveMoneyModal() {
     setLogged({ amount, analysis });
     hapticSuccess();
 
-    // Correct here, unlike on the sweep sheet: useDumpHistory selects
-    // `.eq('action', 'dump')`, so this row IS one it counts. The dashboard's
-    // realized-interest figure and dump count genuinely move on the back of it,
-    // which is why the reward below is allowed to say so.
-    notifyDumpLogged();
+    // useCycleHistory counts this row under `totalDumped`, which is the figure
+    // computeRealized reasons from — so the dashboard's realized-interest number
+    // and dump count genuinely move on the back of it, which is why the reward
+    // below is allowed to say so. A sweep calls the same notifier but lands in
+    // the sweep partition; see the note at the top of that hook.
+    notifyCycleLogged();
     // The balances themselves are the bank's. Ask for a fresh read so the
     // mortgage and the line catch up; fire-and-forget, because a failed refresh
     // must not turn a recorded move into an error.
