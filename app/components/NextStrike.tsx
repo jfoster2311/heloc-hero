@@ -61,16 +61,14 @@ export default function NextStrike({
         <>
           <Text style={styles.value}>Available now</Text>
           <Text style={styles.caption}>
-            Your line is back under {pct}%, so the next dump is open. Safe to move
-            below works out the amount.
+            Your line is back under {pct}%. Safe to move has the amount.
           </Text>
         </>
       ) : (
         <>
           <Text style={styles.value}>${fmt(strike.toGo)}</Text>
           <Text style={styles.caption}>
-            still to repay before your next dump opens — that is the point your
-            balance reaches {pct}% of your limit.
+            still to repay before your next dump opens, at {pct}% of your limit.
           </Text>
         </>
       )}
@@ -107,10 +105,12 @@ export default function NextStrike({
       {strike.state === 'stalled' && (
         <View style={styles.note}>
           <Ionicons name="alert-circle-outline" size={15} color={colors.textSecondary} />
+          {/* Shortened, not softened. Both facts stay: the balance is growing,
+              and waiting will not fix it. */}
           <Text style={styles.noteText}>
-            Your surplus does not cover the ${fmt(strike.monthlyInterest)} of interest
-            this line charges each month, so the balance is growing rather than
-            falling. The next dump does not get closer until that changes.
+            Your surplus does not cover this line&apos;s ${fmt(strike.monthlyInterest)} of
+            monthly interest, so the balance is growing. Your next dump gets no
+            closer until that changes.
           </Text>
         </View>
       )}
@@ -127,7 +127,7 @@ export default function NextStrike({
           </View>
           {strike.netRepayment > 0 && (
             <Text style={styles.dailyCaption}>
-              Sweeping this month&apos;s surplus at it brings that to{' '}
+              Sweeping this month&apos;s surplus brings that to{' '}
               ${strike.dailyCostNextMonth.toFixed(2)} a day.
             </Text>
           )}
@@ -152,8 +152,10 @@ const useStyles = createThemedStyles(t => ({
     letterSpacing: Tracking.label,
     color: t.colors.textMuted,
   },
+  // Tier 2. The dashboard keeps one display-size figure — Safe to move, which
+  // is a decision — and every card reporting a position sits a step under it.
   value: {
-    fontSize: Typography['3xl'],
+    fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
     color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,

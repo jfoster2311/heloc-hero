@@ -96,13 +96,12 @@ export default function InterestTicker({
 
       <Text style={styles.detail}>
         {negative
-          ? `At today's balances the line costs ${money(costPerDay)} a day against ` +
-            `${money(avoidedPerDay)} of mortgage interest avoided. Replenishing the line ` +
-            'turns this positive.'
-          : `${money(netPerDay)} a day at today's balances — about ${money(netPerDay * 30)} a month. ` +
+          ? `The line costs ${money(costPerDay)} a day against ${money(avoidedPerDay)} of ` +
+            'mortgage interest avoided. Replenishing it turns this positive.'
+          : `${money(netPerDay)} a day — about ${money(netPerDay * 30)} a month` +
             (costPerDay > 0.005
-              ? `Already net of ${money(costPerDay)} a day of HELOC interest.`
-              : 'Nothing is drawn on your line, so none of it is going back out.')}
+              ? `, already net of ${money(costPerDay)} a day of HELOC interest.`
+              : '. Nothing is drawn on your line, so none of it is going back out.')}
       </Text>
     </View>
   );
@@ -130,8 +129,11 @@ const useStyles = createThemedStyles(t => ({
     letterSpacing: Tracking.label,
   },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing[2] },
+  // A step under the realized figure this sits beneath. The ticker is the live
+  // gloss on that number, not a rival to it, and at equal size the card had two
+  // large greens competing inside one border.
   value: {
-    fontSize: Typography['2xl'],
+    fontSize: Typography.xl,
     fontWeight: Typography.extrabold,
     color: t.colors.mint700,
     letterSpacing: Tracking.heading,

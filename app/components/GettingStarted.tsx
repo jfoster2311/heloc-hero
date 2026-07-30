@@ -5,11 +5,25 @@
 // this" and "what specifically is missing" — and separating them onto two cards
 // would put a number on the Dashboard with its explanation somewhere else.
 //
-// ── It retires itself ──────────────────────────────────────────────────────
+// ── It retires itself, in two stages ───────────────────────────────────────
 // Once all six steps are done the card returns null. A permanent checklist of
 // ticks is clutter on the screen the app most wants to keep sparse, and the
 // Dashboard's whole premise is ranking rather than holding everything.
-import { View, Text, TouchableOpacity } from 'react-native';
+//
+// Retiring only at 6-of-6 made that a cliff: at 5-of-6 this was still a progress
+// bar, a score row and six 56pt step rows sitting above the card that carries
+// the actual decision — roughly a third of the first screenful spent on a list
+// whose remaining content is one item. So past halfway it collapses to the next
+// step alone. The rest stay one tap away rather than gone: someone who cannot
+// see step 6 does not know the strategy has a step 6, which is most of what the
+// list is for, and that argument does not stop applying at 50%.
+//
+// The score row survives the collapse on purpose. It is the ONLY route to
+// modals/heloc-score anywhere in the app — hiding it behind the toggle would
+// make the screen that says what the score is and is not unreachable for the
+// users furthest along.
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, LayoutAnimation, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Card } from './ui/primitives';
@@ -35,11 +49,20 @@ export default function GettingStarted({
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
 
   // Nothing left to prompt. See the header note.
   if (checklist.finished) return null;
 
   const pct = (checklist.completed / checklist.total) * 100;
+
+  // Past halfway the list stops being an agenda and becomes mostly a record of
+  // what is already done — which is the point to stop spending prime real estate
+  // on it. `next` is non-null whenever `finished` is false, so the fallback to
+  // the full list is belt-and-braces rather than a reachable state.
+  const dense = pct >= 50;
+  const collapsed = dense && !expanded;
+  const shown = collapsed && checklist.next ? [checklist.next] : checklist.steps;
 
   return (
     <Card>
@@ -81,16 +104,43 @@ export default function GettingStarted({
       </TouchableOpacity>
 
       <View style={styles.steps}>
-        {checklist.steps.map((s, i) => (
+        {shown.map(s => (
           <StepRow
             key={s.id}
+            // The step's real position, not its position in what is rendered —
+            // collapsed, the one visible row is still "step 6 of 6".
             step={s}
-            index={i + 1}
+            index={checklist.steps.indexOf(s) + 1}
             highlighted={checklist.next?.id === s.id}
             onPress={() => { hapticLight(); router.push(s.route as never); }}
           />
         ))}
       </View>
+
+      {dense && (
+        <TouchableOpacity
+          style={styles.toggle}
+          onPress={() => {
+            hapticLight();
+            if (Platform.OS === 'ios') {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            }
+            setExpanded(e => !e);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={expanded ? 'Show only the next step' : `Show all ${checklist.total} steps`}
+        >
+          <Text style={styles.toggleText}>
+            {expanded ? 'Show less' : `Show all ${checklist.total} steps`}
+          </Text>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={15}
+            color={colors.accentInk}
+          />
+        </TouchableOpacity>
+      )}
     </Card>
   );
 }
@@ -236,4 +286,18 @@ const useStyles = createThemedStyles(t => ({
   stepTitleDone: { color: t.colors.textSecondary },
   stepTitleBlocked: { color: t.colors.textMuted },
   stepSub: { fontSize: 11, color: t.colors.textMuted, lineHeight: 16 },
+
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    minHeight: 44,
+    marginTop: Spacing[1],
+  },
+  toggleText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.accentInk,
+  },
 }));

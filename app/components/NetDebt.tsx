@@ -51,8 +51,8 @@ export default function NetDebt({
       <Text style={styles.total}>${fmt(debt.total)}</Text>
       <Text style={styles.caption}>
         {hasHeloc
-          ? 'Your mortgage and your drawn line, together. This is the figure to watch — the split between them moves every cycle.'
-          : 'Your mortgage. Once you draw the line, the amount drawn is added here rather than tracked apart from it.'}
+          ? 'Your mortgage and your drawn line together — the split moves every cycle.'
+          : 'Your mortgage. Once you draw the line, what is drawn is added here.'}
       </Text>
 
       {/* One bar, two segments, separated by a surface gap so the boundary is a
@@ -86,8 +86,8 @@ export default function NetDebt({
         <View style={styles.compare}>
           <Text style={styles.compareText}>
             {ahead
-              ? `That is $${fmt(Math.abs(debt.vsSchedule))} less than your original schedule says you would owe today.`
-              : `That is $${fmt(debt.vsSchedule)} more than your original schedule says you would owe today` +
+              ? `$${fmt(Math.abs(debt.vsSchedule))} less than your original schedule says you would owe today.`
+              : `$${fmt(debt.vsSchedule)} more than your original schedule says you would owe today` +
                 (hasHeloc
                   ? ' — the drawn line is counted here, and comes back down as you repay it.'
                   : '.')}
@@ -117,8 +117,10 @@ function fmt(n: number) { return Math.round(Math.abs(n)).toLocaleString('en-US')
 
 const useStyles = createThemedStyles(t => ({
   empty: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  // Tier 2 — see the note in NextStrike. This is the largest position figure on
+  // the screen and it still steps under the one card that asks for a decision.
   total: {
-    fontSize: Typography['3xl'],
+    fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
     color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,

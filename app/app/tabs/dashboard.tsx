@@ -22,6 +22,16 @@
 // invents a number — see lib/strike.ts, which is the threshold math that already
 // gated the cards below.
 //
+// ── The ranking is in the type, not only in the order ─────────────────────
+// Below the hero there is exactly ONE display-size figure: the Safe to move
+// amount. Every other card reports a position — what is owed, how far the
+// replenishment has to go, what has been saved — and sits a step under it, with
+// the nested InterestTicker a step under the figure it annotates. Four cards
+// each leading with a 30pt extrabold number is a list, not a ranking, and the
+// eye had nowhere to land first. Adding a card here means deciding which tier it
+// is in; if the answer is tier 1, it is competing with the decision and probably
+// belongs on another screen.
+//
 // The dashboard ranks; it does not hold everything. The dense multi-stat cards
 // that used to sit here — a full line-of-credit breakdown that only duplicated
 // the Accounts tab, a stack of interest figures — are gone. Amortization tables,
@@ -420,26 +430,41 @@ export default function DashboardScreen() {
             <Card>
               <SkeletonGroup label="Working out whether it is safe to move money">
                 <View style={styles.safeHead}>
+                  <Skeleton width={124} height={14} />
                   <Skeleton width={78} height={22} radius={Radius.full} />
-                  <Skeleton width={150} height={13} />
                 </View>
+                <Skeleton width={172} height={34} radius={Radius.sm} style={{ marginTop: Spacing[3] }} />
                 <SkeletonLines count={3} last="72%" />
                 <Skeleton height={44} radius={Radius.md} />
               </SkeletonGroup>
             </Card>
           ) : (
           <Card>
-            <View style={styles.safeHead}>
-              <StatusPill
-                status={f.safeToMove.status === 'CLEAR' ? 'clear' : f.safeToMove.status === 'CAUTION' ? 'caution' : 'hold'}
-                label={f.safeToMove.status}
-              />
-              <Text style={styles.safeAmount}>
-                {f.safeToMove.recommendedAmount !== null
-                  ? `move up to $${fmt(f.safeToMove.recommendedAmount)}`
-                  : 'no move recommended'}
-              </Text>
-            </View>
+            {/* The one tier-1 figure below the hero. Every other card on this
+                screen steps down a size, because this is the card the screen
+                exists to produce: the others describe a position, this one is a
+                decision. The status pill rides in the head rather than beside
+                the number — a CLEAR/CAUTION/HOLD chip set next to the amount was
+                two focal points arguing at the same weight. */}
+            <CardHead
+              title="Safe to move"
+              icon="shield-checkmark-outline"
+              right={
+                <StatusPill
+                  status={f.safeToMove.status === 'CLEAR' ? 'clear' : f.safeToMove.status === 'CAUTION' ? 'caution' : 'hold'}
+                  label={f.safeToMove.status}
+                />
+              }
+            />
+
+            {f.safeToMove.recommendedAmount !== null ? (
+              <View style={styles.safeFigure}>
+                <Text style={styles.safeAmount}>${fmt(f.safeToMove.recommendedAmount)}</Text>
+                <Text style={styles.safeAmountSub}>the most it is safe to move right now</Text>
+              </View>
+            ) : (
+              <Text style={styles.safeNone}>No move recommended right now</Text>
+            )}
 
             {/* Reasoning is never collapsed. The screen should build the user's
                 judgment about their own cash flow, not issue a verdict. */}
@@ -507,21 +532,20 @@ export default function DashboardScreen() {
 
               {sweep.state === 'no_line' ? (
                 <Text style={styles.sweepEmpty}>
-                  Add your HELOC and this shows how much of your surplus you can spend
-                  without pushing back your next dump.
+                  Add your HELOC to see how much of your surplus you can spend without
+                  pushing back your next dump.
                 </Text>
               ) : sweep.state === 'no_surplus' ? (
                 <Text style={styles.sweepEmpty}>
-                  Nothing is left over each month yet, so there is nothing to divide up.
-                  Your figures are in Cash flow.
+                  Nothing is left over each month yet. Your figures are in Cash flow.
                 </Text>
               ) : sweep.state === 'under_water' ? (
                 <>
                   <Text style={styles.sweepValue}>$0</Text>
                   <Text style={styles.sweepCaption}>
-                    Your surplus does not cover the {fmtMoney(sweep.interestDue)} of interest your
-                    line charges this month, so the balance grows by{' '}
-                    {fmtMoney(sweep.shortfall)} even if you spend nothing.
+                    Your surplus does not cover the {fmtMoney(sweep.interestDue)} of interest
+                    due this month, so the balance grows by {fmtMoney(sweep.shortfall)} even
+                    if you spend nothing.
                   </Text>
                 </>
               ) : (
@@ -540,24 +564,23 @@ export default function DashboardScreen() {
                     <SweepLine label="Safe to spend" amount={sweep.safeToSpend} total />
                   </View>
 
+                  {/* Every branch keeps its figures and its caveat; what came
+                      out is the restatement around them. `fully_free` no longer
+                      re-explains the threshold — the card directly above this
+                      one has just said the line is back under it. */}
                   <Text style={styles.sweepCaption}>
                     {sweep.state === 'dump_blocked'
-                      ? 'No dump is possible right now for the reason above, so nothing is ' +
-                        'committed to replenishing beyond the ' + fmtMoney(sweep.interestDue) +
-                        ' of interest your line charges. Sort that out before treating this ' +
-                        'as spare.'
+                      ? 'No dump is possible right now, so only the ' +
+                        fmtMoney(sweep.interestDue) + ' of interest is committed. Sort out ' +
+                        'the blocker above before treating this as spare.'
                       : sweep.state === 'fully_free'
-                      ? 'Your line is already back under ' +
-                        `${Math.round(f.replenishThreshold * 100)}%, so your next dump is open. ` +
-                        'Spend this freely without slowing it.'
+                      ? 'Your next dump is already open. Spend this freely without slowing it.'
                       : sweep.state === 'all_committed'
-                        ? `Every dollar is spoken for this month: ${fmtMoney(sweep.toThreshold)} has ` +
-                          'to come off the line before your next dump is available, plus ' +
-                          `${fmtMoney(sweep.interestDue)} of interest.`
+                        ? `Every dollar is spoken for: ${fmtMoney(sweep.toThreshold)} off the ` +
+                          `line before your next dump, plus ${fmtMoney(sweep.interestDue)} of interest.`
                         : `Spend this freely without slowing your next dump. The ` +
-                          `${fmtMoney(sweep.committed)} above it covers ${fmtMoney(sweep.interestDue)} ` +
-                          `of interest and the ${fmtMoney(sweep.toThreshold)} that has to come off ` +
-                          `the line to re-open the dump.`}
+                          `${fmtMoney(sweep.committed)} above covers ${fmtMoney(sweep.interestDue)} ` +
+                          `of interest and the ${fmtMoney(sweep.toThreshold)} that re-opens the dump.`}
                   </Text>
 
                   {/* The honest caveat. "Free to spend" is true and "free of
@@ -569,8 +592,7 @@ export default function DashboardScreen() {
                     <View style={styles.sweepNote}>
                       <Ionicons name="information-circle-outline" size={15} color={colors.textSecondary} />
                       <Text style={styles.sweepNoteText}>
-                        Putting it on the line instead does not bring the next dump forward —
-                        it makes that dump bigger.
+                        Putting it on the line instead makes your next dump bigger, not sooner.
                       </Text>
                     </View>
                   )}
@@ -924,9 +946,26 @@ const useStyles = createThemedStyles(t => ({
   staleText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
   staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
-  safeHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap' },
+  // Skeleton only — the real card's head is a CardHead, which lays itself out.
+  // Kept mirroring it so the card does not jump a row when the figure lands.
+  safeHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[2],
+  },
+  safeFigure: { gap: 2 },
   safeAmount: {
-    fontSize: Typography.sm,
+    fontSize: Typography['3xl'],
+    fontWeight: Typography.extrabold,
+    color: t.colors.textPrimary,
+    letterSpacing: Tracking.heading,
+  },
+  safeAmountSub: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  // HOLD has no figure, and setting "no move" at display size would give the
+  // screen's loudest treatment to the absence of a decision.
+  safeNone: {
+    fontSize: Typography.xl,
     fontWeight: Typography.semibold,
     color: t.colors.textSecondary,
   },
@@ -1013,8 +1052,10 @@ const useStyles = createThemedStyles(t => ({
   },
   sweepNoteText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18 },
 
+  // Tier 2, with every other card that reports a position rather than a
+  // decision. See the note on the Safe to move figure.
   bigValue: {
-    fontSize: Typography['3xl'],
+    fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
     color: t.colors.textPrimary,
     letterSpacing: Tracking.heading,
