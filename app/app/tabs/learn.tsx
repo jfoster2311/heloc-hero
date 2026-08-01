@@ -132,6 +132,7 @@ Past those, two numbers set the status. The first is how much of your line is dr
 Liquidity is always stated alongside the saving. Interest saved without saying what it cost you in available cash is a sales pitch, not a recommendation.
 
 Worth knowing: this reasons from balances that refresh roughly twice a day, so it can be working from figures a few hours old. It shows its reasoning so you can tell when it is wrong.`,
+    action: { label: 'See your own status', route: '/tabs/dashboard' },
   },
   {
     id: 3,
@@ -149,6 +150,7 @@ Whatever survives that is free to spend.
 The commitment is derived from the same threshold Safe to move uses, deliberately. If this card ran its own model of replenishment, you could be told your surplus was free to spend while the card above it said HOLD, and neither number would survive the contradiction.
 
 Where the arithmetic has to round, it rounds toward a smaller free figure. Telling you $400 is spare when it was $500 costs you nothing; the reverse quietly slows down the payoff you are here for.`,
+    action: { label: 'See what is free to spend', route: '/tabs/dashboard' },
   },
   {
     id: 4,
@@ -167,6 +169,10 @@ Where the arithmetic has to round, it rounds toward a smaller free figure. Telli
 5. Discipline over years. The strategy only pays off over a long horizon. Drawing the line for anything other than the mortgage breaks it.
 
 It works best for people with stable income, controlled expenses, meaningful equity, and a long time horizon. If that is not you, paying extra directly onto the mortgage each month is a slower plan with far less that can go wrong.`,
+    // Points at the editor for the two facts this article tells the reader to
+    // go and find out — the draw-period end date and the rate — rather than at
+    // a screen that would only display them back.
+    action: { label: 'Record your HELOC terms', route: '/modals/heloc-terms' },
   },
   {
     id: 5,
@@ -220,8 +226,28 @@ export default function LearnScreen() {
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
-  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-  const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
+  // Sets, not a single id.
+  //
+  // Both of these used to hold ONE open item, so opening a guide silently
+  // closed the one above it. On a reference screen that is the wrong default:
+  // articles 2 and 3 describe the two halves of the same decision, and a reader
+  // comparing them had to keep re-opening each in turn. Nothing about the layout
+  // required it — the cards are independent and the screen already scrolls.
+  const [expandedFaq, setExpandedFaq] = useState<ReadonlySet<number>>(new Set());
+  const [expandedArticle, setExpandedArticle] = useState<ReadonlySet<number>>(new Set());
+
+  function toggle(
+    set: ReadonlySet<number>,
+    setter: (next: ReadonlySet<number>) => void,
+    id: number,
+  ) {
+    hapticLight();
+    const next = new Set(set);
+    if (!next.delete(id)) next.add(id);
+    setter(next);
+  }
+
+  const allArticlesOpen = expandedArticle.size === ARTICLES.length;
 
   return (
     <View style={common.screenContainer}>
@@ -286,10 +312,31 @@ export default function LearnScreen() {
           </View>
         ))}
 
-        {/* Articles */}
-        <SectionLabel>STRATEGY GUIDES</SectionLabel>
+        {/* Articles.
+            The header carries an expand-all rather than the screen opening
+            every guide by default: five long articles unfurled on arrival is a
+            wall of text, not a more useful screen. The control puts that choice
+            where the reader can make it. */}
+        <View style={styles.sectionRow}>
+          {/* marginTop moved to the row, so the label sits on the button's
+              centre line instead of 8pt below it. */}
+          <SectionLabel style={styles.sectionRowLabel}>STRATEGY GUIDES</SectionLabel>
+          <TouchableOpacity
+            style={styles.expandAll}
+            onPress={() => {
+              hapticLight();
+              setExpandedArticle(allArticlesOpen ? new Set() : new Set(ARTICLES.map(a => a.id)));
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={allArticlesOpen ? 'Collapse all guides' : 'Expand all guides'}
+          >
+            <Text style={styles.expandAllText}>
+              {allArticlesOpen ? 'Collapse all' : 'Expand all'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         {ARTICLES.map(article => {
-          const open = expandedArticle === article.id;
+          const open = expandedArticle.has(article.id);
           return (
             // The card is a plain View, not a Touchable, so the toggle and the
             // jump below it stay two separate accessibility elements. Nesting
@@ -298,10 +345,7 @@ export default function LearnScreen() {
             <View key={article.id} style={[common.card, styles.articleCard]}>
               <TouchableOpacity
                 style={styles.articleToggle}
-                onPress={() => {
-                  hapticLight();
-                  setExpandedArticle(open ? null : article.id);
-                }}
+                onPress={() => toggle(expandedArticle, setExpandedArticle, article.id)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
@@ -345,15 +389,12 @@ export default function LearnScreen() {
         {/* FAQ */}
         <SectionLabel>FREQUENTLY ASKED</SectionLabel>
         {FAQ.map((item, i) => {
-          const open = expandedFaq === i;
+          const open = expandedFaq.has(i);
           return (
             <TouchableOpacity
               key={item.q}
               style={[common.card, styles.faqCard]}
-              onPress={() => {
-                hapticLight();
-                setExpandedFaq(open ? null : i);
-              }}
+              onPress={() => toggle(expandedFaq, setExpandedFaq, i)}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityState={{ expanded: open }}
@@ -396,6 +437,22 @@ const useStyles = createThemedStyles(t => ({
     letterSpacing: -0.6,
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
+  // Keeps the expand-all on the section label's baseline. SectionLabel carries
+  // its own vertical padding, so the row only has to align them.
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing[3],
+    marginTop: Spacing[2],
+  },
+  sectionRowLabel: { marginTop: 0 },
+  expandAll: { minHeight: 44, justifyContent: 'center' },
+  expandAllText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: t.colors.mint700,
+  },
   articleCard: { gap: Spacing[2] },
   articleToggle: { gap: Spacing[2], minHeight: 44, justifyContent: 'center' },
   articleHeader: {

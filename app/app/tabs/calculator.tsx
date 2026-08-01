@@ -240,8 +240,12 @@ export default function CalculatorScreen() {
   // The month-by-month schedule behind the reveal. Same inputs as the headline
   // projection — it surfaces the very simulation the payoff date comes from — so
   // the month the mortgage clears here matches the hero.
+  // Computed whenever the inputs are valid, NOT only when cycling wins. The
+  // schedule is the simulation the verdict came out of, so withholding it in the
+  // one case where the verdict is "this does not get you ahead" hides the
+  // working from the only user who has a reason to check it.
   const schedule = useMemo(
-    () => (status === 'ok' && projection && projection.monthsSaved > 0
+    () => (status === 'ok' && projection && projection.originalMonths > 0
       ? computeCyclingSchedule(projectionInputs)
       : null),
     [projectionInputs, status, projection],
@@ -617,7 +621,23 @@ export default function CalculatorScreen() {
             )}
           </Card>
 
-          {/* ── Supporting detail, subordinate to the billboard ─────────────── */}
+          {/* ── Supporting detail, subordinate to the billboard ───────────────
+              Gated on a valid projection, NOT on cycling winning. This card
+              carries "How this is calculated" — the assumptions panel, which
+              the note at the top of this file calls the reason the payoff
+              number arrives with its model attached — and the month-by-month
+              schedule underneath it. Hanging both on `hasGain` meant they
+              vanished in exactly the case where a user has most reason to
+              audit them: the screen said "at these numbers cycling does not
+              get ahead" and then withdrew the working that produced it.
+
+              That case is not an edge case. At a typical 8.5% line against a
+              6.5% mortgage the routing is slightly negative on its own — see
+              the note on "Where the saving comes from" below.
+
+              Every row here is real either way: the dump size, the count, the
+              HELOC interest and both payoff dates are outputs of the same
+              simulation whichever direction it lands. */}
           {projection && hasGain && (
             <Card>
               <Text style={styles.sectionTitle}>How it gets there</Text>
@@ -656,38 +676,16 @@ export default function CalculatorScreen() {
                 isLast
               />
 
-              {/* Tap to read the model, not just trust it. */}
-              <TouchableOpacity
-                style={styles.assumeToggle}
-                onPress={toggleAssumptions}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: showAssumptions }}
-                accessibilityLabel={showAssumptions ? 'Hide how this is calculated' : 'How this is calculated'}
-              >
-                <Ionicons name="information-circle-outline" size={16} color={colors.accentInk} />
-                <Text style={styles.assumeToggleText}>How this is calculated</Text>
-                <Ionicons
-                  name={showAssumptions ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={colors.accentInk}
-                />
-              </TouchableOpacity>
-              {showAssumptions && (
-                <View style={styles.assumePanel}>
-                  {ASSUMPTIONS.map((line, i) => (
-                    <View key={i} style={styles.assumeItem}>
-                      <Text style={styles.assumeBullet}>•</Text>
-                      <Text style={styles.assumeText}>{line}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
               {/* The mechanic, month by month: when each dump lands, the HELOC
                   interest charged while a balance is owed, and the surplus sweep
                   pulling it back down. Behind a tap so the headline reveal stays
-                  clean for the reader who only wants the number. */}
-              {schedule && schedule.months.length > 0 && (
+                  clean for the reader who only wants the number.
+
+                  Gated on there being DUMPS, not merely months. With no surplus
+                  the simulation still returns a full-length schedule, and a
+                  360-row table in which every dump column reads "—" is a worse
+                  answer than no table. */}
+              {schedule && schedule.dumpCount > 0 && (
                 <>
                   <TouchableOpacity
                     style={styles.scheduleToggle}
@@ -754,6 +752,48 @@ export default function CalculatorScreen() {
                     </View>
                   )}
                 </>
+              )}
+            </Card>
+          )}
+
+          {/* ── The model ───────────────────────────────────────────────────
+              Its own card, and shown for ANY valid projection rather than only
+              a winning one. It used to sit at the bottom of "How it gets
+              there", which gated it on cycling getting ahead — so the one user
+              whose numbers do not work, who has the most reason to audit the
+              assumptions, was the one user who could not reach them. It was
+              also seven rows down inside a card about acceleration, which is
+              not where anyone looks for a list of caveats.
+
+              The note at the top of this file says the payoff number should
+              arrive with its assumptions rather than without them. A card of
+              its own is what actually delivers that. */}
+          {projection && status === 'ok' && (
+            <Card>
+              <TouchableOpacity
+                style={styles.assumeToggle}
+                onPress={toggleAssumptions}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showAssumptions }}
+                accessibilityLabel={showAssumptions ? 'Hide how this is calculated' : 'How this is calculated'}
+              >
+                <Ionicons name="information-circle-outline" size={16} color={colors.accentInk} />
+                <Text style={styles.assumeToggleText}>How this is calculated</Text>
+                <Ionicons
+                  name={showAssumptions ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.accentInk}
+                />
+              </TouchableOpacity>
+              {showAssumptions && (
+                <View style={styles.assumePanel}>
+                  {ASSUMPTIONS.map((line, i) => (
+                    <View key={i} style={styles.assumeItem}>
+                      <Text style={styles.assumeBullet}>•</Text>
+                      <Text style={styles.assumeText}>{line}</Text>
+                    </View>
+                  ))}
+                </View>
               )}
             </Card>
           )}
