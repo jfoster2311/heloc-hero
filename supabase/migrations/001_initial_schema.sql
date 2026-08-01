@@ -47,7 +47,16 @@ create table if not exists public.linked_accounts (
   account_type        text not null check (account_type in ('mortgage','home equity','savings')),
   institution_name    text,
   plaid_item_id       text not null,
-  plaid_access_token  text not null,  -- encrypted at rest via Supabase Vault in production
+  -- STALE — do not read this column as a description of the live database.
+  -- It carried the comment "encrypted at rest via Supabase Vault in production",
+  -- which was never true: there is no Vault, pgsodium or application-level
+  -- encryption anywhere in this project. Tokens are stored as plaintext.
+  -- Nor is this where they live — the live schema keeps them on
+  -- `plaid_accounts.access_token`, and this column does not exist on the
+  -- deployed `linked_accounts` at all. See
+  -- 20260801120000_plaid_token_service_role_only.sql, which is where token
+  -- access is actually governed (service_role only, as of 2026-08-01).
+  plaid_access_token  text not null,
   accounts            jsonb not null default '[]',
   accounts_updated_at timestamptz,
   created_at          timestamptz not null default now()
