@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { PlaidClient } from "../_shared/plaid.ts";
 import { getAdminClient } from "../_shared/supabase.ts";
+import { requireSelf } from "../_shared/auth.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
 Deno.serve(async (req: Request) => {
@@ -50,6 +51,14 @@ Deno.serve(async (req: Request) => {
     if (action === "fireWebhook") {
       const { userId, accountType } = body;
       if (!userId) return errorResponse("userId is required");
+
+      // Reads plaid_accounts_secure — the DECRYPTING view — and hands the token
+      // to Plaid. Unguarded, that is one authenticated user operating on
+      // another's live bank credential, which is not something a sandbox helper
+      // being deployed to production should be able to do.
+      const denied = await requireSelf(req, userId);
+      if (denied) return denied;
+
       const supabase = getAdminClient();
       const { data } = await supabase
         .from("plaid_accounts_secure")

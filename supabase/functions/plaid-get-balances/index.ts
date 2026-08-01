@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { PlaidClient } from "../_shared/plaid.ts";
 import { getAdminClient } from "../_shared/supabase.ts";
+import { requireSelf } from "../_shared/auth.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
 Deno.serve(async (req: Request) => {
@@ -11,6 +12,15 @@ Deno.serve(async (req: Request) => {
   try {
     const { userId, accountType } = await req.json();
     if (!userId) return errorResponse("userId is required");
+
+    // This function runs with the service role, so RLS does not apply — and it
+    // ends by RETURNING the named user's linked_accounts rows: every balance,
+    // account name and mask, plus the servicer liabilities blob holding the
+    // mortgage rate, escrow and next payment due. Without this check any
+    // authenticated user could read all of that for any other user by putting
+    // their id in the body.
+    const denied = await requireSelf(req, userId);
+    if (denied) return denied;
 
     const supabase = getAdminClient();
     const plaid = new PlaidClient();

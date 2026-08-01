@@ -1,6 +1,7 @@
 // supabase/functions/send-notification/index.ts
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { notificationTemplates, sendNotificationToUser } from "../_shared/notifications.ts";
+import { requireSelf } from "../_shared/auth.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
 Deno.serve(async (req: Request) => {
@@ -10,6 +11,12 @@ Deno.serve(async (req: Request) => {
   try {
     const { userId, type } = await req.json();
     if (!userId) return errorResponse("userId is required");
+
+    // Otherwise anyone with an account can push a notification to anyone else's
+    // device. These templates talk about moving money, which makes a spoofed
+    // one worth more to an attacker than ordinary spam.
+    const denied = await requireSelf(req, userId);
+    if (denied) return denied;
 
     const templateMap: Record<string, () => { title: string; body: string; data: Record<string, string> }> = {
       savings: notificationTemplates.savingsAccountAlert,

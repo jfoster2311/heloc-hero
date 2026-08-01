@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { PlaidClient } from "../_shared/plaid.ts";
 import { getAdminClient } from "../_shared/supabase.ts";
+import { requireSelf } from "../_shared/auth.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
 const VALID_TYPES = ["mortgage", "home equity", "savings"] as const;
@@ -20,6 +21,13 @@ Deno.serve(async (req: Request) => {
     if (!VALID_TYPES.includes(accountType)) {
       return errorResponse("accountType must be: mortgage | home equity | savings");
     }
+
+    // Checked BEFORE the exchange, not after: an unauthorized caller should not
+    // be able to spend a Plaid token exchange, and the write below binds a live
+    // bank connection to whatever user id it is handed. Unguarded, that let one
+    // account attach an institution to another account entirely.
+    const denied = await requireSelf(req, userId);
+    if (denied) return denied;
 
     const plaid = new PlaidClient();
     const result = await plaid.exchangePublicToken(publicToken);
