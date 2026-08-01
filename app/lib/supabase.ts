@@ -2,13 +2,35 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
-const supabaseUrl =
-  (Constants.expoConfig?.extra?.supabaseUrl as string | undefined) ??
-  (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '');
+/**
+ * app.json `extra` first, then the environment.
+ *
+ * The `??` this replaces only falls through on null/undefined, so an EMPTY
+ * STRING in `extra` — the natural thing to leave behind when moving a value out
+ * to env vars — shadowed the fallback instead of deferring to it. The app then
+ * built a client on `''`, which fails at import with "supabaseUrl is required"
+ * and points at nothing.
+ *
+ * Trimming and treating blank as absent makes that trap unreachable rather than
+ * merely documented.
+ */
+function resolveConfig(extraKey: string, envValue: string | undefined): string {
+  const fromExtra = Constants.expoConfig?.extra?.[extraKey] as string | undefined;
+  return fromExtra?.trim() || envValue?.trim() || '';
+}
 
-const supabaseAnonKey =
-  (Constants.expoConfig?.extra?.supabaseAnonKey as string | undefined) ??
-  (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '');
+const supabaseUrl     = resolveConfig('supabaseUrl', process.env.EXPO_PUBLIC_SUPABASE_URL);
+const supabaseAnonKey = resolveConfig('supabaseAnonKey', process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+
+// Named plainly, and at import, because the alternative is every request in the
+// app failing separately with an error that never mentions configuration.
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    'Supabase is not configured: set supabaseUrl and supabaseAnonKey in app.json ' +
+    'extra, or EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in the ' +
+    'environment. Nothing that talks to the server will work until one is set.',
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

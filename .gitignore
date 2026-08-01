@@ -18,5 +18,18 @@ supabase/.temp/
 
 # UI reference screenshots dropped at the repo root. Inspiration only — these
 # are other companies' apps and must never be committed or shipped as assets.
-/image.png
-/image copy*.png
+#
+# The rule was here and the patterns only covered one naming convention, so
+# Fintech1-5.png sat in version control regardless. Matching any loose image at
+# the ROOT is the version of this that cannot be sidestepped by naming a file
+# something else — app assets live in app/assets/ and are unaffected.
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+
+# A 2026-02 snapshot of ~24 screen files, committed as an archive. Every one of
+# them exists in app/ in a newer form, under the SAME filename — which is the
+# problem: a search for accounts.tsx or settings.tsx turns up two versions and
+# nothing says which is live.
+/*.zip
