@@ -74,7 +74,10 @@ export function buildWatchItems(i: WatchInputs): WatchItem[] {
         'costs before making principal moves — it can outweigh the interest saved.',
       icon: 'alert-circle-outline',
       weight: 100,
-      action: { label: 'Review mortgage', route: '/tabs/accounts' },
+      // The editor that owns the penalty field, not the tab that lists it. This
+      // feed renders on the Accounts tab as well as the dashboard, and a route
+      // back to /tabs/accounts was a tap that visibly did nothing from there.
+      action: { label: 'Review mortgage', route: '/modals/mortgage-details' },
     });
   }
 
@@ -203,7 +206,11 @@ export function buildWatchItems(i: WatchInputs): WatchItem[] {
           : 'No balances have come through yet, so nothing on this screen reflects live accounts.',
         icon: 'cloud-offline-outline',
         weight: 65,
-        action: { label: 'Reconnect', route: '/tabs/accounts' },
+        // Same reason as the penalty item above. Reconnecting is what fixes a
+        // connection that has stopped delivering — a refresh against a broken
+        // item returns the same stale balances — so this points at the Link
+        // flow, which is the route account-details offers for the same repair.
+        action: { label: 'Reconnect', route: '/modals/link-account' },
       });
     }
   }

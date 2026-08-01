@@ -16,7 +16,7 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  RefreshControl, Share,
+  RefreshControl, Share, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -40,7 +40,6 @@ import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
-import { parseDate } from '../../lib/mortgage';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 
 /**
@@ -102,7 +101,10 @@ export default function AccountsScreen() {
     );
   }, [f.homeValue, f.mortgageBalance, f.mortgage.rate.value, f.payment, f.surplus, f.helocRate, f.helocLimit]);
 
-  const drawEnd = parseDate(profile?.heloc_draw_end_date);
+  // The draw-end date is deliberately NOT read here any more. It used to drive a
+  // warning on this screen, and buildWatchItems now raises both cases it covered
+  // — approaching and closed — into Needs attention above, where the rest of the
+  // screen's warnings live. Two sources for one fact is how they drift apart.
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
 
   // ── The projection window ─────────────────────────────────────────────────
@@ -228,7 +230,8 @@ export default function AccountsScreen() {
               {canLink && (
                 <TouchableOpacity
                   style={styles.addBtn}
-                  onPress={() => router.push('/modals/link-account')}
+                  onPress={() => { hapticLight(); router.push('/modals/link-account'); }}
+                  accessibilityRole="button"
                   accessibilityLabel="Link an account"
                 >
                   <Ionicons name="add" size={16} color={OnDark.primary} />
@@ -415,7 +418,8 @@ export default function AccountsScreen() {
             <ConnectionCard
               key={account.id}
               account={account}
-              onRefresh={f.refresh}
+              onRefresh={handleRefresh}
+              syncing={f.refreshing}
               onManage={() => router.push(
                 `/modals/account-details?type=${encodeURIComponent(account.account_type)}` as never,
               )}
@@ -586,9 +590,11 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
  * produces a wrong recommendation, "synced 4 days ago" is not a debug detail,
  * it is the caveat on everything else the app said today.
  */
-function ConnectionCard({ account, onRefresh, onManage }: {
+function ConnectionCard({ account, onRefresh, syncing, onManage }: {
   account: LinkedAccount;
   onRefresh: () => void;
+  /** Shared across every card on purpose — see the note on the action row. */
+  syncing: boolean;
   onManage: () => void;
 }) {
   const { colors } = useTheme();
@@ -645,27 +651,52 @@ function ConnectionCard({ account, onRefresh, onManage }: {
       <View style={styles.connActions}>
         {/* Refresh keeps its place: it mutates nothing, and it is the one action
             someone wants without leaving the list. Disconnect's spinner went with
-            it to the modal, which owns that call and its own pending state. */}
-        <ConnAction label="Refresh" icon="refresh-outline" onPress={onRefresh} />
+            it to the modal, which owns that call and its own pending state.
+
+            Two corrections to what this button used to be. It said "Refresh",
+            which reads as a pull on THIS connection — `plaid-get-balances` keys
+            off userId and refreshes every linked account in one call, the same
+            reason account-details labels its button "Sync all balances now". And
+            it fired a promise into the void: no pending state, no outcome, so a
+            failed sync left the card byte-identical and read as a broken tap.
+
+            The busy state is therefore shared rather than per-card, and that is
+            correct rather than a shortcut — every card really is syncing. The
+            failure case is already on screen: `f.error` renders above these
+            cards with the "last balances we have" caveat, so an Alert here would
+            be a second telling of the same news. */}
+        <ConnAction
+          label={syncing ? 'Syncing…' : 'Sync all'}
+          icon="refresh-outline"
+          busy={syncing}
+          onPress={onRefresh}
+        />
         <ConnAction label="Manage" icon="settings-outline" onPress={onManage} />
       </View>
     </Card>
   );
 }
 
-function ConnAction({ label, icon, onPress }: {
-  label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void;
+function ConnAction({ label, icon, busy, onPress }: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  busy?: boolean;
+  onPress: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
     <TouchableOpacity
-      style={styles.connAction}
+      style={[styles.connAction, busy && styles.connActionBusy]}
       onPress={() => { hapticLight(); onPress(); }}
+      disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ busy: !!busy, disabled: !!busy }}
     >
-      <Ionicons name={icon} size={15} color={colors.textSecondary} />
+      {busy
+        ? <ActivityIndicator size="small" color={colors.textSecondary} />
+        : <Ionicons name={icon} size={15} color={colors.textSecondary} />}
       <Text style={styles.connActionText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -713,9 +744,6 @@ function typeLabel(t: PlaidAccountType): string {
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function money(n: number) { return `$${fmt(n)}`; }
 function rate(d: number) { return `${(d * 100).toFixed(2)}%`; }
-function fmtMonthYear(d: Date) {
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
 /**
  * Long form of the dashboard's relativeTime, for the connection cards.
  *
@@ -884,6 +912,7 @@ const useStyles = createThemedStyles(t => ({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     borderRadius: Radius.md, backgroundColor: t.colors.gray50,
   },
+  connActionBusy: { opacity: 0.7 },
   connActionText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textSecondary },
 
   disclaimer: {
