@@ -18,7 +18,20 @@
 //
 // A 2pt gap is left between neighbouring arcs. Without it two adjacent steps of
 // one hue merge into a single band and the count of categories is lost.
-import { View, Text, StyleSheet } from 'react-native';
+//
+// ── Selecting an arc ───────────────────────────────────────────────────────
+// Pass `onSelect` and the ring becomes a control: tapping an arc reports it,
+// tapping the hole clears it, and the caller decides what the centre then says.
+// The centre stays a prop rather than something this computes, because the copy
+// belongs to the screen — this component knows percentages, not what a category
+// is called or which period it was measured over.
+//
+// Hit testing is geometric, not per-View. An arc is a run of ~40 small rotated
+// Views and its group wrapper is a full-box absoluteFill, so putting a touch
+// handler on either would make the topmost arc swallow every tap on the ring.
+// One transparent overlay converts the touch point to an angle and a radius
+// instead, which is both exact and a single node.
+import { View, Text, Pressable, StyleSheet, type GestureResponderEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius, Tracking, type CategoryRampTokens } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -42,6 +55,14 @@ interface Props {
   centerSub?: string;
   size?: number;
   thickness?: number;
+  /** Key of the arc drawn as selected. Others dim; null draws them all equal. */
+  selectedKey?: string | null;
+  /**
+   * Makes the ring interactive. Called with an arc's key, or null when the tap
+   * landed in the hole — which is how a selection is cleared without needing a
+   * second control. Omit it and the ring is a static picture as before.
+   */
+  onSelect?: (key: string | null) => void;
 }
 
 /** Degrees per tick. Smaller is smoother and heavier; 2.5 is past the seam. */
@@ -50,9 +71,24 @@ const STEP = 2.5;
 const GAP = 2.5;
 /** Below this share an arc is too short to hold an icon without collisions. */
 const ICON_MIN_PCT = 7;
+/** How much the selected arc thickens. Enough to read, not enough to reflow. */
+const SELECTED_GROWTH = 7;
+/** Unselected arcs, once something else is selected. */
+const DIMMED = 0.32;
+/**
+ * Slop around the band, in points.
+ *
+ * The band is 20pt and a fingertip is not. Extending the hit ring outward far
+ * enough to swallow the rim badges is deliberate: the badge is the part of a
+ * thin arc a user can actually see and aim at, so it has to select the arc it
+ * labels rather than falling through to "cleared".
+ */
+const HIT_INNER_SLOP = 8;
+const HIT_OUTER_SLOP = 22;
 
 export default function DonutRing({
   segments, centerLabel, centerValue, centerSub, size = 216, thickness = 20,
+  selectedKey = null, onSelect,
 }: Props) {
   const styles = useStyles();
   const radius = (size - thickness) / 2;
@@ -66,7 +102,16 @@ export default function DonutRing({
 
   // Lay the arcs out first: every tick and every badge is positioned from this,
   // so the geometry is decided once rather than recomputed per element.
-  const arcs: { seg: RingSegment; start: number; end: number; mid: number }[] = [];
+  //
+  // `rawStart`/`rawEnd` are the sweep BEFORE the cosmetic gap is taken out of
+  // it, and they are what hit testing reads. Testing against the drawn bounds
+  // would leave a 2.5° dead stripe between every pair of arcs where a tap did
+  // nothing at all — the gap exists to separate two colours, not to be a hole.
+  const arcs: {
+    seg: RingSegment;
+    start: number; end: number; mid: number;
+    rawStart: number; rawEnd: number;
+  }[] = [];
   let cursor = 0;
   for (const seg of segments) {
     const sweep = (seg.pct / 100) * 360;
@@ -75,8 +120,44 @@ export default function DonutRing({
     const inset = sweep > GAP * 2 ? GAP / 2 : 0;
     const start = cursor + inset;
     const end   = cursor + sweep - inset;
-    if (end > start) arcs.push({ seg, start, end, mid: (start + end) / 2 });
+    if (end > start) {
+      arcs.push({
+        seg, start, end, mid: (start + end) / 2,
+        rawStart: cursor, rawEnd: cursor + sweep,
+      });
+    }
     cursor += sweep;
+  }
+
+  /**
+   * Touch point → arc key, or null for the hole.
+   *
+   * `undefined` means the tap missed the control entirely (the corners of the
+   * square box), and the caller is left alone rather than having its selection
+   * cleared by a tap that was never on the ring.
+   */
+  function arcAt(e: GestureResponderEvent): string | null | undefined {
+    const { locationX, locationY } = e.nativeEvent;
+    const dx = locationX - (pad + center);
+    const dy = locationY - (pad + center);
+    const r = Math.hypot(dx, dy);
+
+    if (r > radius + thickness / 2 + HIT_OUTER_SLOP) return undefined;
+    if (r < radius - thickness / 2 - HIT_INNER_SLOP) return null;
+
+    // Ring space: 0° at twelve o'clock, increasing clockwise, matching the
+    // `(a - 90)` used to place every tick above.
+    const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    return arcs.find(a => deg >= a.rawStart && deg < a.rawEnd)?.seg.key ?? null;
+  }
+
+  function handlePress(e: GestureResponderEvent) {
+    if (!onSelect) return;
+    const key = arcAt(e);
+    if (key === undefined) return;
+    // A second tap on the arc already selected clears it, so the gesture that
+    // opened the detail is also the one that closes it.
+    onSelect(key !== null && key === selectedKey ? null : key);
   }
 
   return (
@@ -94,6 +175,10 @@ export default function DonutRing({
       />
 
       {hasData && arcs.map(arc => {
+        const selected = selectedKey === arc.seg.key;
+        // Thickens about its own centre line, so the band's midline — and every
+        // badge hung off it — stays exactly where it was.
+        const th = selected ? thickness + SELECTED_GROWTH : thickness;
         const ticks: React.ReactNode[] = [];
         for (let a = arc.start; a < arc.end; a += STEP) {
           // Chord length per tick, plus a hair of overlap so no seam shows
@@ -106,21 +191,36 @@ export default function DonutRing({
               style={{
                 position: 'absolute',
                 width: w,
-                height: thickness,
+                height: th,
                 left: pad + center + radius * Math.cos(rad) - w / 2,
-                top:  pad + center + radius * Math.sin(rad) - thickness / 2,
+                top:  pad + center + radius * Math.sin(rad) - th / 2,
                 backgroundColor: arc.seg.color,
                 transform: [{ rotate: `${a + STEP / 2}deg` }],
               }}
             />,
           );
         }
-        return <View key={arc.seg.key} style={StyleSheet.absoluteFill}>{ticks}</View>;
+        return (
+          <View
+            key={arc.seg.key}
+            style={[
+              StyleSheet.absoluteFill,
+              // Dimming is what makes the selected arc read as selected — the
+              // growth alone is too subtle on a two-arc ring. Nothing is
+              // hidden: a dimmed arc is still drawn, still measured, and the
+              // list beneath the ring is untouched.
+              selectedKey !== null && !selected && { opacity: DIMMED },
+            ]}
+          >
+            {ticks}
+          </View>
+        );
       })}
 
       {/* Rim badges — the direct labels that keep identity off colour alone.
           Skipped on arcs too short to hold one, where the list below carries it. */}
       {hasData && arcs.filter(a => a.seg.pct >= ICON_MIN_PCT).map(arc => {
+        const selected = selectedKey === arc.seg.key;
         const rad = (arc.mid - 90) * (Math.PI / 180);
         const rBadge = radius + thickness / 2 + 6;
         return (
@@ -132,6 +232,8 @@ export default function DonutRing({
                 left: pad + center + rBadge * Math.cos(rad) - 14,
                 top:  pad + center + rBadge * Math.sin(rad) - 14,
               },
+              selected && styles.badgeSelected,
+              selectedKey !== null && !selected && { opacity: DIMMED },
             ]}
             accessibilityLabel={`${arc.seg.label}, ${Math.round(arc.seg.pct)} percent`}
           >
@@ -150,6 +252,21 @@ export default function DonutRing({
         </Text>
         {centerSub ? <Text style={styles.centerSub}>{centerSub}</Text> : null}
       </View>
+
+      {/* The hit layer, last so it sits over both the arcs and the centre.
+          Deliberately NOT accessible: it is one node standing for every arc, so
+          a screen reader would announce a single unlabelled button covering the
+          whole chart. The rim badges keep their labels underneath it, and the
+          category list below the ring is the real accessible path to the same
+          selection — it names every category, its amount and its share. */}
+      {onSelect && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handlePress}
+          accessible={false}
+          importantForAccessibility="no"
+        />
+      )}
     </View>
   );
 }
@@ -168,6 +285,14 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center',
     justifyContent: 'center',
     ...t.shadows.card,
+  },
+  // The selected arc's badge gains a ring rather than a fill: the icon inside
+  // is already painted in the arc's colour, and filling the badge with that
+  // same colour would leave the icon sitting on itself.
+  badgeSelected: {
+    borderColor: t.colors.accentInk,
+    borderWidth: 2,
+    transform: [{ scale: 1.12 }],
   },
   center: {
     position: 'absolute',

@@ -96,6 +96,17 @@ export default function CashFlowScreen() {
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
   const [openDay, setOpenDay] = useState<DayCell | null>(null);
   const [catsExpanded, setCatsExpanded] = useState(false);
+  /**
+   * The arc the user has tapped, if any.
+   *
+   * A key rather than a category id, because the ring's folded tail (`__rest`)
+   * is a selectable arc that is not a category. Selecting is deliberately NOT
+   * the same gesture as drilling in: a tap on the ring re-points the centre
+   * figure at one category and highlights its row, which is a question about
+   * proportion; opening the sheet is a question about transactions, and it
+   * still belongs to the rows.
+   */
+  const [selectedArc, setSelectedArc] = useState<string | null>(null);
 
   // Everything below comes from useFinancials, which exists precisely so two
   // screens cannot disagree about the same figure.
@@ -183,6 +194,53 @@ export default function CashFlowScreen() {
     () => buildSegments(summary.categories, CATEGORY_RAMP_MAX, categoryRamp),
     [summary.categories, categoryRamp],
   );
+
+  // ── What the ring is currently pointed at ────────────────────────────────
+  // Resolved by looking the key up in the CURRENT segments rather than trusting
+  // the stored string. Change the period and a category with no spend in the
+  // new window simply stops resolving, so the centre falls back to the total
+  // instead of captioning a figure that is no longer on the chart.
+  const selectedSeg = useMemo(
+    () => ring.segments.find(s => s.key === selectedArc) ?? null,
+    [ring.segments, selectedArc],
+  );
+  const selectedCat = selectedSeg && selectedSeg.key !== '__rest'
+    ? summary.categories.find(c => c.id === selectedSeg.key) ?? null
+    : null;
+  const foldedTotal = useMemo(
+    () => ring.folded.reduce((s, c) => s + c.amount, 0),
+    [ring.folded],
+  );
+
+  /** The three lines inside the ring, which is the whole point of selecting. */
+  const center = selectedCat
+    ? {
+        label: selectedCat.label.toUpperCase(),
+        value: `$${fmt(selectedCat.amount)}`,
+        sub: `${selectedCat.pct.toFixed(0)}% of spend · ${selectedCat.count} ` +
+             `transaction${selectedCat.count === 1 ? '' : 's'}`,
+      }
+    : selectedSeg
+      ? {
+          label: 'SMALLER CATEGORIES',
+          value: `$${fmt(foldedTotal)}`,
+          sub: `${ring.folded.length} categories · ${selectedSeg.pct.toFixed(0)}% of spend`,
+        }
+      : {
+          label: 'TOTAL SPEND',
+          value: `$${fmt(summary.spend)}`,
+          sub: `this ${periodWord(period)}`,
+        };
+
+  const handleSelectArc = useCallback((key: string | null) => {
+    hapticSelection();
+    setSelectedArc(key);
+    // Selecting the folded tail opens the rows it stands for. On its own the
+    // arc can only say "12% went somewhere else", which is the question rather
+    // than the answer — the categories it folded are already on the screen,
+    // just below the fold.
+    if (key === '__rest') setCatsExpanded(true);
+  }, []);
 
   // The mortgage payment scaled to the period. It is deliberately absent from
   // the ring (the projection models it, and counting it twice would understate
@@ -336,7 +394,18 @@ export default function CashFlowScreen() {
             below it, and burying it in the first card would imply it only
             drives that card's figures. The budget card is the one exception,
             and it says which month it is reporting on. */}
-        <PeriodToggle value={period} onChange={p => { hapticSelection(); setPeriod(p); }} />
+        <PeriodToggle
+          value={period}
+          onChange={p => {
+            hapticSelection();
+            setPeriod(p);
+            // The window changed, so the arc that was selected is describing a
+            // share of a total that no longer exists. Cleared rather than
+            // re-resolved: "Groceries, 22%" silently becoming a different 22%
+            // is worse than the centre going back to the total.
+            setSelectedArc(null);
+          }}
+        />
 
         {/* ── Spend, as a curve or a grid ────────────────────────────────── */}
         {!f.loading && spend && spend.cur.days > 0 && (
@@ -440,9 +509,11 @@ export default function CashFlowScreen() {
           ) : (
             <DonutRing
               segments={ring.segments}
-              centerLabel="TOTAL SPEND"
-              centerValue={`$${fmt(summary.spend)}`}
-              centerSub={`this ${periodWord(period)}`}
+              centerLabel={center.label}
+              centerValue={center.value}
+              centerSub={center.sub}
+              selectedKey={selectedSeg?.key ?? null}
+              onSelect={handleSelectArc}
             />
           )}
         </Card>
@@ -453,13 +524,19 @@ export default function CashFlowScreen() {
             icon: identity survives with the colour removed entirely. */}
         {!f.loading && !overrides.loading && summary.basis === 'live' && (
           <View style={styles.catList}>
-            {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => (
+            {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => {
+              const isSelected = selectedCat?.id === c.id;
+              return (
               <TouchableOpacity
                 key={c.id}
-                style={styles.catCard}
+                // Marked, never dimmed-out. The ring is where selection changes
+                // what you are looking at; down here it only says WHICH row the
+                // arc belongs to, so the other rows stay fully legible.
+                style={[styles.catCard, isSelected && styles.catCardSelected]}
                 onPress={() => { hapticLight(); openCategoryById(c.id); }}
                 activeOpacity={0.85}
                 accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={
                   `${c.label}, $${fmt(c.amount)}, ${c.pct.toFixed(0)} percent of spending, ` +
                   `${c.count} transaction${c.count === 1 ? '' : 's'}`
@@ -488,7 +565,8 @@ export default function CashFlowScreen() {
                 <Text style={styles.catAmount}>${fmt(c.amount)}</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
               </TouchableOpacity>
-            ))}
+              );
+            })}
 
             {/* Progressive disclosure. The count is stated rather than a bare
                 "See more", because four more rows and forty more rows are
@@ -1377,6 +1455,9 @@ const useStyles = createThemedStyles(t => ({
     borderColor: t.colors.borderSubtle,
     ...t.shadows.card,
   },
+  // borderField, not border: this is the one card whose outline has to be
+  // legible as a state rather than read as decoration.
+  catCardSelected: { borderColor: t.colors.borderField, backgroundColor: t.colors.mint50 },
   catIcon: {
     width: 40,
     height: 40,
