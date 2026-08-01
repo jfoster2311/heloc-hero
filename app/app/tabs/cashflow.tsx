@@ -56,7 +56,7 @@ import { useBudgets } from '../../hooks/useBudgets';
 import { EMPTY_TRANSACTION_META } from '../../hooks/useTransactionMeta';
 import { hapticLight, hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import {
-  PERIODS, periodRange, summarizePeriod,
+  PERIODS, periodRange, summarizePeriod, summarizableRows, rowsInRange,
   previousRange, cumulativeSpend, dailyBreakdown, categoryHistory, trailingAverage,
   type PeriodId, type SpendCategory, type CategorizedTxn, type DayCell,
 } from '../../lib/spending';
@@ -146,6 +146,40 @@ export default function CashFlowScreen() {
     [monthRange],
   );
   const budgets = useBudgets(profile?.id, monthKey);
+
+  // ── Is there anything to measure, ever? ──────────────────────────────────
+  // Distinct from "did this window have transactions", and the distinction is
+  // the whole reason this screen used to collapse. Every widget below was gated
+  // on `summary.basis === 'live'`, which is a fact about the SELECTED PERIOD —
+  // so picking Week, or opening the app on the 2nd of the month, silently
+  // deleted the chart, the activity list and the category rows. Year looked
+  // like a richer screen when it was only a wider window.
+  //
+  // The gate is now "does this account have spending we can total", and each
+  // widget carries its own empty state for a window that happens to be quiet.
+  // A section that disappears teaches the user the app is broken; a section
+  // that says "nothing in July" teaches them about July.
+  const allRows = useMemo(
+    () => summarizableRows(f.transactions, f.transactionClassification),
+    [f.transactions, f.transactionClassification],
+  );
+  const hasSpendData = allRows.length > 0;
+
+  // Which periods actually hold something, so an empty window can offer the
+  // nearest one that does not. This is what makes "Year shows more" a fact the
+  // user can act on from Week rather than something they have to discover.
+  const periodCounts = useMemo(() => {
+    const out = {} as Record<PeriodId, number>;
+    for (const p of PERIODS) out[p.id] = rowsInRange(allRows, periodRange(p.id)).length;
+    return out;
+  }, [allRows]);
+
+  // The next window OUT with something in it. Never a shorter one: offering to
+  // narrow a search that already found nothing is not help.
+  const widerWithData = useMemo(() => {
+    const from = PERIODS.findIndex(p => p.id === period);
+    return PERIODS.slice(from + 1).find(p => periodCounts[p.id] > 0) ?? null;
+  }, [period, periodCounts]);
 
   const summarizeArgs = {
     transactions: f.transactions,
@@ -263,7 +297,11 @@ export default function CashFlowScreen() {
   // there is no day-by-day shape in a single typed monthly total, and drawing
   // one would be inventing a measurement.
   const spend = useMemo(() => {
-    if (summary.basis !== 'live') return null;
+    // Keyed to whether there is spending data at all, NOT to whether this
+    // window has any. A quiet month draws a real curve that is flat at zero and
+    // a real grid of empty days, which is the answer to "what did I spend in
+    // August" — the card vanishing is not.
+    if (!hasSpendData) return null;
     const args = {
       transactions: f.transactions,
       classification: f.transactionClassification,
@@ -431,7 +469,7 @@ export default function CashFlowScreen() {
         )}
 
         {/* ── Latest activity ───────────────────────────────────────────── */}
-        {!f.loading && !overrides.loading && summary.basis === 'live' && (
+        {!f.loading && !overrides.loading && hasSpendData && (
           <LatestActivity
             rows={recent}
             metaFor={txnMeta.get}
@@ -442,13 +480,22 @@ export default function CashFlowScreen() {
         )}
 
         {/* ── Budget ────────────────────────────────────────────────────── */}
-        {!f.loading && !budgets.loading && monthSummary.basis === 'live' && (
+        {/* Deliberately NOT gated on having transactions. Deciding what you
+            mean to spend is a plan, and a plan does not need a bank connection
+            to be worth writing down — gating it meant the one screen that could
+            have given a free, unlinked user something to do showed them nothing.
+            `spentMeasured` is what keeps that honest: with nothing measured the
+            widget states the ceilings and says so, rather than dressing the
+            user's own entered expense figure up as spending we observed. */}
+        {!f.loading && !budgets.loading && (
           <BudgetWidget
             categories={monthSummary.categories}
             budgets={budgets.budgets}
             totalCeiling={totalCeiling}
             totalSpent={monthSummary.spend}
+            spentMeasured={monthSummary.basis === 'live'}
             monthLabel={monthLabel}
+            categoryFor={f.categories.metaFor}
             onOpenCategory={openCategoryById}
             onOpenAll={() => router.push('/modals/budget' as never)}
             onStartBudget={() => router.push('/modals/budget' as never)}
@@ -481,30 +528,58 @@ export default function CashFlowScreen() {
               <Skeleton width={216} height={216} radius={108} />
               <Skeleton width={150} height={13} />
             </SkeletonGroup>
-          ) : summary.basis === 'estimated' ? (
+          ) : summary.categories.length === 0 ? (
+            /* Three different emptinesses, and only one of them is the user's
+               to fix. "Nothing linked" needs an account; "still arriving" needs
+               patience; "quiet window" needs a wider window — and that last one
+               is the case that used to read as a broken screen, because every
+               other card vanished at the same time and left this one alone
+               apologising. Where a longer period does hold something, the pill
+               that would show it is offered directly. */
             <View style={styles.stateBlock}>
               <View style={styles.emptyRing}>
                 <Ionicons name="pie-chart-outline" size={26} color={colors.textMuted} />
               </View>
               <Text style={styles.emptyBody}>
-                {f.hasLinkedAccounts
-                  ? f.awaitingTransactions
+                {!f.hasLinkedAccounts
+                  ? 'Link an account and your spending is broken down here automatically. ' +
+                    'Until then this screen runs on the figures you entered.'
+                  : f.awaitingTransactions
                     ? 'Your bank is still sending its history. Your breakdown appears here once ' +
                       'it lands — usually within a few minutes of linking.'
-                    : `No transactions in this ${periodWord(period)}. ` +
-                      'Try a longer period, or pull down to refresh.'
-                  : 'Link an account and your spending is broken down here automatically. ' +
-                    'Until then this screen runs on the figures you entered.'}
+                    : widerWithData
+                      ? `Nothing went out in this ${periodWord(period)}. ` +
+                        `Your ${widerWithData.label.toLowerCase()} has ` +
+                        `${periodCounts[widerWithData.id]} transactions in it.`
+                      : `Nothing went out in this ${periodWord(period)}. ` +
+                        'Pull down to refresh if you were expecting something.'}
               </Text>
-              {!f.hasLinkedAccounts && (
+
+              {!f.hasLinkedAccounts ? (
                 <TouchableOpacity
                   style={styles.emptyBtn}
                   onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+                  accessibilityRole="button"
                   accessibilityLabel="Link an account"
                 >
                   <Text style={styles.emptyBtnText}>Link an account</Text>
                 </TouchableOpacity>
-              )}
+              ) : widerWithData ? (
+                <TouchableOpacity
+                  style={styles.emptyBtn}
+                  onPress={() => {
+                    hapticSelection();
+                    setPeriod(widerWithData.id);
+                    setSelectedArc(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show this ${widerWithData.label.toLowerCase()} instead`}
+                >
+                  <Text style={styles.emptyBtnText}>
+                    Show the {widerWithData.label.toLowerCase()}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : (
             <DonutRing
@@ -522,7 +597,7 @@ export default function CashFlowScreen() {
             Each its own surface, so a row is a target rather than a line in a
             table. The swatch repeats the arc colour and the name repeats the
             icon: identity survives with the colour removed entirely. */}
-        {!f.loading && !overrides.loading && summary.basis === 'live' && (
+        {!f.loading && !overrides.loading && summary.categories.length > 0 && (
           <View style={styles.catList}>
             {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => {
               const isSelected = selectedCat?.id === c.id;
@@ -639,8 +714,10 @@ export default function CashFlowScreen() {
                   : 'modelled by the strategy, so it is not in the spend above'}
                 // Only offered with transactions to search. Without them there
                 // is nothing to detect and the row would promise a screen that
-                // can only say so.
-                onPress={summary.basis === 'live'
+                // can only say so. Keyed to whether any exist rather than to
+                // this window: that screen searches the whole history, so a
+                // quiet August is no reason to withdraw it.
+                onPress={hasSpendData
                   ? () => { hapticLight(); router.push('/modals/mortgage-payment' as never); }
                   : undefined}
                 action="Check"
@@ -673,7 +750,7 @@ export default function CashFlowScreen() {
                 next question is what to do about it. The Budget widget below
                 carries the same destination — a card someone may have already
                 scrolled past by the time they have finished reading this one. */}
-            {summary.basis === 'live' && totalCeiling === null && (
+            {totalCeiling === null && (
               <TouchableOpacity
                 style={styles.beginRow}
                 onPress={() => { hapticLight(); router.push('/modals/budget' as never); }}
@@ -881,6 +958,9 @@ export default function CashFlowScreen() {
         target={openCategory}
         monthLabel={monthLabel}
         amount={openCategoryAmount}
+        // The sheet's figures are the MONTH's, not the selected period's — see
+        // monthSummary — so its measured flag has to come from the same place.
+        measured={monthSummary.basis === 'live'}
         history={openCategoryHistory}
         trailingAverage={trailingAverage(openCategoryHistory)}
         ceiling={openCategoryCeiling}

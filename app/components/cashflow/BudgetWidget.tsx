@@ -28,23 +28,44 @@ export interface BudgetWidgetProps {
   /** Every ceiling summed. Null when the user has set none. */
   totalCeiling: number | null;
   totalSpent: number;
+  /**
+   * Whether `totalSpent` was summed from real transactions.
+   *
+   * False means it is the user's own entered monthly expense figure, and NONE
+   * of the spend-against-ceiling language may be used: "You've spent $2,400 in
+   * July" about a number they typed in March is a measurement claim the app
+   * cannot back. Ceilings are still shown and still editable — a budget is a
+   * plan, and a plan is worth writing down before there is anything to check it
+   * against — but nothing is drawn as progress against them.
+   */
+  spentMeasured: boolean;
   /** "July" — the month these figures cover. */
   monthLabel: string;
   onOpenCategory: (id: CategoryTotal['id']) => void;
   onOpenAll: () => void;
   /** Shown in place of the list when nothing has been budgeted yet. */
   onStartBudget: () => void;
+  /** Names and icons for ceilings on categories with no spend to rank them by. */
+  categoryFor: (id: CategoryTotal['id']) => { label: string; icon: CategoryTotal['icon'] };
 }
 
 export default function BudgetWidget({
-  categories, budgets, totalCeiling, totalSpent, monthLabel,
-  onOpenCategory, onOpenAll, onStartBudget,
+  categories, budgets, totalCeiling, totalSpent, spentMeasured, monthLabel,
+  onOpenCategory, onOpenAll, onStartBudget, categoryFor,
 }: BudgetWidgetProps) {
   const { common, colors } = useTheme();
   const styles = useStyles();
   const anyBudget = totalCeiling !== null && totalCeiling > 0;
   const total = budgetStatus(totalSpent, totalCeiling);
   const preview = categories.slice(0, PREVIEW_COUNT);
+
+  // Every ceiling the user has set, for the unmeasured case — where `categories`
+  // is empty because nothing has been spent, so ranking by spend would rank
+  // nothing and the budget they just wrote would not appear on the screen that
+  // exists to show it.
+  const budgeted = Object.entries(budgets)
+    .filter(([, b]) => (b?.ceiling ?? 0) > 0)
+    .sort((a, b) => (b[1]?.ceiling ?? 0) - (a[1]?.ceiling ?? 0));
 
   return (
     <Card>
@@ -64,8 +85,15 @@ export default function BudgetWidget({
         // worse answer than one sentence and a way to start.
         <View style={styles.startBlock}>
           <Text style={styles.startBody}>
-            You&apos;ve spent ${fmt(totalSpent)} in {monthLabel}. Set a limit on the
-            categories that matter and this fills in with how you&apos;re tracking.
+            {spentMeasured
+              ? `You've spent $${fmt(totalSpent)} in ${monthLabel}. Set a limit on the ` +
+                "categories that matter and this fills in with how you're tracking."
+              // No transactions to quote, so nothing is quoted. The invitation
+              // stands on its own: this is the one thing on the screen a user
+              // can do before a bank connection exists.
+              : 'Decide what you mean to spend before the month does it for you. ' +
+                'Set a limit on the categories that matter — you can do this now, ' +
+                'and it fills in with real figures once transactions arrive.'}
           </Text>
           <TouchableOpacity
             style={styles.startBtn}
@@ -83,6 +111,47 @@ export default function BudgetWidget({
             </View>
           </TouchableOpacity>
         </View>
+      ) : !spentMeasured ? (
+        // Ceilings set, nothing measured against them. The plan is stated back
+        // in full and NOTHING is drawn as progress — a bar needs two figures,
+        // and only one of them exists.
+        <>
+          <View style={styles.planHead}>
+            <Text style={styles.planLabel}>Your monthly budget</Text>
+            <Text style={styles.planValue}>${fmt(totalCeiling ?? 0)}</Text>
+          </View>
+
+          <View style={styles.list}>
+            {budgeted.slice(0, PREVIEW_COUNT).map(([id, b]) => {
+              const meta = categoryFor(id as CategoryTotal['id']);
+              return (
+                <TouchableOpacity
+                  key={id}
+                  style={styles.row}
+                  onPress={() => { hapticLight(); onOpenCategory(id as CategoryTotal['id']); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${meta.label}, $${fmt(b?.ceiling ?? 0)} budget`}
+                  accessibilityHint="Opens this category to change its budget"
+                >
+                  <View style={styles.rowIcon}>
+                    <Ionicons name={meta.icon} size={17} color={colors.mint700} />
+                  </View>
+                  <Text style={styles.planRowLabel} numberOfLines={1}>{meta.label}</Text>
+                  <Text style={styles.planRowValue}>${fmt(b?.ceiling ?? 0)}</Text>
+                  <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.planNote}>
+            {budgeted.length > PREVIEW_COUNT
+              ? `${budgeted.length} categories budgeted. `
+              : ''}
+            Nothing measured against these yet — they fill in as transactions arrive.
+          </Text>
+        </>
       ) : (
         <>
           <BudgetBar
@@ -234,6 +303,39 @@ const useStyles = createThemedStyles(t => ({
     fontSize: Typography.sm,
     fontWeight: Typography.bold,
     color: t.colors.onAccent,
+  },
+
+  planHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing[2],
+    paddingTop: Spacing[1],
+  },
+  planLabel: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: t.colors.textPrimary,
+  },
+  planValue: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.extrabold,
+    color: t.colors.accentInk,
+  },
+  planRowLabel: { flex: 1, fontSize: Typography.sm, color: t.colors.textPrimary },
+  planRowValue: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.textPrimary,
+  },
+  planNote: {
+    fontSize: Typography.xs,
+    color: t.colors.textMuted,
+    lineHeight: 17,
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: t.colors.borderSubtle,
   },
 
   list: { marginTop: Spacing[4], gap: Spacing[1] },

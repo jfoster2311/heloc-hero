@@ -358,6 +358,9 @@ export default function BreakdownScreen() {
         amount={openCategory?.category
           ? summary.categories.find(c => c.id === openCategory.category)?.amount ?? 0
           : 0}
+        // This screen only renders its breakdown on a live basis, so a sheet
+        // can only be opened from it when something really was measured.
+        measured={summary.basis === 'live'}
         history={openCategoryHistory}
         trailingAverage={trailingAverage(openCategoryHistory)}
         ceiling={openCategory?.category ? budgets.budgets[openCategory.category]?.ceiling ?? null : null}

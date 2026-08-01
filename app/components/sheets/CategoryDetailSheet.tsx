@@ -47,6 +47,17 @@ export interface CategoryDetailSheetProps {
   monthLabel: string;
   /** Spent (or earned) in the month on screen. */
   amount: number;
+  /**
+   * Whether `amount` was summed from transactions.
+   *
+   * False means nothing has been measured — no linked account, or none of its
+   * history has arrived — and zero is then the ABSENCE of a measurement rather
+   * than a measurement of zero. The ceiling editor is unaffected and stays fully
+   * usable, which is the point: a budget can be written before there is anything
+   * to check it against. What is suppressed is every figure that would only be
+   * true if the zero were real.
+   */
+  measured: boolean;
   history: MonthPoint[];
   /** Whole-month average behind the "last 12 months" stat. Null with no history. */
   trailingAverage: number | null;
@@ -71,7 +82,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
   const { common, colors } = useTheme();
   const styles = useStyles();
   const {
-    target, monthLabel, amount, history, trailingAverage, ceiling, inherited,
+    target, monthLabel, amount, measured, history, trailingAverage, ceiling, inherited,
     rows, metaFor, categoryFor, inProgress, saving,
     onClose, onSaveCeiling, onClearCeiling, onOpenTransaction,
   } = props;
@@ -140,10 +151,14 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
         <View style={styles.identityBody}>
           <Text style={styles.identityLabel}>{target.label}</Text>
           <Text style={styles.identitySub}>
-            {rows.length} transaction{rows.length === 1 ? '' : 's'} in {monthLabel}
+            {measured
+              ? `${rows.length} transaction${rows.length === 1 ? '' : 's'} in ${monthLabel}`
+              : `Nothing measured in ${monthLabel} yet`}
           </Text>
         </View>
-        <Text style={styles.identityAmount}>${fmt(amount)}</Text>
+        {/* An em dash, not "$0". Nothing has been measured, which is not the
+            same claim as having measured nothing. */}
+        <Text style={styles.identityAmount}>{measured ? `$${fmt(amount)}` : '—'}</Text>
       </View>
 
       {/* ── The ceiling block — expense only ───────────────────────────────
@@ -190,8 +205,12 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
       {/* ── Room left ──────────────────────────────────────────────────────
           Only drawn when a ceiling exists. With none set there is no
           "remaining" to state, and a $0 callout would tell someone they are
-          out of room they never asked for. */}
-      {isExpense && status.ceiling !== null && (
+          out of room they never asked for.
+
+          And only when something has been measured. "$500 left of your $500
+          budget" is arithmetic on one number dressed as a report on two — the
+          user has not spent nothing, we have observed nothing. */}
+      {isExpense && measured && status.ceiling !== null && (
         <View style={[styles.callout, status.over && styles.calloutOver]}>
           <Ionicons
             name={status.over ? 'alert-circle-outline' : 'checkmark-circle-outline'}

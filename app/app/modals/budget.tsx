@@ -130,11 +130,24 @@ export default function BudgetScreen() {
     return sum > 0 ? sum : null;
   }, [budgets.budgets]);
 
-  const total = budgetStatus(summary.spend, totalCeiling);
+  // ── Measured, or merely planned ──────────────────────────────────────────
+  // With no transactions in the month, `summary.spend` is the user's own
+  // entered monthly expense figure scaled to the period — an estimate, not an
+  // observation. Everything on this screen that says "spent" reads from
+  // `spent`, which is zero in that case, so the word is never applied to a
+  // number nobody measured. The ceilings themselves stay fully editable: a
+  // budget is a plan, and this screen used to refuse to show one until a bank
+  // was connected, which left an unlinked user with no way to make it at all.
+  const measured = summary.basis === 'live';
+  const spent = measured ? summary.spend : 0;
+  const total = budgetStatus(spent, totalCeiling);
 
   const allocation = useMemo(
     () => allocate({
-      income: summary.income > 0 ? summary.income : f.income,
+      // `measured &&` matters: unmeasured, summary.income is the entered figure
+      // scaled by one month, so the ternary would pick the same number down the
+      // branch that calls it observed.
+      income: measured && summary.income > 0 ? summary.income : f.income,
       budgets: budgets.budgets,
       mortgagePayment: f.payment,
     }),
@@ -201,12 +214,16 @@ export default function BudgetScreen() {
       >
         <Text style={styles.month}>{monthLabel}</Text>
 
-        {summary.basis !== 'live' ? (
-          /* Three different situations, and each one gets the action that can
-             actually change it. The button offered here is deliberately NOT
-             f.refresh: that pulls balances and leaves the transaction cursor
-             alone, so on a screen whose emptiness is "no transactions" it would
-             be a control that cannot fix what it is offered for. */
+        {!measured && (
+          /* A notice now, not the whole screen. Three different situations, and
+             each one gets the action that can actually change it — but none of
+             them is a reason to withhold the budget editor below, which is the
+             one thing here that works with nothing linked.
+
+             The button offered is deliberately NOT f.refresh: that pulls
+             balances and leaves the transaction cursor alone, so on a screen
+             whose emptiness is "no transactions" it would be a control that
+             cannot fix what it is offered for. */
           <View style={styles.stateBlock}>
             <Text style={styles.stateBody}>
               {!f.hasLinkedAccounts
@@ -248,23 +265,34 @@ export default function BudgetScreen() {
               </Text>
             )}
           </View>
-        ) : (
-          <>
+        )}
+
+        {/* Kept as a fragment rather than dedented into siblings: the contents
+            are unchanged and re-indenting 190 lines would bury that fact. */}
+        <>
             {/* ── The one aggregate ──────────────────────────────────────── */}
             <View style={styles.gaugeBlock}>
+              {/* Unmeasured, the arc reports the PLAN rather than progress
+                  through it. A gauge is a ratio and only one of its two figures
+                  exists, so drawing any fill at all would be inventing the
+                  other one. */}
               <GaugeArc
-                pct={totalCeiling !== null ? total.pct : 0}
-                color={getBarColor(summary.spend, totalCeiling)}
-                label="Spent"
-                value={`$${fmt(summary.spend)}`}
-                sub={totalCeiling !== null
-                  ? `of a $${fmt(totalCeiling)} budget`
-                  : 'no budget set yet'}
+                pct={measured && totalCeiling !== null ? total.pct : 0}
+                color={getBarColor(spent, totalCeiling)}
+                label={measured ? 'Spent' : 'Budgeted'}
+                value={measured ? `$${fmt(spent)}` : `$${fmt(totalCeiling ?? 0)}`}
+                sub={measured
+                  ? (totalCeiling !== null ? `of a $${fmt(totalCeiling)} budget` : 'no budget set yet')
+                  : (totalCeiling !== null ? 'nothing measured against it yet' : 'no budget set yet')}
                 accessibilityLabel={
-                  totalCeiling !== null
-                    ? `$${fmt(summary.spend)} spent of a $${fmt(totalCeiling)} budget` +
-                      (total.over ? `, $${fmt(total.overBy)} over` : '')
-                    : `$${fmt(summary.spend)} spent, no budget set`
+                  !measured
+                    ? (totalCeiling !== null
+                        ? `$${fmt(totalCeiling)} budgeted, nothing measured against it yet`
+                        : 'No budget set yet')
+                    : totalCeiling !== null
+                      ? `$${fmt(spent)} spent of a $${fmt(totalCeiling)} budget` +
+                        (total.over ? `, $${fmt(total.overBy)} over` : '')
+                      : `$${fmt(spent)} spent, no budget set`
                 }
               />
               {total.over && (
@@ -282,7 +310,7 @@ export default function BudgetScreen() {
               <AllocRow
                 label="Monthly income"
                 value={allocation.income}
-                hint={summary.income > 0 ? 'measured this month' : 'the figure you entered'}
+                hint={measured && summary.income > 0 ? 'measured this month' : 'the figure you entered'}
               />
               <AllocRow label="Budgeted" value={-allocation.budgeted} />
               {allocation.mortgage > 0 && (
@@ -315,10 +343,13 @@ export default function BudgetScreen() {
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={
-                      `${r.meta.label}, $${fmt(r.amount)} spent` +
-                      (r.ceiling !== null
-                        ? ` of a $${fmt(r.ceiling)} budget${status.over ? ', over budget' : ''}`
-                        : ', no budget set')
+                      measured
+                        ? `${r.meta.label}, $${fmt(r.amount)} spent` +
+                          (r.ceiling !== null
+                            ? ` of a $${fmt(r.ceiling)} budget${status.over ? ', over budget' : ''}`
+                            : ', no budget set')
+                        : `${r.meta.label}, ` +
+                          (r.ceiling !== null ? `$${fmt(r.ceiling)} budget` : 'no budget set')
                     }
                     accessibilityHint="Opens this category to set a budget"
                   >
@@ -330,27 +361,36 @@ export default function BudgetScreen() {
                       <View style={styles.rowHead}>
                         <Text style={styles.rowLabel} numberOfLines={1}>{r.meta.label}</Text>
                         <View style={styles.rowFigures}>
-                          {status.over && <Text style={styles.overWord}>over</Text>}
+                          {measured && status.over && <Text style={styles.overWord}>over</Text>}
+                          {/* Unmeasured, the ceiling is the whole figure. A
+                              leading "$0" would be read as "you have spent
+                              nothing here", which is a measurement — what is
+                              true is that nothing has been measured. */}
                           <Text style={styles.rowValue}>
-                            ${fmt(r.amount)}
-                            <Text style={styles.rowOf}>
-                              {r.ceiling !== null ? ` of $${fmt(r.ceiling)}` : ' · set one'}
+                            {measured ? `$${fmt(r.amount)}` : ''}
+                            <Text style={measured ? styles.rowOf : undefined}>
+                              {r.ceiling !== null
+                                ? measured ? ` of $${fmt(r.ceiling)}` : `$${fmt(r.ceiling)}`
+                                : measured ? ' · set one' : 'Set one'}
                             </Text>
                           </Text>
                         </View>
                       </View>
 
-                      <View style={styles.track}>
-                        <View
-                          style={[
-                            styles.fill,
-                            {
-                              width: `${status.pct > 0 ? Math.max(1.5, status.pct) : 0}%`,
-                              backgroundColor: getBarColor(r.amount, r.ceiling),
-                            },
-                          ]}
-                        />
-                      </View>
+                      {/* No track when there is nothing to fill it with. */}
+                      {measured && (
+                        <View style={styles.track}>
+                          <View
+                            style={[
+                              styles.fill,
+                              {
+                                width: `${status.pct > 0 ? Math.max(1.5, status.pct) : 0}%`,
+                                backgroundColor: getBarColor(r.amount, r.ceiling),
+                              },
+                            ]}
+                          />
+                        </View>
+                      )}
                     </View>
 
                     <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
@@ -442,14 +482,14 @@ export default function BudgetScreen() {
                 <Text style={styles.errorNote}>{f.categories.error}</Text>
               )}
             </View>
-          </>
-        )}
+        </>
       </ModalScreen>
 
       <CategoryDetailSheet
         target={openCategory}
         monthLabel={monthShort}
         amount={openAmount}
+        measured={measured}
         history={openCategoryHistory}
         trailingAverage={trailingAverage(openCategoryHistory)}
         ceiling={openCategory?.category ? budgets.budgets[openCategory.category]?.ceiling ?? null : null}

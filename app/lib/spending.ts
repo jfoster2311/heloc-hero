@@ -354,6 +354,34 @@ export interface PeriodSummary {
   untaggedCount: number;
 }
 
+/**
+ * Every row a period summary may be built from, before any window is applied.
+ *
+ * Exported because three callers need to agree on it exactly: `summarizePeriod`,
+ * `cumulativeSpend`, and the Cash flow tab, which asks "is there anything to
+ * measure AT ALL" in order to tell an empty window apart from an empty account.
+ * Those are different screens for the user, and answering the second question
+ * with `transactions.length` would get it wrong — a user whose only rows are on
+ * the mortgage account has transactions and nothing this module can total.
+ */
+export function summarizableRows(
+  transactions: TransactionRow[],
+  classification: TransactionClassification,
+): TransactionRow[] {
+  return transactions.filter(t =>
+    !t.pending &&
+    t.account_type === 'savings' &&
+    !classification.excludedIds.has(t.transaction_id),
+  );
+}
+
+/** Those rows narrowed to one period. */
+export function rowsInRange(rows: TransactionRow[], range: PeriodRange): TransactionRow[] {
+  const from = iso(range.start);
+  const to   = iso(range.endExclusive);
+  return rows.filter(t => t.date >= from && t.date < to);
+}
+
 export function summarizePeriod(args: {
   transactions: TransactionRow[];
   classification: TransactionClassification;
@@ -364,12 +392,7 @@ export function summarizePeriod(args: {
 }): PeriodSummary {
   const { transactions, classification, overrides, range, entered } = args;
 
-  const inWindow = transactions.filter(t =>
-    !t.pending &&
-    t.account_type === 'savings' &&
-    !classification.excludedIds.has(t.transaction_id) &&
-    t.date >= iso(range.start) && t.date < iso(range.endExclusive),
-  );
+  const inWindow = rowsInRange(summarizableRows(transactions, classification), range);
 
   if (inWindow.length === 0) {
     // Nothing measured. Offer the user's own figures, scaled to the period, and
@@ -541,9 +564,7 @@ export function cumulativeSpend(args: {
   if (days === 0) return { values: [], days: 0, elapsed: 0, total: 0 };
 
   const daily = new Array<number>(days).fill(0);
-  for (const t of transactions) {
-    if (t.pending || t.account_type !== 'savings') continue;
-    if (classification.excludedIds.has(t.transaction_id)) continue;
+  for (const t of summarizableRows(transactions, classification)) {
     // Plaid's sign convention: positive is money out. Income is not spend.
     if (t.amount <= 0) continue;
     const i = dayIndex.get(t.date);
