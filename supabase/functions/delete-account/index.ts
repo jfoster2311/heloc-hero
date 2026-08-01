@@ -64,13 +64,15 @@ Deno.serve(async (req: Request) => {
   let plaidRemoved = 0;
   const plaidFailures: string[] = [];
   try {
+    // Decrypting view. The row deletion further down still targets the table,
+    // and the delete trigger reaps the Vault secret with it.
     const { data: plaidRows, error: plaidReadErr } = await admin
-      .from("plaid_accounts")
+      .from("plaid_accounts_secure")
       .select("access_token, item_id")
       .eq("user_id", userId);
 
     if (plaidReadErr) {
-      plaidFailures.push(`read plaid_accounts: ${plaidReadErr.message}`);
+      plaidFailures.push(`read plaid_accounts_secure: ${plaidReadErr.message}`);
     } else if (plaidRows?.length) {
       const plaid = new PlaidClient();
       for (const row of plaidRows) {

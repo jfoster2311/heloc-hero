@@ -30,17 +30,21 @@ Deno.serve(async (req: Request) => {
 
     const supabase = getAdminClient();
 
-    // Store access token securely in plaid_accounts (never exposed to frontend)
-    const { error: upsertError } = await supabase.from("plaid_accounts").upsert(
-      {
-        user_id: userId,
-        account_type: accountType as AccountType,
-        access_token: result.access_token,
-        item_id: result.item_id,
-      },
-      { onConflict: "user_id,account_type" },
-    );
-    if (upsertError) return errorResponse("Failed to save account credentials", 500);
+    // The token goes into Vault, never into a column. This RPC creates the
+    // secret — or updates it in place when this account_type is being re-linked,
+    // so a re-link cannot orphan the previous one — and upserts the row pointing
+    // at it, in a single statement. Splitting the two is how you end up with a
+    // row holding no usable token, or a secret nothing references.
+    const { error: storeError } = await supabase.rpc("plaid_store_access_token", {
+      p_user_id: userId,
+      p_account_type: accountType as AccountType,
+      p_item_id: result.item_id,
+      p_token: result.access_token,
+    });
+    if (storeError) {
+      console.error("plaid_store_access_token:", storeError.message);
+      return errorResponse("Failed to save account credentials", 500);
+    }
 
     // Fetch institution name for display
     let institutionName: string | null = null;

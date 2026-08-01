@@ -15,9 +15,9 @@ Deno.serve(async (req: Request) => {
     const supabase = getAdminClient();
     const plaid = new PlaidClient();
 
-    // Query secure token store
+    // Decrypting view — plaid_accounts holds only a vault.secrets reference.
     let query = supabase
-      .from("plaid_accounts")
+      .from("plaid_accounts_secure")
       .select("user_id, account_type, access_token")
       .eq("user_id", userId);
     if (accountType) query = query.eq("account_type", accountType);

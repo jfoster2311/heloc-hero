@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
       if (!userId) return errorResponse("userId is required");
       const supabase = getAdminClient();
       const { data } = await supabase
-        .from("plaid_accounts")
+        .from("plaid_accounts_secure")
         .select("access_token")
         .eq("user_id", userId)
         .eq("account_type", accountType)

@@ -35,9 +35,10 @@ Deno.serve(async (req: Request) => {
 
     const supabase = getAdminClient();
 
-    // Look up secure access token via plaid_accounts (never exposed to frontend)
+    // Token comes from the decrypting view, never the table — plaid_accounts
+    // itself holds only a vault.secrets reference. service_role only.
     const { data: plaidAcct } = await supabase
-      .from("plaid_accounts")
+      .from("plaid_accounts_secure")
       .select("user_id, account_type, access_token")
       .eq("item_id", item_id)
       .single();

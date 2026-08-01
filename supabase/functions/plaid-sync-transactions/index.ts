@@ -36,8 +36,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Not authorized for this user", 403);
     }
 
+    // Decrypting view — the token is in Vault, not on the table.
     const { data: items, error } = await supabase
-      .from("plaid_accounts")
+      .from("plaid_accounts_secure")
       .select("user_id, account_type, access_token, transactions_cursor, transactions_synced_at")
       .eq("user_id", userId);
 

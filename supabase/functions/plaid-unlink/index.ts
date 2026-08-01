@@ -35,8 +35,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Not authorized for this user", 403);
     }
 
+    // Decrypting view for the read; the delete below stays on the table.
     const { data: stored } = await supabase
-      .from("plaid_accounts")
+      .from("plaid_accounts_secure")
       .select("access_token")
       .eq("user_id", userId)
       .eq("account_type", accountType)
