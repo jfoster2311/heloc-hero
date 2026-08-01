@@ -24,7 +24,7 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function ForgotPasswordScreen() {
@@ -77,7 +77,7 @@ export default function ForgotPasswordScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.9)" />
+              <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
             </TouchableOpacity>
           </View>
           <View style={styles.headerBody}>
@@ -114,7 +114,7 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity
                 style={styles.submit}
-                onPress={() => router.replace('/auth/login')}
+                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
                 activeOpacity={0.88}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sign in"
@@ -124,7 +124,7 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity
                 style={styles.secondary}
-                onPress={() => { setSent(''); setProblem(null); }}
+                onPress={() => { hapticLight(); setSent(''); setProblem(null); }}
                 accessibilityRole="button"
                 accessibilityLabel="Use a different email address"
               >
@@ -181,7 +181,7 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity
                 style={styles.secondary}
-                onPress={() => router.replace('/auth/login')}
+                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sign in"
               >
@@ -206,10 +206,10 @@ const useStyles = createThemedStyles(t => ({
   headline: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: '#ffffff',
+    color: OnDark.primary,
     letterSpacing: -0.4,
   },
-  subhead: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.62)', lineHeight: 20 },
+  subhead: { fontSize: Typography.sm, color: OnDark.secondary, lineHeight: 20 },
 
   content: { padding: Spacing[5], paddingTop: Spacing[6], paddingBottom: Spacing[10] },
 

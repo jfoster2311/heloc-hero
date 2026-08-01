@@ -51,6 +51,21 @@ export const auth = {
   resetPassword: async (email: string) => {
     return supabase.auth.resetPasswordForEmail(email);
   },
+
+  /**
+   * Send the sign-up confirmation link again.
+   *
+   * The screen that tells someone to go and open that email had no way to send
+   * another one — a confirmation that never arrives ended the account-creation
+   * flow outright, with "check your spam folder" as the only suggestion.
+   *
+   * Supabase rate-limits this hard (one per 60s by default) and reports it as a
+   * 429, which describeAuthError already turns into a duration the user can
+   * read. The caller does not need to special-case it.
+   */
+  resendConfirmation: async (email: string) => {
+    return supabase.auth.resend({ type: 'signup', email });
+  },
 };
 
 // ─── Edge Function helper ─────────────────────────────────────────────────────

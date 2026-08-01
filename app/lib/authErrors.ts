@@ -14,6 +14,24 @@
 //     action; "check your connection" and "reset your password" are.
 
 export interface AuthErrorInfo {
+  /**
+   * What actually went wrong, for screens that need to branch on it.
+   *
+   * Exists because signup decided whether to offer "Sign in instead" by testing
+   * `title.includes('already')` — so rewording a sentence in this file would
+   * have silently removed the one link that resolves that failure, with nothing
+   * failing to indicate it. Copy is for reading; this is for branching.
+   */
+  kind:
+    | 'network'
+    | 'rate_limited'
+    | 'bad_credentials'
+    | 'email_unconfirmed'
+    | 'account_exists'
+    | 'weak_password'
+    | 'invalid_email'
+    | 'server'
+    | 'unknown';
   /** Short, plain, no punctuation drama. */
   title: string;
   /** One sentence. What happened, then what to do about it. */
@@ -40,6 +58,7 @@ interface RawAuthError {
 }
 
 const NETWORK: AuthErrorInfo = {
+  kind: 'network',
   title: 'No connection',
   message:
     "We couldn't reach HELOC Hero. Check your internet connection and try again — " +
@@ -75,6 +94,7 @@ function retryAfterSeconds(message: string): number | null {
 export function describeAuthError(err: unknown): AuthErrorInfo {
   if (!err) {
     return {
+      kind: 'unknown',
       title: 'Something went wrong',
       message: 'Please try again in a moment.',
       retryable: true,
@@ -92,6 +112,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
   if (e.status === 429 || msg.includes('rate limit') || msg.includes('for security purposes')) {
     const secs = retryAfterSeconds(e.message ?? '');
     return {
+      kind: 'rate_limited',
       title: 'Too many attempts',
       message: secs
         ? `For security, wait ${secs} second${secs === 1 ? '' : 's'} before trying again.`
@@ -105,6 +126,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
   // whether an email has an account here.
   if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
     return {
+      kind: 'bad_credentials',
       title: "That didn't match",
       message:
         'We could not sign you in with that email and password. Check them, or reset ' +
@@ -116,6 +138,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
 
   if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
     return {
+      kind: 'email_unconfirmed',
       title: 'Confirm your email first',
       message:
         'We sent a confirmation link when you signed up. Open it, then come back and ' +
@@ -132,6 +155,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
     msg.includes('user already exists')
   ) {
     return {
+      kind: 'account_exists',
       title: 'You already have an account',
       message: 'That email is already registered. Sign in instead, or reset your password.',
       field: 'email',
@@ -141,6 +165,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
 
   if (msg.includes('password should be') || msg.includes('password is too weak')) {
     return {
+      kind: 'weak_password',
       title: 'Pick a stronger password',
       message: 'Use at least 8 characters. A short phrase you will remember works well.',
       field: 'password',
@@ -150,6 +175,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
 
   if (msg.includes('invalid email') || msg.includes('unable to validate email')) {
     return {
+      kind: 'invalid_email',
       title: 'Check that email address',
       message: "That does not look like an email address we can reach.",
       field: 'email',
@@ -160,6 +186,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
   // ── Server ───────────────────────────────────────────────────────────────
   if (typeof e.status === 'number' && e.status >= 500) {
     return {
+      kind: 'server',
       title: 'Our end, not yours',
       message: 'HELOC Hero is having trouble right now. Please try again in a minute.',
       retryable: true,
@@ -170,6 +197,7 @@ export function describeAuthError(err: unknown): AuthErrorInfo {
   // The real message beats an invented one. A user reporting "it said X" is
   // debuggable; a user reporting "it said try again" is not.
   return {
+    kind: 'unknown',
     title: 'Something went wrong',
     message: e.message
       ? `${e.message}. Please try again.`

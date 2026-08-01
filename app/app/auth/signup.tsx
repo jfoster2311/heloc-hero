@@ -33,7 +33,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 const MIN_PASSWORD = 8;
@@ -65,6 +65,40 @@ export default function SignupScreen() {
   const [loading, setLoading]           = useState(false);
   const [problem, setProblem]           = useState<AuthErrorInfo | null>(null);
   const [confirmationSent, setConfirmationSent] = useState('');
+  const [resending, setResending] = useState(false);
+  /** Null until a resend has been attempted; then what to tell the user. */
+  const [resendNote, setResendNote] = useState<string | null>(null);
+
+  /**
+   * Send the confirmation link again.
+   *
+   * Without this the flow ended here for anyone whose email did not arrive:
+   * the account exists but cannot be used, signing up again returns "you
+   * already have an account", and the reset-password flow does not confirm an
+   * address. Supabase rate-limits resends, and describeAuthError already turns
+   * that 429 into a wait time — so a refusal is reported as plainly as a send.
+   */
+  async function handleResend() {
+    if (resending) return;
+    hapticLight();
+    setResending(true);
+    setResendNote(null);
+    try {
+      const { error } = await auth.resendConfirmation(confirmationSent);
+      if (error) {
+        hapticError();
+        setResendNote(describeAuthError(error).message);
+      } else {
+        hapticSuccess();
+        setResendNote('Sent again. It can take a minute to arrive.');
+      }
+    } catch (err) {
+      hapticError();
+      setResendNote(describeAuthError(err).message);
+    } finally {
+      setResending(false);
+    }
+  }
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
@@ -108,6 +142,7 @@ export default function SignupScreen() {
     const data = result?.data;
     if (!data?.user) {
       setProblem({
+        kind: 'server',
         title: 'Account not created',
         message: 'Something went wrong on our end. Please try again in a moment.',
         retryable: true,
@@ -132,6 +167,7 @@ export default function SignupScreen() {
       // Without onboarding_complete the layout guard loops back to onboarding,
       // so say what happened rather than bouncing the user silently.
       setProblem({
+        kind: 'server',
         title: 'Account created, details not saved',
         message: `${submitError}. Sign in and we will pick up where you left off.`,
         retryable: true,
@@ -172,15 +208,33 @@ export default function SignupScreen() {
             <View style={styles.confirmActions}>
               <TouchableOpacity
                 style={styles.confirmPrimary}
-                onPress={() => router.replace('/auth/login')}
+                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
                 activeOpacity={0.88}
                 accessibilityRole="button"
                 accessibilityLabel="Go to sign in"
               >
                 <Text style={styles.confirmPrimaryText}>Go to sign in</Text>
               </TouchableOpacity>
-              <Text style={styles.confirmHint}>
-                No email after a minute? Check your spam folder.
+
+              {/* The way out of the one state that could otherwise end the
+                  flow: the account exists but cannot be used, signing up again
+                  answers "you already have an account", and a password reset
+                  does not confirm an address. */}
+              <TouchableOpacity
+                style={[styles.confirmSecondary, resending && styles.confirmSecondaryBusy]}
+                onPress={handleResend}
+                disabled={resending}
+                accessibilityRole="button"
+                accessibilityLabel="Send the confirmation email again"
+                accessibilityState={{ disabled: resending, busy: resending }}
+              >
+                {resending
+                  ? <ActivityIndicator size="small" color={OnDark.primary} />
+                  : <Text style={styles.confirmSecondaryText}>Send it again</Text>}
+              </TouchableOpacity>
+
+              <Text style={styles.confirmHint} accessibilityLiveRegion="polite">
+                {resendNote ?? 'No email after a minute? Check your spam folder.'}
               </Text>
             </View>
           </SafeAreaView>
@@ -204,7 +258,7 @@ export default function SignupScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.9)" />
+              <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
             </TouchableOpacity>
           </View>
           <View style={styles.headerBody}>
@@ -236,7 +290,10 @@ export default function SignupScreen() {
               <View style={styles.flex}>
                 <Text style={styles.problemTitle}>{problem.title}</Text>
                 <Text style={styles.problemText}>{problem.message}</Text>
-                {problem.field === 'email' && problem.title.includes('already') && (
+                {/* Was `problem.title.includes('already')`. Rewording that
+                    sentence in lib/authErrors would have removed the only link
+                    that resolves this failure, silently. */}
+                {problem.kind === 'account_exists' && (
                   <Link href="/auth/login" asChild>
                     <TouchableOpacity accessibilityRole="link" style={styles.problemAction}>
                       <Text style={styles.problemActionText}>Sign in instead →</Text>
@@ -390,10 +447,10 @@ const useStyles = createThemedStyles(t => ({
   headline: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: '#ffffff',
+    color: OnDark.primary,
     letterSpacing: -0.6,
   },
-  subhead: { fontSize: Typography.sm, color: 'rgba(255,255,255,0.62)' },
+  subhead: { fontSize: Typography.sm, color: OnDark.secondary },
 
   content: { padding: Spacing[5], paddingTop: Spacing[6], paddingBottom: Spacing[10] },
 
@@ -469,32 +526,32 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(74,222,128,0.10)',
+    backgroundColor: OnDark.fill,
     borderWidth: 1,
-    borderColor: 'rgba(74,222,128,0.28)',
+    borderColor: OnDark.hairline,
     marginBottom: Spacing[2],
   },
   confirmTitle: {
     fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: '#ffffff',
+    color: OnDark.primary,
     textAlign: 'center',
   },
   confirmText: {
     fontSize: Typography.base,
-    color: 'rgba(255,255,255,0.66)',
+    color: OnDark.secondary,
     textAlign: 'center',
     lineHeight: 24,
   },
   confirmEmail: {
     fontSize: Typography.base,
     fontWeight: Typography.bold,
-    color: '#ffffff',
+    color: OnDark.primary,
     textAlign: 'center',
   },
   confirmActions: { paddingBottom: Spacing[4], gap: Spacing[3] },
   confirmPrimary: {
-    backgroundColor: '#ffffff',
+    backgroundColor: OnDark.primary,
     borderRadius: Radius.full,
     minHeight: 56,
     alignItems: 'center',
@@ -505,9 +562,28 @@ const useStyles = createThemedStyles(t => ({
     fontSize: Typography.base,
     fontWeight: Typography.bold,
   },
+  // Outlined against the aurora rather than a second solid button — one primary
+  // action per screen, and "Go to sign in" is it.
+  confirmSecondary: {
+    minHeight: 48,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: OnDark.hairline,
+    backgroundColor: OnDark.fill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmSecondaryBusy: { opacity: 0.7 },
+  confirmSecondaryText: {
+    color: OnDark.primary,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+  },
+  // `faint`, not the 0.46 alpha this carried: 12pt regular is small text, so
+  // 4.5:1 applies and 0.46 measured 3.85:1 on the aurora's lightest band.
   confirmHint: {
     fontSize: Typography.xs,
-    color: 'rgba(255,255,255,0.46)',
+    color: OnDark.faint,
     textAlign: 'center',
   },
 }));

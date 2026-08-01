@@ -31,7 +31,7 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Aurora, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, Shadows, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /**
@@ -109,7 +109,7 @@ export default function LoginScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.9)" />
+              <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
             </TouchableOpacity>
           </View>
           <View style={styles.headerBody}>
@@ -243,7 +243,7 @@ const useStyles = createThemedStyles(t => ({
   headline: {
     fontSize: Typography['3xl'],
     fontWeight: Typography.extrabold,
-    color: '#ffffff',
+    color: OnDark.primary,
     letterSpacing: -0.6,
   },
 
