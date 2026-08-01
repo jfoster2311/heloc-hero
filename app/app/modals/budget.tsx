@@ -14,6 +14,7 @@
 // with total confidence. The closing note on this screen says so out loud.
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useMemo, useState, useCallback } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
 import GaugeArc from '../../components/ui/GaugeArc';
@@ -52,6 +53,29 @@ export default function BudgetScreen() {
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CustomCategoryId | null>(null);
+
+  const [checking, setChecking] = useState(false);
+  /**
+   * True once a manual check has come back having found nothing.
+   *
+   * Without it the button is its own dead end: a sync that legitimately returns
+   * no new rows leaves the screen byte-identical, so the tap reads as broken.
+   * A successful one needs no message — the empty block it sits in is replaced
+   * by the real breakdown.
+   */
+  const [checkedEmpty, setCheckedEmpty] = useState(false);
+
+  const checkForTransactions = useCallback(async () => {
+    hapticLight();
+    setChecking(true);
+    setCheckedEmpty(false);
+    try {
+      await f.refreshTransactions();
+      setCheckedEmpty(true);
+    } finally {
+      setChecking(false);
+    }
+  }, [f.refreshTransactions]);
 
   /**
    * Deleting a category leaves its transactions alone — they fall back to
@@ -178,13 +202,51 @@ export default function BudgetScreen() {
         <Text style={styles.month}>{monthLabel}</Text>
 
         {summary.basis !== 'live' ? (
+          /* Three different situations, and each one gets the action that can
+             actually change it. The button offered here is deliberately NOT
+             f.refresh: that pulls balances and leaves the transaction cursor
+             alone, so on a screen whose emptiness is "no transactions" it would
+             be a control that cannot fix what it is offered for. */
           <View style={styles.stateBlock}>
             <Text style={styles.stateBody}>
-              {f.hasLinkedAccounts
-                ? 'No transactions this month yet. Budgets fill in as your bank sends them.'
-                : 'Link an account and your spending is measured against these budgets ' +
-                  'automatically. Until then there is nothing to measure.'}
+              {!f.hasLinkedAccounts
+                ? 'Link an account and your spending is measured against these budgets ' +
+                  'automatically. Until then there is nothing to measure.'
+                : f.awaitingTransactions
+                  ? 'Your bank is still sending its history. Your spending appears against ' +
+                    'these budgets once it lands — usually within a few minutes of linking.'
+                  : 'No transactions this month yet. Budgets fill in as your bank sends them.'}
             </Text>
+
+            {!f.hasLinkedAccounts ? (
+              <TouchableOpacity
+                style={styles.stateBtn}
+                onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+                accessibilityRole="button"
+                accessibilityLabel="Link an account"
+              >
+                <Text style={styles.stateBtnText}>Link an account</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.stateBtn, checking && styles.stateBtnBusy]}
+                onPress={checkForTransactions}
+                disabled={checking}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: checking, busy: checking }}
+                accessibilityLabel="Check for new transactions"
+              >
+                <Text style={styles.stateBtnText}>
+                  {checking ? 'Checking…' : 'Check for new transactions'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {checkedEmpty && !checking && (
+              <Text style={styles.stateNote}>
+                Checked just now — nothing new has arrived yet.
+              </Text>
+            )}
           </View>
         ) : (
           <>
@@ -564,6 +626,25 @@ const useStyles = createThemedStyles(t => ({
 
   stateBlock: { gap: Spacing[3], paddingVertical: Spacing[6] },
   stateBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  // Same shape as the Cash flow tab's empty-state button, so the two screens
+  // that can both be empty for the same reason offer the same-looking way out.
+  stateBtn: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: t.colors.mint200,
+    backgroundColor: t.colors.mint50,
+  },
+  stateBtnBusy: { opacity: 0.6 },
+  stateBtnText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: t.colors.mint700,
+  },
+  stateNote: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18 },
   errorNote: { fontSize: Typography.xs, color: t.colors.textSecondary },
 
   manage: { gap: Spacing[2], marginTop: Spacing[2] },

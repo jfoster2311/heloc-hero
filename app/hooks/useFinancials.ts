@@ -40,6 +40,13 @@ export interface Financials {
   refreshing: boolean;
   /** Resolves true when the read succeeded. */
   refresh: () => Promise<boolean>;
+  /**
+   * Forces a TRANSACTION sync, which `refresh` does not do — that one pulls
+   * balances (plaid-get-balances) and leaves the transaction cursor alone.
+   * Screens whose empty state is "no transactions yet" need this one; offering
+   * `refresh` there would be a button that cannot fix what it is offered for.
+   */
+  refreshTransactions: () => Promise<void>;
   /** Why the accounts read failed, or null. Distinct from "no accounts". */
   error: string | null;
 
@@ -157,18 +164,20 @@ export function useFinancials(): Financials {
 
   // Transactions only exist once something is linked, and linking is Pro-gated,
   // so the presence of an account is the gate — no separate entitlement check.
-  const { derived, transactions, awaitingBackfill } =
+  const { derived, transactions, awaitingBackfill, refresh: refreshTransactions } =
     useCashflow(profile?.id ?? null, accounts.length > 0, hiddenIds, mortgagePaymentIds);
 
   return useMemo(
     () => derive(
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
+      loading, refreshing, error, refresh, refreshTransactions,
+      derived, transactions, awaitingBackfill,
       transactionMeta, categories,
     ),
     [
       profile, accounts, mortgageAccount, helocAccount, savingsAccount,
-      loading, refreshing, error, refresh, derived, transactions, awaitingBackfill,
+      loading, refreshing, error, refresh, refreshTransactions,
+      derived, transactions, awaitingBackfill,
       transactionMeta, categories,
     ],
   );
@@ -184,6 +193,7 @@ function derive(
   refreshing: boolean,
   error: string | null,
   refresh: () => Promise<boolean>,
+  refreshTransactions: () => Promise<void>,
   derivedCashflow: DerivedCashflow | null,
   transactions: TransactionRow[],
   awaitingTransactions: boolean,
@@ -342,7 +352,7 @@ function derive(
   });
 
   return {
-    profile, accounts, loading, refreshing, error, refresh,
+    profile, accounts, loading, refreshing, error, refresh, refreshTransactions,
     hasLinkedAccounts,
     lastSyncedAt,
     isManual: !hasLinkedAccounts,
