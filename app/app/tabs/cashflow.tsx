@@ -452,7 +452,18 @@ export default function CashFlowScreen() {
             prev={spend.prev}
             days={spend.days}
             period={period}
-            rangeLabel={range.rangeLabel + (range.inProgress ? ' · in progress' : '')}
+            // "· nothing measured" earns its place now that this card survives
+            // a quiet window. Its total is measured and reads $0; the summary
+            // card further down falls back to the ENTERED monthly figures and
+            // reads $2,400. Both are correct and they are answering different
+            // questions, but two spend totals on one screen with no explanation
+            // is a screen nobody can trust. This is the explanation, and it sits
+            // on the figure that would otherwise look wrong.
+            rangeLabel={
+              range.rangeLabel +
+              (range.inProgress ? ' · in progress' : '') +
+              (summary.basis === 'live' ? '' : ' · nothing measured')
+            }
             // The dashed level is the user's total budget once they have set
             // ceilings, and their own stated spend before that. Both are named
             // for what they are — calling an unset figure "Budget" would invent
