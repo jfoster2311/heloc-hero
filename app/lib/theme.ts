@@ -73,6 +73,17 @@ export const Colors = {
   // bar fills, hairline accents. It is not a text colour on a light surface, and
   // two screens were using it as one (an error message and a destructive row
   // label); both moved to `gray500`.
+  /**
+   * The far stop of the card gradient. Not a surface in its own right.
+   *
+   * Sits between `gray50` and `gray100` because both of those are wrong for the
+   * job: `gray50` gives the ramp ΔE 3.72 against white, which is close enough to
+   * the ~2.3 just-noticeable threshold that the gradient reads as nothing at
+   * all, and `gray100` gives a visible ΔE 7.68 but drops `textMuted` to 4.35,
+   * under AA. This is the darkest value that keeps `textMuted` at 4.53 — ΔE 5.70
+   * from white, which is perceptible.
+   */
+  cardFar: '#EEF7F1',
   gray400: '#9CA3AF',
   // 4.96:1 on white, 4.52:1 on the canvas. Nudged 1% darker from '#6B7280',
   // which measured 4.40:1 against the canvas and so missed AA on the one surface
@@ -484,6 +495,15 @@ export const DarkColors: typeof Colors = {
   // so this sits high enough to stay visible as ink while still reading as
   // recessive when it is a surface.
   gray300: '#4B6153',
+  /**
+   * Present for shape only — the dark theme paints no card gradient.
+   *
+   * `DarkTheme.cardGradient` is null, for the reason set out on CardGradient:
+   * lighter breaks `textMuted`, darker merges the card into the page. This is
+   * the surface value so that anything reaching for it by mistake gets a flat
+   * card rather than a stripe.
+   */
+  cardFar: '#132018',
   // ── Why these two are green here and neutral in the light theme ──────────
   // Not an inconsistency, though it looks like one. The LIGHT values are pinned
   // by name: CLAUDE.md specifies `#6B7280`/`#9CA3AF` for negative numbers, so
@@ -721,22 +741,34 @@ export type ThemeMode = 'light' | 'dark';
  * surfaces of opposing hue temperature next to each other, which does not read
  * as premium — it reads as a colour bug.
  *
- * So the metaphor is kept and the pigment is the app's own. `surface → gray50`
- * is the same lightness move the slate recipe makes, in this system's hue.
+ * So the metaphor is kept and the pigment is the app's own — the same lightness
+ * move the slate recipe makes, in this system's hue.
  *
- * ── Measured, both directions ──────────────────────────────────────────────
- * A gradient changes the background every ink token is read against, so the
- * DARKEST point a light card reaches and the LIGHTEST point a dark card reaches
- * are what matter, not the surface colour. Against those:
+ * ── The first version of this was invisible ────────────────────────────────
+ * It ran `surface → gray50`, which measures ΔE 3.72 against white. The
+ * just-noticeable difference is about ΔE 2.3, so spread across a whole card as
+ * a smooth ramp that is effectively nothing: the gradient shipped and could not
+ * be seen. Chasing contrast safety had produced a change that was safe because
+ * it did not exist. `cardFar` is the darkest stop that still holds `textMuted`
+ * at 4.53 — ΔE 5.70, which is perceptible.
  *
- *   light  textMuted 4.68 · accentInk 4.72 · gray500 4.69 — all clear AA
- *   dark   textMuted 4.53 — the tightest in the app, and the reason the dark
- *          stop is `gray50` and not `gray100`. gray100 puts it at 4.22, which
- *          fails; the widest passing stop measured #17251C, and `gray50` is
- *          #17251D.
+ * ── Dark carries NO fill gradient, and that is a finding ───────────────────
+ * The dark palette has no room in either direction, which only became clear on
+ * measuring both:
+ *
+ *   lighter  the card's lightest point drops `textMuted` below 4.5. The widest
+ *            passing stop is #17251C — ΔE 2.39 from the surface, i.e. invisible.
+ *   darker   contrast IMPROVES, but the card is already only 1.16:1 against the
+ *            page. Any meaningful ramp merges its far corner into the
+ *            background, so the card stops being an object at all.
+ *
+ * That squeeze is the cost of a deliberate earlier decision — the neutrals are
+ * green-derived and the dark page sits close under the dark card. It is not
+ * worth paying a LinearGradient per card to render a difference nobody can see,
+ * so dark cards stay a flat fill and do their separating with the border, which
+ * measures 1.81:1 there versus 1.12:1 in light.
  */
-export const CardGradient      = [Colors.surface, Colors.gray50] as const;
-export const DarkCardGradient  = [DarkColors.gray50, DarkColors.surface] as const;
+export const CardGradient = [Colors.surface, Colors.cardFar] as const;
 
 export interface Theme {
   mode:         ThemeMode;
@@ -745,8 +777,11 @@ export interface Theme {
   semantic:     SemanticTokens;
   categoryRamp: CategoryRampTokens;
   common:       typeof CommonStyles;
-  /** Lightest stop first. See CardGradient. */
-  cardGradient: readonly [string, string];
+  /**
+   * Lightest stop first, or null where a fill gradient cannot be seen without
+   * costing contrast. See CardGradient — dark is null on purpose.
+   */
+  cardGradient: readonly [string, string] | null;
 }
 
 export const LightTheme: Theme = {
@@ -766,5 +801,5 @@ export const DarkTheme: Theme = {
   semantic:     DarkSemantic,
   categoryRamp: DarkCategoryRamp,
   common:       DarkCommonStyles,
-  cardGradient: DarkCardGradient,
+  cardGradient: null,
 };

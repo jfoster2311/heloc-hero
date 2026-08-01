@@ -36,8 +36,13 @@ export function Card({ children, style, onPress, accessibilityLabel, onDark }: C
   // `onDark` cards keep their flat translucent fill. They sit ON the aurora,
   // which is already a gradient, and a second one over it produces a muddy
   // overlap rather than depth.
-  const body = onDark
-    ? <View style={[styles.cardDark, style]}>{children}</View>
+  //
+  // `cardGradient` is null in the dark theme — see CardGradient in lib/theme.ts.
+  // Rendering a LinearGradient per card to paint a difference below the
+  // just-noticeable threshold is cost with no result, so dark falls through to
+  // the same flat View and does its separating with the border.
+  const body = onDark || !cardGradient
+    ? <View style={[onDark ? styles.cardDark : styles.card, style]}>{children}</View>
     : (
       <LinearGradient
         colors={cardGradient}
