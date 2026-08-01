@@ -195,7 +195,7 @@ export default function MoveMoneyModal() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Move recorded</Text>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => { hapticLight(); router.back(); }}
             style={styles.closeBtn}
             accessibilityLabel="Close"
           >
@@ -296,7 +296,7 @@ export default function MoveMoneyModal() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Move money to your mortgage?</Text>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => { hapticLight(); router.back(); }}
           style={styles.closeBtn}
           accessibilityLabel="Close"
         >
@@ -403,7 +403,7 @@ export default function MoveMoneyModal() {
                 it, say so where the guess is being used. */}
             {helocRateAssumed && (
               <TouchableOpacity
-                onPress={() => router.push('/modals/heloc-terms' as never)}
+                onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
                 style={styles.rateWarnBtn}
                 accessibilityLabel="Add your HELOC rate"
               >
@@ -511,7 +511,7 @@ export default function MoveMoneyModal() {
 
             <TouchableOpacity
               style={[styles.choice, styles.choicePrimary, !canLog && styles.choiceDisabled]}
-              onPress={handleLogMove}
+              onPress={() => { hapticLight(); handleLogMove(); }}
               disabled={!canLog || logging}
               accessibilityLabel={`Record a ${amount} dollar transfer`}
             >

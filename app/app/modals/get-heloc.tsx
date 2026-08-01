@@ -1,9 +1,10 @@
 // app/modals/get-heloc.tsx — HELOC guide for users who don't have one yet
-import { View, Text, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { eligibleLenders } from '../../lib/lenders';
+import { hapticLight, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -13,11 +14,37 @@ export default function GetHelocModal() {
   const router = useRouter();
   const lenders = eligibleLenders();
 
+  /**
+   * Hand off to a lender's site.
+   *
+   * openURL rejects when nothing can handle the link, and this was calling it
+   * bare — so a lender whose URL had rotted produced a tap that did nothing at
+   * all, on the one control here that leaves the app. Saying so, with the
+   * address, at least leaves the user somewhere to go.
+   */
+  async function openLender(name: string, url: string) {
+    hapticLight();
+    try {
+      await Linking.openURL(url);
+    } catch {
+      hapticError();
+      Alert.alert(
+        `Couldn't open ${name}`,
+        `We could not hand off to their site. You can reach them at ${url}.`,
+      );
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Open a HELOC</Text>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => { hapticLight(); router.back(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -101,8 +128,10 @@ export default function GetHelocModal() {
               {lender.applyUrl && (
                 <TouchableOpacity
                   style={styles.applyBtn}
-                  onPress={() => Linking.openURL(lender.applyUrl!)}
+                  onPress={() => openLender(lender.name, lender.applyUrl!)}
+                  accessibilityRole="button"
                   accessibilityLabel={`Apply at ${lender.name}`}
+                  accessibilityHint="Opens their website outside HELOC Hero"
                 >
                   <Text style={styles.applyBtnText}>View →</Text>
                 </TouchableOpacity>

@@ -19,7 +19,9 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
+import { EmptyState } from '../../components/ui/primitives';
 import ReportDetailSheet from '../../components/sheets/ReportDetailSheet';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -39,6 +41,7 @@ type Mode = 'spread' | 'grouped';
 export default function ReportsScreen() {
   const { colors, common } = useTheme();
   const styles = useStyles();
+  const router = useRouter();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -93,13 +96,23 @@ export default function ReportsScreen() {
   if (!series.usable) {
     return (
       <ModalScreen title="Reports">
-        <Text style={styles.empty}>
-          {f.hasLinkedAccounts
-            ? 'Not enough complete months yet. Trends need at least three, and this only ' +
-              'counts months that have finished — a part-month would read as a drop in ' +
-              'spending rather than a month still running.'
+        {/* Waiting for months to finish is genuinely nothing the user can act
+            on, so that branch gets no button — inventing one would be worse
+            than the absence. "Link an account" is the opposite case: it names
+            the fix, so it has to be the fix. */}
+        <EmptyState
+          icon={f.hasLinkedAccounts ? 'hourglass-outline' : 'link-outline'}
+          title={f.hasLinkedAccounts ? 'Not enough history yet' : 'Nothing connected'}
+          body={f.hasLinkedAccounts
+            ? 'Trends need at least three complete months, and this only counts months that ' +
+              'have finished — a part-month would read as a drop in spending rather than a ' +
+              'month still running.'
             : 'Link an account and six months of trend appear here.'}
-        </Text>
+          action={f.hasLinkedAccounts ? undefined : {
+            label: 'Link an account',
+            onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+          }}
+        />
       </ModalScreen>
     );
   }
@@ -485,11 +498,4 @@ const useStyles = createThemedStyles(t => ({
   stackSwatch: { width: 10, height: 10, borderRadius: 3 },
   stackKeyText: { flexShrink: 1, fontSize: 11, color: t.colors.textSecondary },
 
-  empty: {
-    fontSize: Typography.sm,
-    color: t.colors.textSecondary,
-    lineHeight: 21,
-    textAlign: 'center',
-    paddingVertical: Spacing[8],
-  },
 }));

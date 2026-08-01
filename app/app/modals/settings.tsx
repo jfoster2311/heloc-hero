@@ -31,7 +31,7 @@ import {
 import { loadDemo, clearDemo } from '../../lib/seedDemo';
 import { getDevProMode, setDevProMode, subscribeDevPro, type DevProMode } from '../../lib/devPro';
 import { createThemedStyles, type ThemePreference, useTheme, useThemePreference } from '../../lib/themeContext';
-import { hapticSelection } from '../../lib/haptics';
+import { hapticLight, hapticSelection } from '../../lib/haptics';
 
 /**
  * System is first and is the default, because it is not the same as Light.
@@ -285,7 +285,12 @@ export default function SettingsModal() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => { hapticLight(); router.back(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close settings"
+        >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -496,7 +501,12 @@ export default function SettingsModal() {
         {/* Danger zone */}
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
-          <TouchableOpacity style={[styles.row, styles.dangerRow]} onPress={handleSignOut}>
+          <TouchableOpacity
+            style={[styles.row, styles.dangerRow]}
+            onPress={() => { hapticLight(); handleSignOut(); }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
             <Ionicons name="log-out-outline" size={18} color={colors.gray400} style={styles.rowIcon} />
             <Text style={styles.dangerText}>Sign Out</Text>
           </TouchableOpacity>
@@ -574,6 +584,14 @@ function SectionHeader({ title, subtitle, onLayout }: {
   );
 }
 
+/**
+ * Haptics live in these three row components rather than at each call site.
+ *
+ * This screen had fifteen controls and two buzzes — the appearance pills — so
+ * every other row on the app's densest settings surface felt inert next to
+ * them. Putting it here fixes all of them at once and keeps the next row added
+ * from starting out silent.
+ */
 function SettingRow({
   icon, label, value, onPress, actionLabel, isLast,
 }: {
@@ -585,9 +603,11 @@ function SettingRow({
   return (
     <TouchableOpacity
       style={[styles.row, isLast && styles.rowLast]}
-      onPress={onPress}
+      onPress={onPress ? () => { hapticLight(); onPress(); } : undefined}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `${label}${value ? `, ${value}` : ''}` : undefined}
     >
       <Ionicons name={icon as any} size={18} color={colors.textMuted} style={styles.rowIcon} />
       <Text style={styles.rowLabel}>{label}</Text>
@@ -613,7 +633,7 @@ function NoticeRow({
   return (
     <TouchableOpacity
       style={styles.row}
-      onPress={onPress}
+      onPress={onPress ? () => { hapticLight(); onPress(); } : undefined}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
       accessibilityRole={onPress ? 'button' : 'text'}
@@ -646,9 +666,11 @@ function ToggleRow({
       </View>
       <Switch
         value={value}
-        onValueChange={onChange}
+        onValueChange={v => { hapticSelection(); onChange(v); }}
         trackColor={{ false: colors.gray200, true: colors.mint400 }}
         thumbColor={value ? colors.mint600 : colors.gray400}
+        accessibilityLabel={label}
+        accessibilityHint={subtitle}
       />
     </View>
   );

@@ -17,7 +17,9 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
+import { EmptyState } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
@@ -36,6 +38,7 @@ type View_ = 'upcoming' | 'all';
 export default function RecurringScreen() {
   const { colors, common } = useTheme();
   const styles = useStyles();
+  const router = useRouter();
   const { profile } = useAuth();
   const f = useFinancials();
   const txnMeta = f.transactionMeta;
@@ -83,10 +86,16 @@ export default function RecurringScreen() {
       }
     >
       {!f.hasLinkedAccounts ? (
-        <Text style={styles.empty}>
-          Link an account and the charges that repeat every month are found here
-          automatically.
-        </Text>
+        // Named the one thing that fixes it and offered no way to do it.
+        <EmptyState
+          icon="link-outline"
+          title="Nothing connected"
+          body="Link an account and the charges that repeat every month are found here automatically."
+          action={{
+            label: 'Link an account',
+            onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+          }}
+        />
       ) : !hasAnything ? (
         <Text style={styles.empty}>
           Nothing repeats often enough yet to call it a pattern. This needs a few months

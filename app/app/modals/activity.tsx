@@ -12,8 +12,10 @@
 // reason someone opened this screen, not the total they already saw.
 import { View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
+import { EmptyState } from '../../components/ui/primitives';
 import TransactionRow from '../../components/ui/TransactionRow';
 import TransactionDetailSheet from '../../components/sheets/TransactionDetailSheet';
 import { useAuth } from '../../hooks/useAuth';
@@ -41,6 +43,7 @@ const SORTS: { id: Sort; label: string }[] = [
 export default function ActivityScreen() {
   const { colors, common } = useTheme();
   const styles = useStyles();
+  const router = useRouter();
   const { profile } = useAuth();
   const f = useFinancials();
   const overrides = useCategoryOverrides(profile?.id);
@@ -51,6 +54,28 @@ export default function ActivityScreen() {
   const [query, setQuery] = useState('');
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [openTxn, setOpenTxn] = useState<CategorizedTxn | null>(null);
+  const [checking, setChecking] = useState(false);
+  /** True once a manual check has come back having found nothing. */
+  const [checkedEmpty, setCheckedEmpty] = useState(false);
+
+  /**
+   * Force a transaction sync past its throttle.
+   *
+   * A check that finds nothing leaves this screen byte-identical, which reads
+   * as a broken tap — so it reports back. One that finds something needs no
+   * message: the list replaces the block the button was in.
+   */
+  const checkForTransactions = useCallback(async () => {
+    hapticLight();
+    setChecking(true);
+    setCheckedEmpty(false);
+    try {
+      await f.refreshTransactions();
+      setCheckedEmpty(true);
+    } finally {
+      setChecking(false);
+    }
+  }, [f.refreshTransactions]);
 
   const range = useMemo(() => periodRange('month'), []);
 
@@ -199,12 +224,34 @@ export default function ActivityScreen() {
         </View>
 
         {/* ── The list ──────────────────────────────────────────────────── */}
+        {/* Both branches named the thing to do and then were not it — "link an
+            account" with no way to link one, and "no transactions yet" with no
+            way to go and look. Same correction the budget modal already got:
+            the check deliberately calls refreshTransactions rather than
+            refresh, because the latter pulls balances and leaves the
+            transaction cursor alone, which cannot fix an empty list. */}
         {summary.basis !== 'live' ? (
-          <Text style={styles.empty}>
-            {f.hasLinkedAccounts
-              ? 'No transactions this month yet.'
-              : 'Link an account and your transactions appear here.'}
-          </Text>
+          <EmptyState
+            icon={f.hasLinkedAccounts ? 'time-outline' : 'link-outline'}
+            title={f.hasLinkedAccounts ? 'Nothing here yet' : 'Nothing connected'}
+            body={f.hasLinkedAccounts
+              ? f.awaitingTransactions
+                ? 'Your bank is still sending its history. Transactions appear here once it ' +
+                  'lands — usually within a few minutes of linking.'
+                : checkedEmpty
+                  ? 'No transactions this month yet. Checked just now — nothing new has arrived.'
+                  : 'No transactions this month yet.'
+              : 'Link an account and your transactions appear here automatically.'}
+            action={f.hasLinkedAccounts
+              ? {
+                  label: checking ? 'Checking…' : 'Check for new transactions',
+                  onPress: checkForTransactions,
+                }
+              : {
+                  label: 'Link an account',
+                  onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+                }}
+          />
         ) : rows.length === 0 ? (
           <Text style={styles.empty}>
             Nothing matches “{query}”.
