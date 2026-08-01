@@ -1,9 +1,22 @@
 // app/modals/settings.tsx
-import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, Linking } from 'react-native';
+//
+// ── Deep links ─────────────────────────────────────────────────────────────
+// Callers can open this screen at a section: `/modals/settings?section=support`.
+// The Accounts tab needs it — its "Support" and "Delete my data" rows promise
+// something specific and used to land at the top of a six-section screen,
+// leaving the user to go and find what they had just asked for.
+//
+// It scrolls rather than filtering, deliberately. Rendering only the requested
+// section would make Settings' shape depend on how you arrived, so a user who
+// opened it from Accounts would never learn the rest exists.
+import {
+  View, Text, ScrollView, TouchableOpacity, Switch, Alert, Linking,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase, invokeFunction } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
@@ -52,12 +65,22 @@ const DEV_PRO_LABELS: Record<DevProMode, string> = {
   free: 'Forced Free',
 };
 
+/** The anchors `?section=` accepts. Anything else is ignored, not guessed at. */
+const SECTIONS = ['account', 'alerts', 'appearance', 'support', 'security'] as const;
+type SettingsSection = typeof SECTIONS[number];
+
+function parseSection(v: string | string[] | undefined): SettingsSection | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  return SECTIONS.includes(s as SettingsSection) ? (s as SettingsSection) : null;
+}
+
 export default function SettingsModal() {
   const { colors } = useTheme();
   const styles = useStyles();
   const router = useRouter();
   const { profile, tier } = useAuth();
   const { preference, setPreference } = useThemePreference();
+  const target = parseSection(useLocalSearchParams<{ section?: string }>().section);
   const [automation, setAutomation] = useState<Partial<AutomationSettings>>(
     DEFAULT_AUTOMATION_SETTINGS,
   );
@@ -73,6 +96,37 @@ export default function SettingsModal() {
 
   // DEV Pro override — keep the row in sync with the module's state.
   useEffect(() => subscribeDevPro(() => setDevPro(getDevProMode())), []);
+
+  // ── Landing on the requested section ────────────────────────────────────
+  // Driven by onLayout rather than a one-shot effect, because the sections
+  // ABOVE the target keep changing height after first paint: the notification
+  // notices resolve async, and the automation row's saved figures arrive from a
+  // query. A single scroll on mount would be correct for one frame and then
+  // silently wrong. Re-applying on layout keeps the target where it was put.
+  //
+  // Not animated: this is where the screen opens, not somewhere it travels to,
+  // and a scroll that starts at the top and slides down implies the user could
+  // have stopped it. The section header ends up at the top of the viewport, so
+  // the screen names where it landed.
+  const scrollRef = useRef<ScrollView>(null);
+  // The user's scroll always wins. Without this, an async layout pass a second
+  // after they started reading would yank the page back under their thumb.
+  const userTookOver = useRef(false);
+
+  // Returns undefined for every section but the target, so React attaches no
+  // handler at all to the other four rather than measuring the whole screen.
+  function anchor(section: SettingsSection) {
+    if (section !== target) return undefined;
+    return (e: LayoutChangeEvent) => {
+      if (userTookOver.current) return;
+      // Less the content container's own top padding, so a section lands with
+      // exactly the breathing room the screen opens with. Without it, every
+      // target sits 16pt high — including `account`, which is already at the
+      // top and would scroll its own padding off screen for no reason.
+      const y = e.nativeEvent.layout.y - Spacing[4];
+      scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: false });
+    };
+  }
 
   useEffect(() => {
     async function loadLockState() {
@@ -228,9 +282,13 @@ export default function SettingsModal() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        onScrollBeginDrag={() => { userTookOver.current = true; }}
+      >
         {/* Profile */}
-        <SectionHeader title="Account" />
+        <SectionHeader title="Account" onLayout={anchor('account')} />
         <View style={styles.card}>
           <SettingRow icon="person-outline" label="Name" value={profile?.full_name ?? '—'} />
           <SettingRow icon="mail-outline" label="Email" value={profile?.email ?? '—'} />
@@ -254,6 +312,7 @@ export default function SettingsModal() {
           subtitle={
             savingAutomation ? 'Saving…' : 'Reminders to act. You make every transfer.'
           }
+          onLayout={anchor('alerts')}
         />
         {isPaidTier(tier) ? (
           <View style={styles.card}>
@@ -345,6 +404,7 @@ export default function SettingsModal() {
         <SectionHeader
           title="Appearance"
           subtitle="Cash flow follows this today. The rest of the app is still light."
+          onLayout={anchor('appearance')}
         />
         <View style={styles.card}>
           <View style={[styles.row, styles.rowLast, styles.appearanceRow]}>
@@ -374,7 +434,7 @@ export default function SettingsModal() {
         </View>
 
         {/* Support */}
-        <SectionHeader title="Support" />
+        <SectionHeader title="Support" onLayout={anchor('support')} />
         <View style={styles.card}>
           <SettingRow
             icon="help-circle-outline"
@@ -398,7 +458,7 @@ export default function SettingsModal() {
         </View>
 
         {/* Security & Privacy */}
-        <SectionHeader title="Security & Privacy" />
+        <SectionHeader title="Security & Privacy" onLayout={anchor('security')} />
         <View style={styles.card}>
           <View style={[styles.row]}>
             <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.rowIcon} />
@@ -485,10 +545,21 @@ export default function SettingsModal() {
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+/**
+ * `onLayout` is how `?section=` finds its target.
+ *
+ * The header is measured rather than a wrapper around the header and its card,
+ * because the header IS the top of a section — its offset is the one to scroll
+ * to, and hanging the anchor here leaves the screen's structure untouched.
+ */
+function SectionHeader({ title, subtitle, onLayout }: {
+  title: string;
+  subtitle?: string;
+  onLayout?: (e: LayoutChangeEvent) => void;
+}) {
   const styles = useStyles();
   return (
-    <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeader} onLayout={onLayout}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
     </View>

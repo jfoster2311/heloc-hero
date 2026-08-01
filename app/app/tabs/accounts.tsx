@@ -494,7 +494,11 @@ export default function AccountsScreen() {
             />
           </Card>
 
-          {/* ── PLAN, DATA, PRIVACY ────────────────────────────────────────── */}
+          {/* ── PLAN, DATA, PRIVACY ──────────────────────────────────────────
+              Each of these names something specific and then opens Settings, so
+              each names the section it means: `?section=` lands the screen on
+              the rows it promised rather than at the top of eight sections with
+              the user left to go and find what they just asked for. */}
           <SectionLabel>PLAN, DATA & PRIVACY</SectionLabel>
           <Card>
             <DataRow
@@ -503,7 +507,9 @@ export default function AccountsScreen() {
               hint={isPaidTier(tier)
                 ? 'Live balances, servicer terms, and action alerts'
                 : 'Calculator, projections and manual tracking'}
-              onPress={() => router.push(isPaidTier(tier) ? '/modals/settings' : '/modals/upgrade')} />
+              onPress={() => router.push(
+                isPaidTier(tier) ? '/modals/settings?section=account' : '/modals/upgrade',
+              )} />
 
             <LinkRow
               icon="download-outline"
@@ -514,13 +520,15 @@ export default function AccountsScreen() {
               icon="mail-outline"
               label="Support"
               sub="Questions, corrections, or something that looks wrong"
-              onPress={() => router.push('/modals/settings')} />
+              onPress={() => router.push('/modals/settings?section=support')} />
             <LinkRow
               icon="trash-outline"
               label="Delete my data"
               sub="Removes your account, balances and stored bank tokens"
               danger
-              onPress={() => router.push('/modals/settings')} />
+              // Delete My Account lives under Security & Privacy, not its own
+              // section — this points at where the control actually is.
+              onPress={() => router.push('/modals/settings?section=security')} />
 
             {/* Destructive controls stay findable. Burying them costs exactly
                 the trust required to ask someone for bank credentials. */}
