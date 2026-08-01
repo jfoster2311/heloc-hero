@@ -2,6 +2,7 @@
 // Deploy with: supabase functions deploy plaid-webhook --no-verify-jwt
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { PlaidClient } from "../_shared/plaid.ts";
+import { verifyPlaidWebhook } from "../_shared/plaidWebhook.ts";
 import { syncItemTransactions } from "../_shared/transactions.ts";
 import { getAdminClient } from "../_shared/supabase.ts";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -23,8 +24,47 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json();
-    const { webhook_type, webhook_code, item_id } = body;
+    // Read as TEXT, once. The signature covers these exact bytes, so parsing to
+    // JSON and re-serialising for the hash would produce a different string and
+    // a check that never passes. Everything below parses from this same value.
+    const rawBody = await req.text();
+    const plaidClient = new PlaidClient();
+
+    const verification = await verifyPlaidWebhook(req, rawBody, plaidClient);
+    if (!verification.valid) {
+      // Logged in full, answered in one word. This endpoint is public, and
+      // telling an unauthenticated caller WHICH check they failed is a free
+      // tutorial in passing it.
+      console.warn("plaid-webhook: rejected —", verification.reason);
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return new Response(JSON.stringify({ error: "Malformed body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const {
+      webhook_type = "",
+      webhook_code = "",
+      item_id = "",
+    } = body as { webhook_type?: string; webhook_code?: string; item_id?: string };
+
+    // Defaulted to "" above rather than left possibly-undefined: a verified
+    // request can still be missing a field, and every use below — the
+    // `handled` check, the item_id lookup, handleItemEvent — wants a string.
+    if (!item_id) {
+      return new Response(JSON.stringify({ received: true, note: "no item_id" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const handled = ["TRANSACTIONS", "HOLDINGS", "LIABILITIES", "ITEM"];
     if (!handled.includes(webhook_type)) {
@@ -77,7 +117,7 @@ Deno.serve(async (req: Request) => {
           .eq("item_id", item_id)
           .single();
 
-        const result = await syncItemTransactions(supabase, new PlaidClient(), {
+        const result = await syncItemTransactions(supabase, plaidClient, {
           user_id,
           account_type,
           access_token,
@@ -89,9 +129,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Fetch live balances from Plaid
-    const plaid = new PlaidClient();
-    const balanceRes = await plaid.getAccountBalances(access_token);
+    // Fetch live balances from Plaid. Reuses the client built for
+    // verification above rather than constructing a third one.
+    const balanceRes = await plaidClient.getAccountBalances(access_token);
     const newAccounts: PlaidAccount[] = balanceRes.accounts ?? [];
 
     // Read previous balances for threshold comparison

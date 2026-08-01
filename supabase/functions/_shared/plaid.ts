@@ -11,6 +11,20 @@ const PLAID_BASE_URLS: Record<string, string> = {
   production: "https://production.plaid.com",
 };
 
+/** An EC P-256 verification key as Plaid returns it. */
+export interface PlaidJwk {
+  kty: string;
+  crv: string;
+  x: string;
+  y: string;
+  kid: string;
+  use?: string;
+  alg?: string;
+  created_at: number;
+  /** Unix seconds. Present and non-null once the key has been rotated out. */
+  expired_at: number | null;
+}
+
 export class PlaidClient {
   public env: string;
   private baseUrl: string;
@@ -126,6 +140,22 @@ export class PlaidClient {
       initial_products: initialProducts,
       options,
     });
+  }
+
+  /**
+   * The public key a webhook's Plaid-Verification JWT was signed with.
+   *
+   * Keyed by the `kid` in the JWT header. Plaid rotates these, and an expired
+   * key is still returned (with `expired_at` set) so that in-flight webhooks
+   * signed before a rotation can still be verified — which is why the caller
+   * checks `expired_at` rather than assuming a returned key is current.
+   *
+   * Takes no access token: this is an item-independent endpoint, authenticated
+   * by client_id/secret like everything else here.
+   */
+  async getWebhookVerificationKey(keyId: string): Promise<PlaidJwk> {
+    const data = await this.post("/webhook_verification_key/get", { key_id: keyId });
+    return data.key as PlaidJwk;
   }
 
   async sandboxFireSyncUpdateWebhook(accessToken: string) {
