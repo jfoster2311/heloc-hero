@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { hapticLight } from '../../lib/haptics';
 import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -47,7 +48,13 @@ export default function OnboardingStep({
         {/* Header row */}
         <View style={styles.header}>
           {onBack ? (
-            <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={() => { hapticLight(); onBack(); }}
+              style={styles.backBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back to the previous step"
+            >
               <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
           ) : <View style={styles.backBtn} />}
@@ -95,10 +102,16 @@ export default function OnboardingStep({
 
         {/* Next button */}
         <View style={styles.footer}>
+          {/* The most-pressed control in the app's first five minutes, and it
+              was the one with no haptic — while the sliders and preset cards
+              above it all buzz. */}
           <TouchableOpacity
             style={[styles.nextBtn, (nextDisabled || loading) && styles.nextBtnDisabled]}
-            onPress={onNext}
+            onPress={() => { hapticLight(); onNext(); }}
             disabled={nextDisabled || loading}
+            accessibilityRole="button"
+            accessibilityLabel={loading ? 'Saving' : nextLabel}
+            accessibilityState={{ disabled: nextDisabled || loading, busy: loading }}
           >
             <Text style={styles.nextBtnText}>
               {loading ? 'Saving…' : nextLabel}

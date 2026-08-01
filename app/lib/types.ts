@@ -110,6 +110,17 @@ export interface OnboardingData {
   loanTermYears: number;
   /** Calendar year the mortgage was opened, e.g. 2019 */
   loanOriginationYear: number;
+  /**
+   * Whether the payment and balance above are still OUR derived figures.
+   *
+   * Held in the store rather than in the step's local state because it has to
+   * survive leaving the screen and coming back. Without it, home-info remounts
+   * unable to tell an estimate it produced from a figure the user typed — and
+   * it has to be able to tell, because it re-derives both whenever the loan
+   * terms change and must not overwrite the second kind.
+   */
+  paymentIsEstimate: boolean;
+  balanceIsEstimate: boolean;
 }
 
 export interface PlaidBalance {

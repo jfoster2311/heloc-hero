@@ -46,10 +46,33 @@ export default function HomeInfoStep() {
   // Payment + balance: auto-computed; user can tap to override
   const [monthlyPayment,   setMonthlyPayment]   = useState(data.monthlyPayment  ? String(Math.round(data.monthlyPayment))  : '');
   const [mortgageBalance,  setMortgageBalance]  = useState(data.mortgageBalance ? String(Math.round(data.mortgageBalance)) : '');
-  const [paymentEstimated, setPaymentEstimated] = useState(false);
-  const [balanceEstimated, setBalanceEstimated] = useState(false);
+  // Seeded from the store, so stepping forward and coming back does not lose
+  // which of these two figures is ours to recompute. First visit has neither
+  // recorded and no value stored, so both start as ours by default.
+  const [paymentEstimated, setPaymentEstimated] = useState(
+    data.paymentIsEstimate ?? !data.monthlyPayment,
+  );
+  const [balanceEstimated, setBalanceEstimated] = useState(
+    data.balanceIsEstimate ?? !data.mortgageBalance,
+  );
 
-  // Auto-compute payment + balance whenever loan parameters change
+  // Two fields the user may have TYPED, which must then stop being derived.
+  //
+  // The estimate is a courtesy — it fills the payment and the balance from the
+  // loan terms so nobody has to look them up. But the effect below re-ran on
+  // every slider movement and overwrote both fields unconditionally, including
+  // when the value in them was the user's own. Correct your real mortgage
+  // balance, nudge the rate slider a notch, and the correction was gone with no
+  // indication it had ever been there — on the single figure every projection
+  // in this app is sized from.
+  //
+  // `paymentEstimated`/`balanceEstimated` already recorded which of the two was
+  // still ours: the onChangeText handlers below clear them the moment the user
+  // types. They were only ever read for the hint text. Now they gate the write,
+  // which is what they were describing all along.
+  const paymentIsOurs = paymentEstimated || monthlyPayment === '';
+  const balanceIsOurs = balanceEstimated || mortgageBalance === '';
+
   useEffect(() => {
     const year = parseInt(originationYear, 10);
     const now  = new Date();
@@ -62,14 +85,25 @@ export default function HomeInfoStep() {
       const payment      = calcMonthlyPayment(originalLoanAmount, rate, termMonths);
       const elapsed      = Math.min((now.getFullYear() - year) * 12 + now.getMonth(), termMonths - 1);
       const balance      = calcRemainingBalance(originalLoanAmount, rate, termMonths, elapsed);
-      setMonthlyPayment(Math.round(payment).toString());
-      setPaymentEstimated(true);
-      setMortgageBalance(Math.round(balance).toString());
-      setBalanceEstimated(true);
+      if (paymentIsOurs) {
+        setMonthlyPayment(Math.round(payment).toString());
+        setPaymentEstimated(true);
+      }
+      if (balanceIsOurs) {
+        setMortgageBalance(Math.round(balance).toString());
+        setBalanceEstimated(true);
+      }
     } else {
-      setPaymentEstimated(false);
-      setBalanceEstimated(false);
+      // Only ever demotes a figure WE put there. A typed value is not an
+      // estimate, so the terms going incomplete must not relabel it as one.
+      if (paymentIsOurs) setPaymentEstimated(false);
+      if (balanceIsOurs) setBalanceEstimated(false);
     }
+    // paymentIsOurs/balanceIsOurs are deliberately absent from the deps: they
+    // are read as a guard, not tracked as an input. Including them would re-run
+    // the effect the instant a user's first keystroke flipped one to false,
+    // which is the overwrite this exists to prevent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalLoanAmount, mortgageRatePct, loanTermYears, originationYear]);
 
   const mortgageBalNum = parseFloat(mortgageBalance) || 0;
@@ -90,6 +124,8 @@ export default function HomeInfoStep() {
       loanOriginalAmount:  originalLoanAmount || undefined,
       loanTermYears,
       loanOriginationYear: parseInt(originationYear, 10) || undefined,
+      paymentIsEstimate:   paymentEstimated,
+      balanceIsEstimate:   balanceEstimated,
     });
     nextStep();
     router.push('/onboarding/income');
@@ -159,9 +195,12 @@ export default function HomeInfoStep() {
         onChangeText={(v) => { setMonthlyPayment(v); setPaymentEstimated(false); }}
         keyboardType="decimal-pad"
         placeholder="1,800"
+        // The override is now sticky, so the way back to the estimate has to be
+        // stated. Clearing the field is what restores it, and nobody guesses
+        // that unprompted.
         hint={paymentEstimated
           ? 'Calculated from your loan details — tap to adjust'
-          : 'Principal + interest only (not taxes/insurance)'}
+          : 'Principal + interest only (not taxes/insurance). Clear it to go back to our estimate.'}
       />
       <FormField
         label="Current Mortgage Balance"
@@ -170,7 +209,9 @@ export default function HomeInfoStep() {
         onChangeText={(v) => { setMortgageBalance(v); setBalanceEstimated(false); }}
         keyboardType="decimal-pad"
         placeholder="350,000"
-        hint={balanceEstimated ? 'Estimated from elapsed payments — tap to adjust' : undefined}
+        hint={balanceEstimated
+          ? 'Estimated from elapsed payments — tap to adjust'
+          : 'Your figure. Clear it to go back to our estimate.'}
       />
 
       {isValid && (

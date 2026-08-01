@@ -7,6 +7,7 @@ import OnboardingStep from '../../components/ui/OnboardingStep';
 import FormField from '../../components/ui/FormField';
 import AmountCardField, { AmountPreset } from '../../components/ui/AmountCardField';
 import { useOnboardingStore } from '../../lib/onboardingStore';
+import { hapticSelection } from '../../lib/haptics';
 import type { HelocStatus } from '../../lib/lenders';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -36,6 +37,7 @@ export default function HelocInfoStep() {
     data.hasHeloc ? 'have_one' : 'no_heloc',
   );
   const hasHeloc = helocStatus === 'have_one';
+  const notSure  = helocStatus === 'not_sure';
 
   // Existing-HELOC fields (text — user enters exact figures)
   const [helocBalance, setHelocBalance] = useState(String(data.helocBalance ?? '0'));
@@ -90,7 +92,10 @@ export default function HelocInfoStep() {
           <TouchableOpacity
             key={opt.value}
             style={[styles.toggleBtn, helocStatus === opt.value && styles.toggleBtnActive]}
-            onPress={() => setHelocStatus(opt.value)}
+            onPress={() => { hapticSelection(); setHelocStatus(opt.value); }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: helocStatus === opt.value }}
+            accessibilityLabel={opt.label}
           >
             <Ionicons
               name={opt.icon as never}
@@ -134,11 +139,25 @@ export default function HelocInfoStep() {
         </>
       ) : (
         <>
+          {/* "Not sure" used to be a third button that produced the second
+              button's screen, word for word — a choice offered and then not
+              honoured. It still projects a limit, because that is the only way
+              to show this user a result, but it answers the question they
+              actually asked by saying where to look. */}
           <View style={styles.noHelocInfo}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.accentInk} />
+            <Ionicons
+              name={notSure ? 'help-circle-outline' : 'information-circle-outline'}
+              size={20}
+              color={colors.accentInk}
+            />
             <Text style={styles.noHelocText}>
-              No problem. After setup, we'll guide you through what to look for and how to
-              find the right HELOC for this strategy.
+              {notSure
+                ? 'Your lender or bank can tell you in a minute — a HELOC shows up as a ' +
+                  'credit line secured against your home, separate from your mortgage. ' +
+                  "Until you check, we'll project a line so you can still see a result, and " +
+                  'you can correct it later in your HELOC terms.'
+                : "No problem. After setup, we'll guide you through what to look for and how to " +
+                  'find the right HELOC for this strategy.'}
             </Text>
           </View>
 

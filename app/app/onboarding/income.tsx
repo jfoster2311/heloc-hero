@@ -33,11 +33,32 @@ export default function IncomeStep() {
 
   const isValid = income > 0 && expenses > 0;
 
-  function getSurplusColor() {
+  /**
+   * The card's BORDER only.
+   *
+   * This used to colour the headline figure as well, through a three-step
+   * mint600 → mint400 → gray400 ramp. Every one of those is a fill token: on
+   * this card's gray50 they measure roughly 2.6:1, 1.5:1 and 2.5:1, so all
+   * three failed AA — including the 3:1 floor that large text gets — on the
+   * biggest number on the screen. The contrast audit that took the app from 19
+   * failures to zero covered the tabs and the components they render; these
+   * onboarding screens were not in its path.
+   *
+   * As a border it is fine: a boundary is decorative reinforcement here, and it
+   * is never the only channel — the figure is labelled, the percentage is
+   * printed, and getSurplusMessage() says the same thing in words.
+   */
+  function surplusBorder() {
     if (grossPct >= 25) return colors.mint600;
     if (grossPct >= 10) return colors.mint400;
     return colors.gray400;
   }
+
+  // Ink, per the design system's two sanctioned choices: accentInk for a
+  // positive accent figure, gray500 for a negative one. Deliberately two states
+  // rather than three — the ramp above was encoding a tier in colour that the
+  // message below already states in words.
+  const surplusInk = grossSurplus > 0 ? colors.accentInk : colors.gray500;
 
   function getSurplusMessage() {
     if (grossSurplus <= 0) return "Expenses exceed income — let's work on this together.";
@@ -88,9 +109,9 @@ export default function IncomeStep() {
 
       {isValid && (
         <>
-          <View style={[styles.surplusCard, { borderColor: getSurplusColor() }]}>
+          <View style={[styles.surplusCard, { borderColor: surplusBorder() }]}>
             <Text style={styles.surplusLabel}>Gross Monthly Surplus</Text>
-            <Text style={[styles.surplusValue, { color: getSurplusColor() }]}>
+            <Text style={[styles.surplusValue, { color: surplusInk }]}>
               ${Math.abs(grossSurplus).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               {grossSurplus < 0 ? ' deficit' : '/mo'}
             </Text>
@@ -102,7 +123,11 @@ export default function IncomeStep() {
             <View style={styles.helocSurplusCard}>
               <View style={styles.helocSurplusRow}>
                 <Text style={styles.helocSurplusLabel}>After mortgage payment</Text>
-                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? colors.mint600 : colors.gray400 }]}>
+                {/* mint600 on mint50 was worse than it looked — the tinted
+                    surface lifts the background and drops the ratio further
+                    than the same pairing on white. accentInk is the token that
+                    exists for exactly this. */}
+                <Text style={[styles.helocSurplusValue, { color: helocSurplus > 0 ? colors.accentInk : colors.gray500 }]}>
                   ${helocSurplus.toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo
                 </Text>
               </View>

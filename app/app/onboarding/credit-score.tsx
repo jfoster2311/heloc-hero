@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
 import { useOnboardingStore } from '../../lib/onboardingStore';
+import { hapticSelection } from '../../lib/haptics';
 import { CREDIT_RANGES, FREE_CREDIT_REPORT_URL } from '../../lib/helocScore';
 
 import { Typography, Spacing, Radius } from '../../lib/theme';
@@ -22,7 +23,11 @@ export default function CreditScoreStep() {
   const router = useRouter();
   const { data, update, prevStep } = useOnboardingStore();
   const [selected, setSelected] = useState<number>(data.creditScore ?? 720);
-  const [error, setError] = useState('');
+  // The `error` state that used to live here was never written to — nothing on
+  // this screen can fail, since it only picks a band and hands off to reveal,
+  // which owns the save and its own error handling. The banner it fed could not
+  // render, so both are gone rather than left as scaffolding for a failure mode
+  // this screen does not have.
 
   async function handleFinish() {
     update({ creditScore: selected });
@@ -47,12 +52,6 @@ export default function CreditScoreStep() {
       nextLabel="See My Results →"
       loading={false}
     >
-      {error ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
-
       <View style={styles.rangeList}>
         {RANGES.map(r => {
           const active = selected === r.value;
@@ -60,8 +59,8 @@ export default function CreditScoreStep() {
             <TouchableOpacity
               key={r.value}
               style={[styles.rangeItem, active && styles.rangeItemActive]}
-              onPress={() => setSelected(r.value)}
-              accessibilityRole="button"
+              onPress={() => { hapticSelection(); setSelected(r.value); }}
+              accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${r.label}, ${r.range}`}
             >
@@ -97,16 +96,6 @@ export default function CreditScoreStep() {
 }
 
 const useStyles = createThemedStyles(t => ({
-  errorBanner: {
-    // Grey, not the pink this used to be — the palette has no red in it.
-    backgroundColor: t.colors.gray100,
-    borderRadius: Radius.md,
-    padding: Spacing[3],
-    marginBottom: Spacing[4],
-    borderLeftWidth: 3,
-    borderLeftColor: t.colors.gray400,
-  },
-  errorText: { color: t.colors.gray400, fontSize: Typography.sm },
   rangeList: { gap: Spacing[3], marginBottom: Spacing[5] },
   rangeItem: {
     flexDirection: 'row',
