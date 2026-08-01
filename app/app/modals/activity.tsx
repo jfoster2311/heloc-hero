@@ -57,6 +57,8 @@ export default function ActivityScreen() {
   const [checking, setChecking] = useState(false);
   /** True once a manual check has come back having found nothing. */
   const [checkedEmpty, setCheckedEmpty] = useState(false);
+  /** The check itself failed — distinct from it finding nothing. */
+  const [checkFailed, setCheckFailed] = useState(false);
 
   /**
    * Force a transaction sync past its throttle.
@@ -69,8 +71,12 @@ export default function ActivityScreen() {
     hapticLight();
     setChecking(true);
     setCheckedEmpty(false);
+    setCheckFailed(false);
     try {
-      await f.refreshTransactions();
+      // The RESULT matters. Saying "checked just now, nothing new" after a
+      // request that never reached the server is a claim about the user's bank
+      // made on no evidence.
+      setCheckFailed(!(await f.refreshTransactions()));
       setCheckedEmpty(true);
     } finally {
       setChecking(false);
@@ -238,9 +244,12 @@ export default function ActivityScreen() {
               ? f.awaitingTransactions
                 ? 'Your bank is still sending its history. Transactions appear here once it ' +
                   'lands — usually within a few minutes of linking.'
-                : checkedEmpty
-                  ? 'No transactions this month yet. Checked just now — nothing new has arrived.'
-                  : 'No transactions this month yet.'
+                : checkedEmpty && checkFailed
+                  ? 'No transactions this month yet. We could not reach your bank just now, ' +
+                    'so nothing was checked — try again in a moment.'
+                  : checkedEmpty
+                    ? 'No transactions this month yet. Checked just now — nothing new has arrived.'
+                    : 'No transactions this month yet.'
               : 'Link an account and your transactions appear here automatically.'}
             action={f.hasLinkedAccounts
               ? {

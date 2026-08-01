@@ -64,13 +64,19 @@ export default function BudgetScreen() {
    * by the real breakdown.
    */
   const [checkedEmpty, setCheckedEmpty] = useState(false);
+  /** The check itself failed — distinct from it finding nothing. */
+  const [checkFailed, setCheckFailed] = useState(false);
 
   const checkForTransactions = useCallback(async () => {
     hapticLight();
     setChecking(true);
     setCheckedEmpty(false);
+    setCheckFailed(false);
     try {
-      await f.refreshTransactions();
+      // The RESULT matters. Saying "checked just now, nothing new" after a
+      // request that never reached the server is a claim about the user's bank
+      // made on no evidence.
+      setCheckFailed(!(await f.refreshTransactions()));
       setCheckedEmpty(true);
     } finally {
       setChecking(false);
@@ -151,7 +157,10 @@ export default function BudgetScreen() {
       budgets: budgets.budgets,
       mortgagePayment: f.payment,
     }),
-    [summary.income, f.income, budgets.budgets, f.payment],
+    // `measured` belongs here: it is read in the expression above, and without
+    // it a basis flipping estimated → live while the income figure happened to
+    // stay numerically equal would leave the allocation on the old branch.
+    [measured, summary.income, f.income, budgets.budgets, f.payment],
   );
 
   // Every category, budgeted or not — including ones with no spend this month,
@@ -261,7 +270,10 @@ export default function BudgetScreen() {
 
             {checkedEmpty && !checking && (
               <Text style={styles.stateNote}>
-                Checked just now — nothing new has arrived yet.
+                {checkFailed
+                  ? 'We could not reach your bank just now, so nothing was checked. ' +
+                    'Try again in a moment.'
+                  : 'Checked just now — nothing new has arrived yet.'}
               </Text>
             )}
           </View>

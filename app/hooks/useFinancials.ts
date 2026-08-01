@@ -45,8 +45,12 @@ export interface Financials {
    * balances (plaid-get-balances) and leaves the transaction cursor alone.
    * Screens whose empty state is "no transactions yet" need this one; offering
    * `refresh` there would be a button that cannot fix what it is offered for.
+   *
+   * Resolves false when the sync never reached the server, so a caller can tell
+   * "checked, nothing new" apart from "could not check" — the two screens that
+   * report back after this used to say the first for both.
    */
-  refreshTransactions: () => Promise<void>;
+  refreshTransactions: () => Promise<boolean>;
   /** Why the accounts read failed, or null. Distinct from "no accounts". */
   error: string | null;
 
@@ -193,7 +197,7 @@ function derive(
   refreshing: boolean,
   error: string | null,
   refresh: () => Promise<boolean>,
-  refreshTransactions: () => Promise<void>,
+  refreshTransactions: () => Promise<boolean>,
   derivedCashflow: DerivedCashflow | null,
   transactions: TransactionRow[],
   awaitingTransactions: boolean,

@@ -28,7 +28,16 @@ export interface UseCashflowResult {
   /** True while Plaid's asynchronous historical backfill is still landing. */
   awaitingBackfill: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  /**
+   * Force a sync past its throttle, then re-read.
+   *
+   * Resolves FALSE when the sync could not reach the server. That distinction
+   * is not academic: two screens hang a "Check for new transactions" button off
+   * this and then tell the user "checked just now — nothing new has arrived".
+   * With no signal to go on they said it after a failed check too, which is a
+   * claim about the bank made on the strength of a request that never landed.
+   */
+  refresh: () => Promise<boolean>;
 }
 
 export function useCashflow(
@@ -53,13 +62,14 @@ export function useCashflow(
   const [error, setError] = useState<string | null>(null);
   const hasSynced = useRef(false);
 
-  const load = useCallback(async (forceSync = false) => {
+  const load = useCallback(async (forceSync = false): Promise<boolean> => {
     if (!userId || !enabled) {
       setTransactions([]);
       setLoading(false);
-      return;
+      return false;
     }
     setLoading(true);
+    let syncReached = true;
 
     // Ask the server to pull anything new first, but only once per mount and
     // only when the throttle has elapsed. The edge function is the real
@@ -70,7 +80,10 @@ export function useCashflow(
         await invokeFunction('plaid-sync-transactions', { userId, force: forceSync });
       } catch {
         // A sync failure is not a read failure — fall through to whatever is
-        // already stored rather than showing an error over usable data.
+        // already stored rather than showing an error over usable data. It is
+        // still REPORTED, so a caller that intends to say "we checked" can
+        // tell whether it actually did.
+        syncReached = false;
       }
     }
 
@@ -91,7 +104,7 @@ export function useCashflow(
       setError(err.message);
       setTransactions([]);
       setLoading(false);
-      return;
+      return false;
     }
 
     setError(null);
@@ -113,6 +126,7 @@ export function useCashflow(
     }
 
     setLoading(false);
+    return syncReached;
   }, [userId, enabled, windowMonths]);
 
   useEffect(() => { load(); }, [load]);

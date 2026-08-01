@@ -79,22 +79,46 @@ export function useAccounts(userId: string | null): AccountsState {
    * Trigger a Plaid balance refresh for all of the user's linked accounts.
    * The plaid-get-balances function keys off userId (optionally accountType) —
    * NOT plaid_item_id — and refreshes every account in a single call.
+   *
+   * Reports whether it worked. It used to swallow the failure and return void,
+   * which produced the bug documented on `load` below: the caller could not
+   * tell a sync that reached Plaid from one that never left the building.
    */
-  async function triggerPlaidRefresh(uid: string): Promise<void> {
+  async function triggerPlaidRefresh(uid: string): Promise<boolean> {
     try {
       await invokeFunction('plaid-get-balances', { userId: uid });
+      return true;
     } catch {
-      // Ignore — Plaid errors shouldn't break the UI
+      // Swallowed deliberately — a Plaid outage must not blank the screen or
+      // throw. It is REPORTED instead, by the return value.
+      return false;
     }
   }
 
-  /** Resolves true when the read succeeded, so callers can report honestly. */
+  /**
+   * Resolves true when the balances on screen are actually current.
+   *
+   * "The read succeeded" is not the same claim, and returning that was a bug
+   * with real consequences. `fetchLocal` reads OUR table, not the bank: with
+   * Plaid down, the sync failed silently, the second local read returned the
+   * same untouched rows, and this returned true. Every caller uses that boolean
+   * to pick between a success and an error buzz — the dashboard's own comment
+   * says a success buzz on a failed refresh is worse than silence, because the
+   * whole point of the gesture is to answer "are these numbers current?".
+   * The answer was no and the phone said yes.
+   *
+   * So a failed Plaid sync now resolves false AND sets `error`, which is what
+   * puts the "showing the last balances we have" banner on screen. The rows
+   * themselves stay exactly where they are — they are still the best figures
+   * available, they are just not fresh, and those are different problems.
+   */
   const load = useCallback(async (isManualRefresh = false): Promise<boolean> => {
     if (!userId) { setLoading(false); return false; }
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
 
     const fresh = await fetchLocal();
+    let syncFailed = false;
     // Only overwrite what is on screen when the read actually succeeded. A
     // failed refresh should leave the last known balances visible next to the
     // error, not blank the screen.
@@ -117,16 +141,22 @@ export function useAccounts(userId: string | null): AccountsState {
         // call is in flight sees it taken rather than firing its own.
         autoRefreshedUsers.add(userId);
         // One call refreshes every linked account for this user.
-        await triggerPlaidRefresh(userId);
+        syncFailed = !(await triggerPlaidRefresh(userId));
         // Re-fetch local after Plaid sync
         const updated = await fetchLocal();
         if (updated) setAccounts(updated);
       }
     }
 
+    // AFTER the second fetchLocal, which clears `error` on a successful read —
+    // set it any earlier and that call would wipe it out again.
+    if (syncFailed) {
+      setError('We could not reach your bank. These are the last balances we have.');
+    }
+
     setLoading(false);
     setRefreshing(false);
-    return fresh !== null;
+    return fresh !== null && !syncFailed;
   }, [userId, fetchLocal]);
 
   useEffect(() => {
