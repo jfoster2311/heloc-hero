@@ -109,7 +109,12 @@ export default function EquityCurve({
           min={min}
           max={max}
           series={[
-            { values: base, color: 'rgba(255,255,255,0.22)', width: 1.5 },
+            // The "without cycling" line. At 0.22 alpha it measured about
+            // 1.9:1 against the aurora — under the 3:1 that WCAG asks of a
+            // graphical object you need to perceive, and this one is half the
+            // comparison the chart exists to make. `faint` clears it at 4.51:1
+            // while staying visibly the quieter of the two series.
+            { values: base, color: OnDark.faint, width: 1.5 },
             {
               values: acc,
               color: Aurora.glowSoft,

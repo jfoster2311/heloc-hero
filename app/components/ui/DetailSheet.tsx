@@ -12,6 +12,7 @@ import { ReactNode, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { hapticLight } from '../../lib/haptics';
 import { Typography, Spacing, Radius, Tracking } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -54,7 +55,7 @@ export default function DetailSheet({
             {title.toUpperCase()}
           </Text>
           <TouchableOpacity
-            onPress={close}
+            onPress={() => { hapticLight(); close(); }}
             style={styles.close}
             accessibilityRole="button"
             accessibilityLabel="Close"

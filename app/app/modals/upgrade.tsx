@@ -187,7 +187,12 @@ export default function UpgradeModal() {
           topBar={
             <View style={styles.heroTop}>
               <Text style={styles.heroTitle}>HELOC Hero Pro</Text>
-              <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
+              <TouchableOpacity
+                onPress={() => { hapticLight(); router.back(); }}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
                 <Ionicons name="close" size={22} color={OnDark.secondary} />
               </TouchableOpacity>
             </View>

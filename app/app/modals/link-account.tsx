@@ -96,6 +96,7 @@ export default function LinkAccountModal() {
 
   async function handleLink() {
     if (!selectedType || !user) return;
+    hapticLight();
 
     const plaid = loadPlaid();
     if (!plaid) {
@@ -155,6 +156,7 @@ export default function LinkAccountModal() {
 
   async function handleSandboxLink() {
     if (!selectedType || !user) return;
+    hapticLight();
     setLoading(true);
     setError('');
     try {
@@ -181,7 +183,12 @@ export default function LinkAccountModal() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Text style={styles.title}>Link an Account</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <TouchableOpacity
+            onPress={() => { hapticLight(); router.back(); }}
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
@@ -207,7 +214,12 @@ export default function LinkAccountModal() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Link an Account</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+        <TouchableOpacity
+          onPress={() => { hapticLight(); router.back(); }}
+          style={styles.closeBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -315,7 +327,15 @@ const useStyles = createThemedStyles(t => ({
     borderBottomColor: t.colors.border,
   },
   title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
-  closeBtn: { padding: Spacing[1] },
+  // 44pt, not `padding: Spacing[1]`. A 24pt icon with 4pt of padding is a 32pt
+  // target — under the HIG minimum, on the control that dismisses the screen
+  // where the app asks for bank credentials.
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   gateContainer: {
     flex: 1,
     alignItems: 'center',

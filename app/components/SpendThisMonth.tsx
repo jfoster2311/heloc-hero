@@ -272,6 +272,7 @@ function SpendGrid({ days, onSelectDay }: {
   onSelectDay: (day: DayCell) => void;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   // Scaled against the busiest day rather than a fixed dollar figure, so the
   // grid is legible for a $200 month and a $20,000 one alike.
   const peak = useMemo(
@@ -306,7 +307,7 @@ function SpendGrid({ days, onSelectDay }: {
                 style={[
                   styles.cell,
                   d.future && styles.cellFuture,
-                  d.spend > 0 && { backgroundColor: tint(intensity) },
+                  d.spend > 0 && { backgroundColor: tint(colors.mint600, intensity) },
                 ]}
                 // A day that has not happened is not a target. Tapping it would
                 // open a sheet that can only say "nothing here yet".
@@ -354,9 +355,18 @@ function SpendGrid({ days, onSelectDay }: {
   );
 }
 
-/** mint600 at a given alpha, for the heat cells. */
-function tint(alpha: number): string {
-  return `rgba(18,183,106,${Math.min(1, alpha).toFixed(3)})`;
+/**
+ * The accent at a given alpha, for the heat cells.
+ *
+ * `#12B76A` was written out here — a copy of mint600, on the one surface where
+ * the two palettes give it different values, so the dark theme's grid was being
+ * tinted with the light theme's green. Reads the token now and converts, which
+ * is also the only way the cell shade tracks a palette change.
+ */
+function tint(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const a = Math.min(1, Math.max(0, alpha)).toFixed(3);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

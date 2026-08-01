@@ -16,7 +16,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Typography, Spacing, Radius, Aurora } from '../lib/theme';
+import { Typography, Spacing, Radius, Aurora, OnDark } from '../lib/theme';
 import { hapticLight, hapticSuccess } from '../lib/haptics';
 
 const BASE_COLS = 6;
@@ -367,13 +367,21 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
+  // The DEFAULT label — a year still on the clock and not yet reached. It was
+  // 0.30 alpha, 2.69:1 on the ritual's near-black at 11pt semibold, where 4.5:1
+  // applies. `faint` is the token that exists for this exact measurement.
   tileLabel: {
     fontSize: 11,
     fontWeight: Typography.semibold,
-    color: 'rgba(255,255,255,0.30)',
+    color: OnDark.faint,
   },
+  // Left below the threshold deliberately, and it is the one place on this
+  // screen that is defensible: a crossed year's NUMBER is not the information —
+  // the tile visibly changing is, the caption narrates it, and the hero states
+  // the result. Raising it would undo the striking-out this whole animation
+  // exists to show.
   tileLabelRemoved: { color: 'rgba(255,255,255,0.16)' },
-  tileLabelKept: { color: 'rgba(255,255,255,0.72)' },
+  tileLabelKept: { color: OnDark.secondary },
   tileLabelTarget: { color: Aurora.deepest, fontWeight: Typography.extrabold },
 
   avatar: {

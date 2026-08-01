@@ -16,7 +16,7 @@
 // thing, and whoever designs the real mark has a concrete idea to work from
 // rather than a blank brief.
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { Typography, Spacing, Aurora } from '../../lib/theme';
+import { Typography, Spacing, Aurora, OnDark } from '../../lib/theme';
 
 interface Props {
   /** Height of the mark in points. The wordmark scales from it. */
@@ -111,13 +111,16 @@ const s = StyleSheet.create({
   cellSolid: { backgroundColor: Aurora.glow, borderColor: Aurora.glow },
   cellHollow: { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.30)' },
 
+  // `faint`, not the 0.42 alpha this carried. The kicker renders at 10 × scale,
+  // so at the size the auth screens use it (34 → 8.5pt) it is small text and
+  // 4.5:1 applies — 0.42 measured 3.46:1 against the aurora's lightest band.
   kicker: {
     fontWeight: Typography.extrabold,
-    color: 'rgba(255,255,255,0.42)',
+    color: OnDark.faint,
   },
   word: {
     fontWeight: Typography.extrabold,
-    color: '#ffffff',
+    color: OnDark.primary,
     marginTop: 1,
   },
 });

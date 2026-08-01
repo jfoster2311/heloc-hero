@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { hapticLight } from '../lib/haptics';
 import { Typography, Spacing, Gradients, Shadows } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
 import {
@@ -62,8 +63,10 @@ export default function LockGate({ children }: Props) {
         <Text style={styles.subtitle}>The app has been locked for your security.</Text>
         <TouchableOpacity
           style={styles.unlockBtn}
-          onPress={handleUnlock}
+          onPress={() => { hapticLight(); handleUnlock(); }}
           disabled={authenticating}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: authenticating, busy: authenticating }}
           accessibilityLabel="Unlock with Face ID or passcode"
         >
           <Ionicons name="finger-print-outline" size={22} color={colors.onAccent} />

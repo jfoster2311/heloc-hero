@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -43,7 +44,16 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.close} accessibilityLabel="Close">
+        {/* This one is OWNED by the component rather than passed in, so the
+            haptic belongs here — unlike `save.onPress` below, where the caller
+            supplies it and adding a second would double-buzz. Every modal in
+            the app closes through this button. */}
+        <TouchableOpacity
+          onPress={() => { hapticLight(); router.back(); }}
+          style={styles.close}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
           <Ionicons name="close" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -107,8 +117,12 @@ export function Segmented<T extends string>({ options, value, onChange, columns 
               { flexBasis: `${100 / columns}%` },
               active && styles.segmentBtnActive,
             ]}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="button"
+            // Same correction ChipField got: every caller passes a plain
+            // setter, so there is no caller-side haptic to double up with, and
+            // a segmented control that does not buzz reads as unresponsive
+            // beside the sliders and preset cards on the same forms.
+            onPress={() => { hapticSelection(); onChange(o.value); }}
+            accessibilityRole="radio"
             accessibilityState={{ selected: active }}
             accessibilityLabel={o.label}
           >
