@@ -314,7 +314,8 @@ export default function DashboardScreen() {
                 )}
                 <TouchableOpacity
                   style={styles.iconBtn}
-                  onPress={() => router.push('/modals/settings')}
+                  onPress={() => { hapticLight(); router.push('/modals/settings'); }}
+                  accessibilityRole="button"
                   accessibilityLabel="Settings"
                 >
                   <Ionicons name="settings-outline" size={20} color={OnDark.secondary} />
@@ -391,9 +392,12 @@ export default function DashboardScreen() {
             <Chip
               label={f.hasLinkedAccounts ? 'Accounts' : 'Connect'}
               icon="link-outline"
-              onPress={() => router.push(
-                f.hasLinkedAccounts ? '/tabs/accounts' : isPro ? '/modals/link-account' : '/modals/upgrade',
-              )}
+              onPress={() => {
+                hapticLight();
+                router.push(
+                  f.hasLinkedAccounts ? '/tabs/accounts' : isPro ? '/modals/link-account' : '/modals/upgrade',
+                );
+              }}
             />
           </View>
 
@@ -559,11 +563,29 @@ export default function DashboardScreen() {
             <Card>
               <CardHead title="Safe to sweep" icon="wallet-outline" />
 
+              {/* Every branch below ends in a way forward. Two of them used to
+                  end in a full stop: `no_line` said "Add your HELOC" and
+                  `no_surplus` said "Your figures are in Cash flow" — each naming
+                  the exact thing to do next and then leaving the user to go and
+                  find it. An empty state that can name its own fix should BE
+                  the fix. */}
               {sweep.state === 'no_line' ? (
-                <Text style={styles.sweepEmpty}>
-                  Add your HELOC to see how much of your surplus you can spend without
-                  pushing back your next dump.
-                </Text>
+                <>
+                  <Text style={styles.sweepEmpty}>
+                    Add your HELOC to see how much of your surplus you can spend without
+                    pushing back your next dump.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.sweepAction}
+                    onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add your HELOC"
+                  >
+                    <Ionicons name="create-outline" size={17} color={colors.accentInk} />
+                    <Text style={styles.sweepActionText}>Add your HELOC</Text>
+                    <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
+                  </TouchableOpacity>
+                </>
               ) : sweep.state === 'unknown_balance' ? (
                 // Everything this card commits is derived from the drawn
                 // balance, so without one the subtraction below would run on
@@ -586,9 +608,28 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 </>
               ) : sweep.state === 'no_surplus' ? (
-                <Text style={styles.sweepEmpty}>
-                  Nothing is left over each month yet. Your figures are in Cash flow.
-                </Text>
+                <>
+                  <Text style={styles.sweepEmpty}>
+                    Nothing is left over each month yet — so there is nothing to sweep.
+                    Your income and expense figures are what decide that.
+                  </Text>
+                  {/* The assumptions sheet rather than the Cash flow tab: this
+                      state exists because income minus outgoings is zero or
+                      less, and that sheet is where those two figures are
+                      changed. Sending someone to a tab that reports the same
+                      shortfall back at them is a longer route to the same
+                      screen they are already on. */}
+                  <TouchableOpacity
+                    style={styles.sweepAction}
+                    onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Review your income and expenses"
+                  >
+                    <Ionicons name="create-outline" size={17} color={colors.accentInk} />
+                    <Text style={styles.sweepActionText}>Review your figures</Text>
+                    <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
+                  </TouchableOpacity>
+                </>
               ) : sweep.state === 'under_water' ? (
                 <>
                   <Text style={styles.sweepValue}>$0</Text>
@@ -597,6 +638,24 @@ export default function DashboardScreen() {
                     due this month, so the balance grows by {fmtMoney(sweep.shortfall)} even
                     if you spend nothing.
                   </Text>
+                  {/* The worst state this card has, and until now the only one
+                      that stated a problem and offered nothing to do about it.
+                      Two figures decide it: the surplus and what the line
+                      charges. This points at the surplus, because that is the
+                      side the user can actually change — the APR belongs to
+                      their bank, and heloc-terms only records what it already
+                      is. Assumptions holds income and expenses and prints the
+                      resulting surplus as you edit them. */}
+                  <TouchableOpacity
+                    style={styles.sweepAction}
+                    onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Review the figures behind your surplus"
+                  >
+                    <Ionicons name="create-outline" size={17} color={colors.accentInk} />
+                    <Text style={styles.sweepActionText}>Review your figures</Text>
+                    <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
+                  </TouchableOpacity>
                 </>
               ) : (
                 <>
@@ -670,29 +729,73 @@ export default function DashboardScreen() {
             </Card>
           )}
 
-          {/* ── Needs attention (only when non-empty) ──────────────────────
+          {/* ── Needs attention ────────────────────────────────────────────
               The app's own watch feed — a rate to re-confirm, a draw period
               closing, spending drifting from the estimate. It sits with the
-              decision it might change, not below the reward. */}
-          {f.watchItems.length > 0 && (
+              decision it might change, not below the reward.
+
+              It no longer disappears when the list is empty, and that is the
+              whole point of it. lib/watchItems.ts is built on the rule that
+              every item must be sourceable from data the app really holds,
+              precisely so that SILENCE MEANS SOMETHING — but silence delivered
+              as an absent card is indistinguishable from a check that never
+              ran. Saying "nothing needs your attention" is the only version of
+              this card that cashes in that design.
+
+              Withheld while loading, though: an all-clear is a claim, and the
+              inputs it is drawn from are still arriving. */}
+          {!f.loading && (
             <Card>
-              <CardHead title="Needs attention" icon="eye-outline" />
-              {f.watchItems.map((item, i) => (
-                <WatchRow
-                  key={item.kind}
-                  item={item}
-                  last={i === f.watchItems.length - 1}
-                  onPress={item.action ? () => { hapticLight(); router.push(item.action!.route as never); } : undefined}
-                />
-              ))}
+              <CardHead
+                title="Needs attention"
+                icon="eye-outline"
+                right={f.watchItems.length > 0
+                  ? <Chip label={String(f.watchItems.length)} tone="neutral" />
+                  : <Chip label="all clear" tone="accent" icon="checkmark-circle-outline" />}
+              />
+              {f.watchItems.length > 0 ? (
+                f.watchItems.map((item, i) => (
+                  <WatchRow
+                    key={item.kind}
+                    item={item}
+                    last={i === f.watchItems.length - 1}
+                    onPress={item.action ? () => { hapticLight(); router.push(item.action!.route as never); } : undefined}
+                  />
+                ))
+              ) : (
+                // Naming the checks is what makes an all-clear worth anything —
+                // "nothing to report" from an unnamed process reports nothing.
+                // The spending clause is conditional because it has to be:
+                // cashflowGap is only computed from real transactions, so
+                // promising a manual user we are watching their spending drift
+                // would be describing a check that cannot run for them.
+                <Text style={styles.allClearText}>
+                  Nothing needs your attention. We watch your draw period, whether your
+                  rate is still current, and how much of your line is used
+                  {f.hasLinkedAccounts
+                    ? ', plus whether your spending is drifting from the figures your plan is sized on'
+                    : ''}.
+                </Text>
+              )}
             </Card>
           )}
 
           {/* ── Both debts as one figure ───────────────────────────────────
               Sits directly above the reward card, because the two are the same
               story from opposite ends: this is what is still owed, that is what
-              has already been taken off it. */}
-          {!f.loading && <NetDebt debt={netDebt} />}
+              has already been taken off it.
+
+              It takes a destination now. NetDebt has always accepted `onPress`
+              and this screen never passed one, so the one card on the dashboard
+              built from two balances was the one card that could not be opened
+              — surrounded by tiles and cards that all hand off. Accounts is
+              where those two balances live side by side. */}
+          {!f.loading && (
+            <NetDebt
+              debt={netDebt}
+              onPress={() => { hapticLight(); router.push('/tabs/accounts' as never); }}
+            />
+          )}
 
           {/* ── Interest — the reward, and its live ticker ─────────────────
               Slimmed to the one figure worth a daily look: interest actually
@@ -1039,6 +1142,11 @@ const useStyles = createThemedStyles(t => ({
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[3],
     minHeight: 44,
+  },
+  allClearText: {
+    fontSize: Typography.sm,
+    color: t.colors.textSecondary,
+    lineHeight: 20,
   },
   staleText: { flex: 1, fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 17 },
   staleAction: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.mint700 },

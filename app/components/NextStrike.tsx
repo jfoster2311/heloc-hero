@@ -26,7 +26,14 @@ export default function NextStrike({
   strike: Strike;
   replenishThreshold: number;
   onPress?: () => void;
-  /** Where to go to supply a balance, for the `unknown_balance` state. */
+  /**
+   * Where to go to supply HELOC terms.
+   *
+   * Serves both empty states. `no_line` used to render the instruction "Add
+   * your HELOC" on an inert card, which is the one shape an empty state must
+   * never take — it names the thing to do and then refuses to be the way to do
+   * it. `unknown_balance`, three lines below, already got this right.
+   */
   onEnterBalance?: () => void;
 }) {
   const styles = useStyles();
@@ -35,12 +42,13 @@ export default function NextStrike({
 
   if (strike.state === 'no_line') {
     return (
-      <Card>
+      <Card onPress={onEnterBalance} accessibilityLabel="Add your HELOC">
         <CardHead title="Your next dump" icon="flag-outline" />
         <Text style={styles.empty}>
           Add your HELOC and this tracks how much has to come off the line before
           your next dump is available.
         </Text>
+        {onEnterBalance && <Text style={styles.emptyAction}>Add your HELOC</Text>}
       </Card>
     );
   }
