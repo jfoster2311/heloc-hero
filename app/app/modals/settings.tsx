@@ -106,8 +106,16 @@ export default function SettingsModal() {
   //
   // Not animated: this is where the screen opens, not somewhere it travels to,
   // and a scroll that starts at the top and slides down implies the user could
-  // have stopped it. The section header ends up at the top of the viewport, so
-  // the screen names where it landed.
+  // have stopped it.
+  //
+  // A section near the bottom does NOT end up at the top of the viewport, and
+  // that is the platform's behaviour rather than a bug to work around: there is
+  // less content below `security` than a phone screen is tall, so scrollTo
+  // clamps at the end of the list and the header lands part-way down. The
+  // section is fully on screen either way, which is the promise this makes.
+  // Pinning it to the top would mean padding the bottom of Settings with blank
+  // space for every user in order to serve a deep link, which is the wrong
+  // trade. `?section=security` is the case to look at on device.
   const scrollRef = useRef<ScrollView>(null);
   // The user's scroll always wins. Without this, an async layout pass a second
   // after they started reading would yank the page back under their thumb.
