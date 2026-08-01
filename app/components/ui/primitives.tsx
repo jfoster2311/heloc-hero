@@ -9,6 +9,7 @@ import {
   type ViewStyle, type StyleProp, type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Spacing, Radius, Tracking, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -25,7 +26,29 @@ interface CardProps {
 
 export function Card({ children, style, onPress, accessibilityLabel, onDark }: CardProps) {
   const styles = useStyles();
-  const body = <View style={[onDark ? styles.cardDark : styles.card, style]}>{children}</View>;
+  const { cardGradient } = useTheme();
+
+  // A gradient, not a fill — see CardGradient in lib/theme.ts. Diagonal rather
+  // than vertical: a top-to-bottom ramp on a wide, short card is invisible,
+  // where a corner-to-corner one catches the eye along the long edge, which is
+  // where a real sheet of metal shows its light.
+  //
+  // `onDark` cards keep their flat translucent fill. They sit ON the aurora,
+  // which is already a gradient, and a second one over it produces a muddy
+  // overlap rather than depth.
+  const body = onDark
+    ? <View style={[styles.cardDark, style]}>{children}</View>
+    : (
+      <LinearGradient
+        colors={cardGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.card, style]}
+      >
+        {children}
+      </LinearGradient>
+    );
+
   if (!onPress) return body;
   return (
     <TouchableOpacity
@@ -487,11 +510,18 @@ function alignToFlex(a: 'left' | 'right' | 'center') {
 
 const useStyles = createThemedStyles(t => ({
   card: {
+    // Kept under the gradient as a fallback — if LinearGradient fails to paint,
+    // a card is still a card rather than a transparent hole.
     backgroundColor: t.colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing[5],
     borderWidth: 1,
-    borderColor: t.colors.borderSubtle,
+    // `border`, not `borderSubtle`. Measured against the page, borderSubtle is
+    // 1.04:1 — invisible, leaving the shadow to do all the separating. `border`
+    // is 1.12:1 light and 1.81:1 dark: still soft, but an actual edge. Both are
+    // inside the decorative-border exemption in CLAUDE.md; this is the one that
+    // gives the card a milled rim instead of a fade.
+    borderColor: t.colors.border,
     gap: Spacing[3],
     ...t.shadows.card,
   },

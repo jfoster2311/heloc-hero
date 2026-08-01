@@ -703,6 +703,41 @@ export type ThemeMode = 'light' | 'dark';
  * Type/space/radius/tracking are shared across both themes and stay importable
  * as plain modules — only colour and elevation differ, so only those are here.
  */
+/**
+ * The card's face — a top-lit machined surface rather than a flat fill.
+ *
+ * Two stops, both already in the palette, running lightest-at-the-top-edge into
+ * the card colour. That reads as a sheet of metal catching light from above,
+ * which is the whole point: a flat white rectangle reads as a web page, and the
+ * gradient is what makes it read as an object.
+ *
+ * ── Why these values and not silver ────────────────────────────────────────
+ * The obvious version of this is white → a slate like #F1F5F9, which is what a
+ * generic "premium fintech" recipe calls for. It is wrong HERE, and the note on
+ * the neutrals above says why: surfaces 50–300 are green-derived so the page
+ * has no un-derived neutral in it, and `gray400`/`gray500` are the only things
+ * allowed to be neutral because `Semantic` depends on their neutrality. Slate
+ * is blue-leaning. Dropped beside `gray50`'s #F4FAF6 it would put two near-white
+ * surfaces of opposing hue temperature next to each other, which does not read
+ * as premium — it reads as a colour bug.
+ *
+ * So the metaphor is kept and the pigment is the app's own. `surface → gray50`
+ * is the same lightness move the slate recipe makes, in this system's hue.
+ *
+ * ── Measured, both directions ──────────────────────────────────────────────
+ * A gradient changes the background every ink token is read against, so the
+ * DARKEST point a light card reaches and the LIGHTEST point a dark card reaches
+ * are what matter, not the surface colour. Against those:
+ *
+ *   light  textMuted 4.68 · accentInk 4.72 · gray500 4.69 — all clear AA
+ *   dark   textMuted 4.53 — the tightest in the app, and the reason the dark
+ *          stop is `gray50` and not `gray100`. gray100 puts it at 4.22, which
+ *          fails; the widest passing stop measured #17251C, and `gray50` is
+ *          #17251D.
+ */
+export const CardGradient      = [Colors.surface, Colors.gray50] as const;
+export const DarkCardGradient  = [DarkColors.gray50, DarkColors.surface] as const;
+
 export interface Theme {
   mode:         ThemeMode;
   colors:       typeof Colors;
@@ -710,6 +745,8 @@ export interface Theme {
   semantic:     SemanticTokens;
   categoryRamp: CategoryRampTokens;
   common:       typeof CommonStyles;
+  /** Lightest stop first. See CardGradient. */
+  cardGradient: readonly [string, string];
 }
 
 export const LightTheme: Theme = {
@@ -719,6 +756,7 @@ export const LightTheme: Theme = {
   semantic:     Semantic,
   categoryRamp: CategoryRamp,
   common:       CommonStyles,
+  cardGradient: CardGradient,
 };
 
 export const DarkTheme: Theme = {
@@ -728,4 +766,5 @@ export const DarkTheme: Theme = {
   semantic:     DarkSemantic,
   categoryRamp: DarkCategoryRamp,
   common:       DarkCommonStyles,
+  cardGradient: DarkCardGradient,
 };
