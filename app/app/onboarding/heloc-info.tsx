@@ -33,8 +33,11 @@ export default function HelocInfoStep() {
   const router = useRouter();
   const { data, update, nextStep, prevStep } = useOnboardingStore();
 
+  // Read back the stored answer rather than re-deriving it from hasHeloc, which
+  // cannot tell "no" from "not sure" and so silently downgraded the second to
+  // the first every time the user stepped back to this screen.
   const [helocStatus, setHelocStatus] = useState<HelocStatus>(
-    data.hasHeloc ? 'have_one' : 'no_heloc',
+    data.helocStatus ?? (data.hasHeloc ? 'have_one' : 'no_heloc'),
   );
   const hasHeloc = helocStatus === 'have_one';
   const notSure  = helocStatus === 'not_sure';
@@ -63,6 +66,7 @@ export default function HelocInfoStep() {
   function handleNext() {
     update({
       hasHeloc,
+      helocStatus,
       helocBalance: hasHeloc ? parseFloat(helocBalance) || 0 : 0,
       helocLimit:   hasHeloc ? parseFloat(helocLimit)   || 0 : projectedLimit,
       helocRate:    hasHeloc ? parseFloat(helocRate) / 100  : 0.085,

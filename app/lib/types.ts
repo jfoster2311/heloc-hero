@@ -100,6 +100,15 @@ export interface OnboardingData {
   monthlyIncome: number;
   monthlyExpenses: number;
   hasHeloc: boolean;
+  /**
+   * What the user actually answered, which `hasHeloc` cannot carry.
+   *
+   * "Not sure" and "No" both collapse to hasHeloc:false — they have to, since
+   * every projection needs a line to model — but they are not the same claim,
+   * and a screen that tells an unsure user "First step: open a HELOC" is
+   * asserting something nobody established.
+   */
+  helocStatus: 'have_one' | 'no_heloc' | 'not_sure';
   helocBalance: number;
   helocLimit: number;
   helocRate: number;
