@@ -171,7 +171,7 @@ export default function AccountDetailsModal() {
   return (
     <ModalScreen
       title="Connection"
-      footnote="Balances come from your bank through Plaid. We never hold your bank login, and we never move money."
+      footnote="Balances come from your bank through Plaid. We never hold your login, and never move money."
     >
       {/* ── Identity ──────────────────────────────────────────────────────── */}
       <View style={styles.identity}>

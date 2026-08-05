@@ -69,7 +69,7 @@ export default function ConfirmTermsModal() {
             'move, so a quick look against your latest statement keeps every projection honest.'
       }
       save={{ label: 'Yes, these are still correct', onPress: handleConfirm, saving, error }}
-      footnote="Confirming updates the date only — it changes none of your figures. Projections are estimates, not guarantees."
+      footnote="Confirming updates the date only. Projections are estimates, not guarantees."
     >
       <Card>
         <DataRow
@@ -108,7 +108,7 @@ export default function ConfirmTermsModal() {
         <LinkRow
           icon="create-outline"
           label="Update terms"
-          sub="Open the editor to change a rate, limit, draw date or fee"
+          sub="Change a rate, limit, draw date or fee"
           onPress={() => router.replace('/modals/heloc-terms' as never)}
         />
       </Card>

@@ -122,11 +122,7 @@ export default function ReportsScreen() {
     <>
       <ModalScreen
         title="Reports"
-        footnote={
-          'Complete months only — the current month is left out because it is always ' +
-          'partial. Transfers between your own accounts and your mortgage payment are ' +
-          'excluded, the same as everywhere else.'
-        }
+        footnote="Complete months only. Internal transfers and your mortgage payment are excluded."
       >
         <View style={styles.head}>
           <View style={styles.headBody}>

@@ -81,16 +81,9 @@ export default function HomeValueModal() {
   return (
     <ModalScreen
       title="Your home's value"
-      intro={
-        'No bank connection reports what a home is worth, so this one is yours to give. ' +
-        'Recording where the figure came from is what lets the equity below be read as an ' +
-        'estimate rather than a fact.'
-      }
+      intro="No bank reports what a home is worth, so this one is yours to give."
       save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving, error }}
-      footnote={
-        'Equity and loan-to-value derived from this are estimates. A lender or appraiser ' +
-        'will reach their own number, and it may differ materially.'
-      }
+      footnote="Equity and loan-to-value from this are estimates. An appraiser may differ materially."
     >
       <Card>
         <FormField

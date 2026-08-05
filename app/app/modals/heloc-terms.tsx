@@ -179,7 +179,7 @@ export default function HelocTermsModal() {
   return (
     <ModalScreen
       title="Your HELOC terms"
-      intro="Banks share HELOC balances, but never the terms. These turn a balance into a projection." 
+      intro="Banks share HELOC balances, but never the terms. These turn a balance into a projection."
       save={{ label: 'Save terms', onPress: handleSave, disabled: !canSave, saving, error }}
       footnote={`We will ask you to confirm these every ${TERMS_STALE_DAYS} days. Projections are estimates, not guarantees.`}
     >

@@ -78,15 +78,8 @@ export default function MortgagePaymentScreen() {
   return (
     <ModalScreen
       title="Your mortgage payment"
-      intro={
-        'Your payment is modelled separately by your payoff plan, so it should not also ' +
-        'count as spending. Confirm which of these is your mortgage and we will leave it ' +
-        'out of your totals.'
-      }
-      footnote={
-        'Confirming changes what counts as spending. It does not touch what your bank ' +
-        'reported, and you can undo it here at any time.'
-      }
+      intro="Your payoff plan already models this payment, so it should not also count as spending."
+      footnote="Changes what counts as spending, never what your bank reported. Undo it here any time."
     >
       {f.loading ? (
         <View style={styles.centre}>

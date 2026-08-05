@@ -79,18 +79,14 @@ export default function RecurringScreen() {
   return (
     <ModalScreen
       title="Recurring"
-      footnote={
-        'These are patterns we found in your own transactions, not a bill schedule. ' +
-        'Nothing here is a commitment anyone made, and a charge you cancelled today ' +
-        'will still appear until it stops showing up.'
-      }
+      footnote="Patterns found in your transactions, not a bill schedule. A cancelled charge lingers until it stops appearing."
     >
       {!f.hasLinkedAccounts ? (
         // Named the one thing that fixes it and offered no way to do it.
         <EmptyState
           icon="link-outline"
           title="Nothing connected"
-          body="Link an account and the charges that repeat every month are found here automatically."
+          body="Link an account and repeating charges are found automatically."
           action={{
             label: 'Link an account',
             onPress: () => { router.push('/modals/link-account' as never); },

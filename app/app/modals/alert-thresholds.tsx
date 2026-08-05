@@ -108,15 +108,9 @@ export default function AlertThresholdsModal() {
   return (
     <ModalScreen
       title="What to leave behind"
-      intro={
-        'Before HELOC Hero calls any money spare, it sets these two amounts aside. ' +
-        'Raise them and it suggests smaller moves; lower them and it suggests bigger ones.'
-      }
+      intro="Set aside before anything is called spare. Raise them for smaller suggested moves."
       save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving }}
-      footnote={
-        'These shape a suggestion, not a transfer. HELOC Hero never moves money — ' +
-        'you make every transfer at your bank.'
-      }
+      footnote="These shape a suggestion, not a transfer. HELOC Hero never moves money."
     >
       <Card>
         <FormField
@@ -126,7 +120,7 @@ export default function AlertThresholdsModal() {
           onChangeText={setBuffer}
           keyboardType="numeric"
           placeholder={String(DEFAULT_BUFFER)}
-          hint="Your floor. Nothing is ever suggested that would dip below it."
+          hint="Your floor. Nothing is suggested that would dip below it."
           error={buffer.trim() !== '' && bufferNum === null ? 'Enter a dollar amount' : undefined}
           accessibilityLabel="Cash buffer"
         />

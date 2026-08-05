@@ -217,7 +217,7 @@ export default function BudgetScreen() {
     <>
       <ModalScreen
         title="Budget"
-        footnote="A budget is yours alone. It does not change your payoff projection." 
+        footnote="A budget is yours alone. It does not change your payoff projection."
       >
         <Text style={styles.month}>{monthLabel}</Text>
 

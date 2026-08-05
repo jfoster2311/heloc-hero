@@ -102,7 +102,7 @@ export default function MortgageDetailsModal() {
             'schedule rather than the one you are already ahead of.'
       }
       save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving, error }}
-      footnote="Used to derive your original payoff date and how much of the loan you have retired."
+      footnote="Sets your original payoff date and how much of the loan you have retired."
     >
       {reported && (
         <Card>
@@ -175,7 +175,7 @@ export default function MortgageDetailsModal() {
           onChangeText={setPrincipal}
           keyboardType="numeric"
           placeholder="380000"
-          hint="Sets the 'percent of the loan retired' figure on your dashboard."
+          hint="Sets the 'percent retired' figure on your dashboard."
           accessibilityLabel="Original principal amount"
         />
       </Card>

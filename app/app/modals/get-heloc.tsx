@@ -66,8 +66,8 @@ export default function GetHelocModal() {
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>Interest-only draw period</Text>
               <Text style={styles.requirementBody}>
-                You must only owe interest on what you've drawn — not principal. This keeps your
-                monthly HELOC payment predictably low while you cycle surplus through it.
+                You owe interest on what you've drawn, never principal. That is what keeps the
+                payment low enough to cycle surplus through.
               </Text>
             </View>
           </View>
@@ -79,8 +79,8 @@ export default function GetHelocModal() {
             <View style={styles.requirementText}>
               <Text style={styles.requirementTitle}>10+ year draw period</Text>
               <Text style={styles.requirementBody}>
-                The cycling strategy requires years of sustained access. A 10-year draw period is
-                the minimum — 15 or 20 is better. Avoid short 5-year draw-period products.
+                Cycling needs years of sustained access. Ten years is the minimum; 15 or 20 is
+                better.
               </Text>
             </View>
           </View>
@@ -89,18 +89,18 @@ export default function GetHelocModal() {
         {/* Qualifying basics */}
         <Text style={styles.sectionTitle}>What lenders look at</Text>
         <View style={styles.listCard}>
-          <ListRow icon="home-outline"    text="Sufficient home equity — typically 15–20% equity remaining after the HELOC" />
+          <ListRow icon="home-outline"    text="15–20% equity remaining after the HELOC" />
           <ListRow icon="trending-up-outline" text="Credit score of 680+ (720+ for best rates)" />
           <ListRow icon="cash-outline"    text="Debt-to-income ratio under 43%" />
-          <ListRow icon="document-text-outline" text="Stable employment or verifiable self-employment income" />
+          <ListRow icon="document-text-outline" text="Verifiable employment or self-employment income" />
         </View>
 
         {/* What to avoid */}
         <Text style={styles.sectionTitle}>What to avoid</Text>
         <View style={styles.avoidCard}>
-          <AvoidRow text="HELOCs that require you to draw a minimum amount immediately at opening" />
-          <AvoidRow text="Products with a repayment period that starts right away (not interest-only)" />
-          <AvoidRow text="Fixed-rate draw structures — you need variable rate flexibility for the strategy to work" />
+          <AvoidRow text="A minimum draw required at opening" />
+          <AvoidRow text="Repayment starting right away, rather than interest-only" />
+          <AvoidRow text="Fixed-rate draw structures" />
           <AvoidRow text="Draw periods shorter than 10 years" />
         </View>
 
@@ -143,9 +143,9 @@ export default function GetHelocModal() {
           <View style={styles.comingSoonCard}>
             <Ionicons name="time-outline" size={20} color={colors.textMuted} />
             <Text style={styles.comingSoonText}>
-              We're vetting lenders that meet both requirements. In the meantime, search for
-              "interest-only HELOC 10-year draw" at local credit unions and online lenders. Always
-              confirm interest-only draw and 10+ year draw period before applying.
+              We're vetting lenders that meet both requirements. Meanwhile, ask credit unions and
+              online lenders for an "interest-only HELOC with a 10-year draw" — and confirm both
+              before you apply.
             </Text>
           </View>
         )}
