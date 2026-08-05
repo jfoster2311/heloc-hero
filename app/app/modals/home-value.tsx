@@ -18,7 +18,7 @@ import { Card } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
-import { hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess, hapticError } from '../../lib/haptics';
 import { HOME_VALUE_SOURCE_LABEL, type HomeValueSource } from '../../lib/config';
 import { Typography, Spacing } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -38,6 +38,8 @@ export default function HomeValueModal() {
   const [year,    setYear]    = useState(yearOf(profile?.home_value_as_of));
   const [address, setAddress] = useState(profile?.property_address ?? '');
   const [saving,  setSaving]  = useState(false);
+  /** Why the last save attempt did not land. Null while it has not failed. */
+  const [error, setError] = useState<string | null>(null);
 
   const valueNum = parsePositive(value);
   const asOf = buildDate(month, year);
@@ -55,13 +57,23 @@ export default function HomeValueModal() {
   async function handleSave() {
     if (!canSave) return;
     setSaving(true);
-    await updateProfile({
+    const { error: saveError } = await updateProfile({
       home_value:        valueNum,
       home_value_source: source,
       home_value_as_of:  asOf,
       property_address:  address.trim() || null,
     });
     setSaving(false);
+
+    // Never close on a failed write. The figures the user just typed are
+    // still on screen and the fix is to press the same button again.
+    if (saveError) {
+      hapticError();
+      setError(saveError);
+      return;
+    }
+
+    setError(null);
     hapticSuccess();
     router.back();
   }
@@ -74,7 +86,7 @@ export default function HomeValueModal() {
         'Recording where the figure came from is what lets the equity below be read as an ' +
         'estimate rather than a fact.'
       }
-      save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving }}
+      save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving, error }}
       footnote={
         'Equity and loan-to-value derived from this are estimates. A lender or appraiser ' +
         'will reach their own number, and it may differ materially.'

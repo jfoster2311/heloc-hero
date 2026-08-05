@@ -22,7 +22,7 @@ import { useFinancials } from '../../hooks/useFinancials';
 import { daysSinceVerified } from '../../lib/helocTerms';
 import { parseDate } from '../../lib/mortgage';
 import { INTEREST_CALC_LABEL } from '../../lib/config';
-import { hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -32,6 +32,8 @@ export default function ConfirmTermsModal() {
   const { profile, updateProfile } = useAuth();
   const f = useFinancials();
   const [saving, setSaving] = useState(false);
+  /** Why the last save attempt did not land. Null while it has not failed. */
+  const [error, setError] = useState<string | null>(null);
 
   const since = daysSinceVerified(profile?.heloc_terms_updated_at);
   const drawEnd = parseDate(profile?.heloc_draw_end_date);
@@ -40,8 +42,18 @@ export default function ConfirmTermsModal() {
     setSaving(true);
     // Only the confirmation date moves. No term is touched — this is a signature,
     // not an edit.
-    await updateProfile({ heloc_terms_updated_at: new Date().toISOString() });
+    const { error: saveError } = await updateProfile({ heloc_terms_updated_at: new Date().toISOString() });
     setSaving(false);
+
+    // Never close on a failed write. The figures the user just typed are
+    // still on screen and the fix is to press the same button again.
+    if (saveError) {
+      hapticError();
+      setError(saveError);
+      return;
+    }
+
+    setError(null);
     hapticSuccess();
     router.back();
   }
@@ -56,7 +68,7 @@ export default function ConfirmTermsModal() {
           : `You last confirmed these ${since} day${since === 1 ? '' : 's'} ago. HELOC rates ` +
             'move, so a quick look against your latest statement keeps every projection honest.'
       }
-      save={{ label: 'Yes, these are still correct', onPress: handleConfirm, saving }}
+      save={{ label: 'Yes, these are still correct', onPress: handleConfirm, saving, error }}
       footnote="Confirming updates the date only — it changes none of your figures. Projections are estimates, not guarantees."
     >
       <Card>

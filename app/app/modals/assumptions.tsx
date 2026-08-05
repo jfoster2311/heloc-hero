@@ -24,7 +24,7 @@ import { Card, Chip, Meter } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
-import { hapticLight, hapticSuccess } from '../../lib/haptics';
+import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { formatMonths } from '../../lib/projections';
 import { RATE_STRESS_STEPS_BPS } from '../../lib/config';
 import { Typography, Spacing, Radius } from '../../lib/theme';
@@ -44,6 +44,8 @@ export default function AssumptionsModal() {
   const [threshold, setThreshold] = useState(f.replenishThreshold);
   const [assumeSweep, setAssumeSweep] = useState(profile?.auto_apply_surplus ?? false);
   const [saving,    setSaving]    = useState(false);
+  /** Why the last save attempt did not land. Null while it has not failed. */
+  const [error, setError] = useState<string | null>(null);
 
   const incomeNum   = parsePositive(income);
   const expensesNum = parsePositive(expenses);
@@ -56,7 +58,7 @@ export default function AssumptionsModal() {
 
   async function handleSave() {
     setSaving(true);
-    await updateProfile({
+    const { error: saveError } = await updateProfile({
       monthly_income:      incomeNum,
       monthly_expenses:    expensesNum,
       replenish_threshold: threshold,
@@ -66,6 +68,16 @@ export default function AssumptionsModal() {
       cashflow_source:     'entered',
     });
     setSaving(false);
+
+    // Never close on a failed write. The figures the user just typed are
+    // still on screen and the fix is to press the same button again.
+    if (saveError) {
+      hapticError();
+      setError(saveError);
+      return;
+    }
+
+    setError(null);
     hapticSuccess();
     router.back();
   }
@@ -92,12 +104,22 @@ export default function AssumptionsModal() {
     setExpenses(String(Math.round(d.monthlyExpenses)));
     if (takeIncome) setIncome(String(Math.round(d.monthlyIncome!)));
 
-    await updateProfile({
+    const { error: adoptError } = await updateProfile({
       ...(takeIncome ? { monthly_income: Math.round(d.monthlyIncome!) } : {}),
       monthly_expenses:    Math.round(d.monthlyExpenses),
       cashflow_source:     'derived',
       cashflow_derived_at: new Date().toISOString(),
     });
+
+    // Adopt writes the same figures Save does, so it has the same duty to say
+    // when it did not. It stays open either way — this fills the fields rather
+    // than finishing the screen.
+    if (adoptError) {
+      hapticError();
+      setError(adoptError);
+      return;
+    }
+    setError(null);
     hapticSuccess();
   }
 
@@ -111,7 +133,7 @@ export default function AssumptionsModal() {
           : 'Every projection in the app is built on these. Link an account and the app can ' +
             'check them against what you actually spend.'
       }
-      save={{ label: 'Save assumptions', onPress: handleSave, saving }}
+      save={{ label: 'Save assumptions', onPress: handleSave, saving, error }}
       footnote="Changing these changes every payoff date and interest figure in the app."
     >
       {/* ── What the transactions say ─────────────────────────────────────
@@ -340,7 +362,17 @@ export default function AssumptionsModal() {
               <Touchable
                 key={bps}
                 style={[styles.stressChip, active && styles.stressChipActive]}
-                onPress={() => { updateProfile({ forward_rate_delta_bps: bps }); }}
+                // Fire-and-forget everywhere else in this file would be a bug;
+                // here it is the one write that is genuinely disposable. It
+                // stores which rate-stress chip is selected — a view setting,
+                // not a figure any projection is saved from — and the chip
+                // re-renders from `f.forwardRateDeltaBps`, so a failed write
+                // simply leaves the selection where it was. Reported anyway,
+                // because silence is what this whole pass is fixing.
+                onPress={async () => {
+                  const { error: stressError } = await updateProfile({ forward_rate_delta_bps: bps });
+                  if (stressError) { hapticError(); setError(stressError); }
+                }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={bps === 0 ? 'Today’s rate' : `Plus ${bps / 100} percent`}

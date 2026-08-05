@@ -20,7 +20,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { parseDate } from '../../lib/mortgage';
 import { parsePositive } from '../../lib/parseNumeric';
-import { hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -51,6 +51,8 @@ export default function MortgageDetailsModal() {
       : 'unknown',
   );
   const [saving, setSaving] = useState(false);
+  /** Why the last save attempt did not land. Null while it has not failed. */
+  const [error, setError] = useState<string | null>(null);
 
   const origDate     = buildDate(origMonth, origYear);
   const dateInvalid  = (origMonth !== '' || origYear !== '') && origDate === null;
@@ -67,13 +69,23 @@ export default function MortgageDetailsModal() {
   async function handleSave() {
     if (!canSave) return;
     setSaving(true);
-    await updateProfile({
+    const { error: saveError } = await updateProfile({
       mortgage_origination_date:       origDate,
       mortgage_origination_principal:  principalNum,
       mortgage_term_months:            termNum !== null ? Math.round(termNum * 12) : null,
       mortgage_has_prepayment_penalty: penalty === 'unknown' ? null : penalty === 'yes',
     });
     setSaving(false);
+
+    // Never close on a failed write. The figures the user just typed are
+    // still on screen and the fix is to press the same button again.
+    if (saveError) {
+      hapticError();
+      setError(saveError);
+      return;
+    }
+
+    setError(null);
     hapticSuccess();
     router.back();
   }
@@ -89,7 +101,7 @@ export default function MortgageDetailsModal() {
             'common. These few facts are what let the app measure against your original ' +
             'schedule rather than the one you are already ahead of.'
       }
-      save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving }}
+      save={{ label: 'Save', onPress: handleSave, disabled: !canSave, saving, error }}
       footnote="Used to derive your original payoff date and how much of the loan you have retired."
     >
       {reported && (

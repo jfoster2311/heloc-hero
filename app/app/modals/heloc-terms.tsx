@@ -31,7 +31,7 @@ import {
 import {
   INTEREST_CALC_LABEL, INTEREST_CALC_EXPLAINER, type InterestCalcMethod,
 } from '../../lib/config';
-import { hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
@@ -69,6 +69,8 @@ export default function HelocTermsModal() {
   const [annualFee,   setAnnualFee]   = useState(numStr(profile?.heloc_annual_fee));
   const [closeFee,    setCloseFee]    = useState(numStr(profile?.heloc_early_closure_fee));
   const [saving,      setSaving]      = useState(false);
+  /** Why the last save attempt did not land. Null while it has not failed. */
+  const [error, setError] = useState<string | null>(null);
 
   const rateNum     = parsePositive(rate);
   const drawDate    = buildDate(drawMonth, drawYear);
@@ -94,7 +96,7 @@ export default function HelocTermsModal() {
     // make a months-old balance claim to have been confirmed today — that
     // timestamp is the only thing telling the user when to distrust it.
     const balanceChanged = balanceNum !== (profile?.heloc_balance ?? null);
-    await updateProfile({
+    const { error: saveError } = await updateProfile({
       heloc_rate:                 rateNum! / 100,
       heloc_rate_index:           index.trim() || null,
       heloc_margin:               marginNum !== null ? marginNum / 100 : null,
@@ -112,6 +114,16 @@ export default function HelocTermsModal() {
       heloc_terms_updated_at:     new Date().toISOString(),
     });
     setSaving(false);
+
+    // Never close on a failed write. The figures the user just typed are
+    // still on screen and the fix is to press the same button again.
+    if (saveError) {
+      hapticError();
+      setError(saveError);
+      return;
+    }
+
+    setError(null);
     hapticSuccess();
     router.back();
   }
@@ -124,7 +136,7 @@ export default function HelocTermsModal() {
         'offers HELOC rates or draw dates through a bank connection. These fields are what ' +
         'turn balances into a payoff projection.'
       }
-      save={{ label: 'Save terms', onPress: handleSave, disabled: !canSave, saving }}
+      save={{ label: 'Save terms', onPress: handleSave, disabled: !canSave, saving, error }}
       footnote={
         `We will ask you to confirm these every ${TERMS_STALE_DAYS} days, because HELOC ` +
         'rates move. Projections built on them are estimates, not guarantees.'

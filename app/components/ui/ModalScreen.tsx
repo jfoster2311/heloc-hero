@@ -26,6 +26,8 @@ interface ModalScreenProps {
     onPress: () => void;
     disabled?: boolean;
     saving?: boolean;
+    /** Why the last attempt did not save. Rendered above the button. */
+    error?: string | null;
   };
   footnote?: string;
 }
@@ -85,17 +87,31 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
           {children}
 
           {save ? (
-            <Touchable
-              style={[styles.saveBtn, (save.disabled || save.saving) && styles.saveBtnDisabled]}
-              onPress={save.onPress}
-              disabled={save.disabled || save.saving}
-              accessibilityRole="button"
-              accessibilityLabel={save.label}
-            >
-              {save.saving
-                ? <ActivityIndicator color={colors.onAccent} />
-                : <Text style={styles.saveText}>{save.label}</Text>}
-            </Touchable>
+            <>
+              {/* Sits ABOVE the button, not in an Alert. A save that failed
+                  leaves the user looking at the figures they just typed, and
+                  the fix is to press the same button again — so the message
+                  belongs beside it, where a modal dismissal cannot take it
+                  away. assertive, because it reports that the thing they just
+                  asked for did not happen. */}
+              {save.error ? (
+                <View style={styles.saveError} accessibilityLiveRegion="assertive">
+                  <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.saveErrorText}>{save.error}</Text>
+                </View>
+              ) : null}
+              <Touchable
+                style={[styles.saveBtn, (save.disabled || save.saving) && styles.saveBtnDisabled]}
+                onPress={save.onPress}
+                disabled={save.disabled || save.saving}
+                accessibilityRole="button"
+                accessibilityLabel={save.label}
+              >
+                {save.saving
+                  ? <ActivityIndicator color={colors.onAccent} />
+                  : <Text style={styles.saveText}>{save.label}</Text>}
+              </Touchable>
+            </>
           ) : null}
 
           {footnote ? <Text style={styles.footnote}>{footnote}</Text> : null}
@@ -177,6 +193,24 @@ const useStyles = createThemedStyles(t => ({
   },
   saveBtnDisabled: { opacity: 0.45 },
   saveText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
+  // Grey, not red — CLAUDE.md's palette rule holds here too, and the icon plus
+  // the sentence carry the severity. Same treatment the auth screens give a
+  // failed sign-in.
+  saveError: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[2],
+    backgroundColor: t.colors.gray50,
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[3],
+  },
+  saveErrorText: {
+    flex: 1,
+    fontSize: Typography.sm,
+    color: t.colors.textSecondary,
+    lineHeight: 20,
+  },
 
   footnote: {
     fontSize: Typography.xs,
