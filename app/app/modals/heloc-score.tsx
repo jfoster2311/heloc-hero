@@ -20,6 +20,7 @@ import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
+import { SectionHead, type ExplainContent } from '../../components/ui/Explain';
 import GaugeArc from '../../components/ui/GaugeArc';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -35,6 +36,24 @@ import { createThemedStyles, useTheme } from '../../lib/themeContext';
 // The bands and the free-report link both live in lib/helocScore.ts, because
 // onboarding collects the same answer and the two had drifted to different
 // midpoints for the same band.
+
+// The honesty constraint at the top of this file says the defence against
+// reading this as approval odds is that every factor shows its own arithmetic —
+// not a disclaimer at the bottom. That holds, and it is why the working can move
+// behind a tap while the four words that matter stay in the footnote.
+const HOW_THE_SCORE_WORKS: ExplainContent = {
+  title: 'How it adds up',
+  body: [
+    'Each factor below is scored out of its own maximum from figures you have given us, and ' +
+    'the total is their sum. Nothing here is weighted by anything you cannot see.',
+    'There is no underwriting model behind this and no lender is involved. A score you can ' +
+    'recompute yourself cannot be mistaken for one a lender computed — that is the point of ' +
+    'showing the working rather than just the number.',
+    'A factor that does not apply yet is left uncounted rather than scored zero. Not having ' +
+    'opened a HELOC is not a failure on a screen about getting ready to open one.',
+    'Your credit band is one you pick yourself. We never pull your credit.',
+  ],
+};
 
 export default function HelocScoreScreen() {
   const { colors, common } = useTheme();
@@ -81,12 +100,9 @@ export default function HelocScoreScreen() {
   return (
     <ModalScreen
       title="HELOC Hero score"
-      footnote={
-        'This is our own readiness check, not a lending decision and not approval odds. ' +
-        'It is built only from the figures on this screen, and no lender sees it. ' +
-        'Projections are estimates — HELOC Hero is not a lender and this is not ' +
-        'financial advice.'
-      }
+      // Cut to the four claims that carry the legal weight. The methodology
+      // that used to pad this out is one tap away at "How it adds up".
+      footnote="Our own readiness check — not a lending decision, not approval odds, and no lender sees it. Not financial advice."
     >
       {f.loading ? (
         <View style={styles.centre}><ActivityIndicator color={colors.accentInk} /></View>
@@ -129,7 +145,7 @@ export default function HelocScoreScreen() {
           )}
 
           {/* ── The working ──────────────────────────────────────────────── */}
-          <Text style={common.eyebrow}>HOW IT ADDS UP</Text>
+          <SectionHead label="How it adds up" explain={HOW_THE_SCORE_WORKS} />
           <View style={styles.factors}>
             {score.factors.map(fac => (
               <FactorRow
@@ -146,9 +162,10 @@ export default function HelocScoreScreen() {
               <Text style={styles.creditTitle}>
                 {profile?.credit_score == null ? 'Add your credit range' : 'Update your range'}
               </Text>
+              {/* Stays: it is the answer to "will this ding my credit?", asked
+                  at the exact moment the user is deciding whether to tap. */}
               <Text style={styles.creditBody}>
-                Pick the band you are in. We never pull your credit, and nothing here is
-                shared with a lender.
+                We never pull your credit, and no lender sees this.
               </Text>
 
               <View style={styles.ranges}>
@@ -187,8 +204,7 @@ export default function HelocScoreScreen() {
               >
                 <Ionicons name="open-outline" size={15} color={colors.mint700} />
                 <Text style={styles.linkText}>
-                  Don&apos;t know it? Get it free at annualcreditreport.com — the official
-                  site, no card needed. Your bank or card issuer likely shows a score too.
+                  Don&apos;t know it? Get it free at annualcreditreport.com
                 </Text>
               </Touchable>
             </View>

@@ -367,7 +367,7 @@ export default function SettingsModal() {
               <NoticeRow
                 icon="notifications-outline"
                 label="Allow notifications to receive these"
-                subtitle="Your preferences are saved, but nothing can be delivered until iOS allows it."
+                subtitle="Saved, but nothing can be delivered until iOS allows it."
                 actionLabel="Allow"
                 onPress={async () => setNotifStatus(await requestPermission())}
               />
@@ -376,21 +376,21 @@ export default function SettingsModal() {
               <NoticeRow
                 icon="phone-portrait-outline"
                 label="Reminders need the full app"
-                subtitle="Notification scheduling is unavailable in this build. Your preferences are still saved."
+                subtitle="Unavailable in this build. Your preferences are still saved."
               />
             )}
 
             <ToggleRow
               icon="repeat-outline"
               label="Sweep reminder"
-              subtitle="Tell me when my surplus is ready to move to the HELOC"
+              subtitle="When my surplus is ready to move"
               value={!!automation.safe_sweep_enabled}
               onChange={v => handleReminderToggle({ safe_sweep_enabled: v }, v)}
             />
             <ToggleRow
               icon="flash-outline"
               label="Dump reminder"
-              subtitle="Tell me when the HELOC is replenished enough to dump"
+              subtitle="When the line is replenished enough to dump"
               value={!!automation.safe_dump_enabled}
               onChange={v => handleReminderToggle({ safe_dump_enabled: v }, v)}
             />
@@ -401,7 +401,7 @@ export default function SettingsModal() {
               <NoticeRow
                 icon="pricetag-outline"
                 label="Monthly terms check"
-                subtitle="Once your HELOC terms are set, we remind you monthly to confirm the rate is still current."
+                subtitle="Monthly, once your HELOC terms are set."
               />
             )}
             <SettingRow
@@ -505,7 +505,7 @@ export default function SettingsModal() {
             <ToggleRow
               icon="finger-print-outline"
               label="Auto Lock"
-              subtitle="Require Face ID or passcode after 15 min in background"
+              subtitle="Face ID or passcode after 15 min in background"
               value={autoLock}
               onChange={handleAutoLockToggle}
             />

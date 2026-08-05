@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
 import { Card } from '../../components/ui/primitives';
+import { SectionHead, type ExplainContent } from '../../components/ui/Explain';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
 import { parseNumeric, parsePositive } from '../../lib/parseNumeric';
@@ -43,6 +44,53 @@ const PAYMENT_OPTIONS = [
 
 const CALC_OPTIONS = (Object.keys(INTEREST_CALC_LABEL) as InterestCalcMethod[])
   .map(v => ({ value: v, label: INTEREST_CALC_LABEL[v] }));
+
+// Each of these was a paragraph sitting between a field's label and its control.
+// They are pedagogy by the rule in components/ui/Explain: they teach why a term
+// matters to the strategy. What they were NOT is a warning that the strategy
+// does not fit — those fire from the user's own answer, and they stay on canvas.
+const INTEREST_METHOD: ExplainContent = {
+  title: 'How interest is calculated',
+  body: [
+    'This one term decides whether cycling saves you anything at all.',
+    'On an average-daily-balance line, money parked against the balance stops costing you ' +
+    'interest the day it lands — which is the entire mechanism cycling relies on.',
+    'On a statement-balance line, the balance is read once a month, so parking money mid-cycle ' +
+    'earns you nothing and the strategy largely does not work.',
+    'Your agreement will say which, or a call to the bank will settle it in a minute.',
+  ],
+};
+
+const PAYMENT_TYPE: ExplainContent = {
+  title: 'Payments during the draw',
+  body: [
+    'Cycling only works while payments are interest-only.',
+    'An interest-only line lets you carry a large balance briefly and repay it on your own ' +
+    'schedule with your surplus. Once a HELOC amortizes, a fixed principal payment is due ' +
+    'every month whatever you do, and there is no room left for the strategy to work in.',
+  ],
+};
+
+const DRAW_PERIOD: ExplainContent = {
+  title: 'Draw period',
+  body: [
+    'After this date you can no longer draw on the line, so every cycle in the plan has to ' +
+    'finish before it.',
+    'This is why the app only ever recommends interest-only lines with a long draw period. A ' +
+    'plan that runs past the end of the draw is not a plan.',
+  ],
+};
+
+const FEES: ExplainContent = {
+  title: 'Fees',
+  body: [
+    'Optional, and worth having.',
+    'A draw fee charged every cycle is a recurring cost the projection would otherwise ignore ' +
+    'entirely — and cycling means drawing repeatedly, so a fee that looks trivial once is not ' +
+    'trivial twenty times.',
+    'An annual fee is spread across the year in the same projection.',
+  ],
+};
 
 export default function HelocTermsModal() {
   const styles = useStyles();
@@ -131,22 +179,14 @@ export default function HelocTermsModal() {
   return (
     <ModalScreen
       title="Your HELOC terms"
-      intro={
-        'Banks share HELOC balances with us automatically, but not the terms — no provider ' +
-        'offers HELOC rates or draw dates through a bank connection. These fields are what ' +
-        'turn balances into a payoff projection.'
-      }
+      intro="Banks share HELOC balances, but never the terms. These turn a balance into a projection." 
       save={{ label: 'Save terms', onPress: handleSave, disabled: !canSave, saving, error }}
-      footnote={
-        `We will ask you to confirm these every ${TERMS_STALE_DAYS} days, because HELOC ` +
-        'rates move. Projections built on them are estimates, not guarantees.'
-      }
+      footnote={`We will ask you to confirm these every ${TERMS_STALE_DAYS} days. Projections are estimates, not guarantees.`}
     >
       {sinceVerified !== null && sinceVerified >= TERMS_STALE_DAYS && (
         <View style={styles.staleCard}>
           <Text style={styles.staleText}>
-            Last confirmed {sinceVerified} days ago. Is your rate still what it says below?
-            Your latest statement will have it.
+            Last confirmed {sinceVerified} days ago. Is your rate still right?
           </Text>
         </View>
       )}
@@ -227,28 +267,24 @@ export default function HelocTermsModal() {
             keyboardType="numeric"
             hint={
               lastBalanceAt
-                ? `You last set this ${lastBalanceAt}. Update it after a sweep or a dump so ` +
-                  'your next-dump progress stays right.'
-                : 'What is drawn on the line today. Without it we cannot tell how far ' +
-                  'along the cycle you are, so we will not recommend a move.'
+                ? `You last set this ${lastBalanceAt}. Update it after a sweep or a dump.`
+                : 'What is drawn today. Without it we will not recommend a move.'
             }
             accessibilityLabel="Current HELOC balance"
           />
+          {/* Stays: "unknown is not zero" is an invariant the rest of the app
+              reads, and this is the only place the user is told the difference
+              between answering zero and skipping the field. */}
           <Text style={styles.hint}>
-            Enter 0 if the line is open but untouched — that is a real answer, and it is
-            different from leaving this blank.
+            Enter 0 if the line is open but untouched — that is different from leaving it blank.
           </Text>
         </Card>
       )}
 
       {/* ── How interest is charged — the load-bearing question ─────────── */}
       <Card>
-        <Text style={styles.label}>How interest is calculated</Text>
-        <Text style={styles.hint}>
-          This one term decides whether cycling saves you anything. Your agreement or a call
-          to the bank will settle it.
-        </Text>
-        <View style={{ marginTop: Spacing[3] }}>
+        <SectionHead label="How interest is calculated" caps={false} explain={INTEREST_METHOD} />
+        <View>
           <Segmented options={CALC_OPTIONS} value={calcMethod} onChange={setCalcMethod} />
         </View>
         {calcMethod && (
@@ -264,12 +300,8 @@ export default function HelocTermsModal() {
 
       {/* ── Payment type ────────────────────────────────────────────────── */}
       <Card>
-        <Text style={styles.label}>Payments during the draw period</Text>
-        <Text style={styles.hint}>
-          Cycling only works while payments are interest-only. Once a HELOC amortizes, the
-          strategy stops working.
-        </Text>
-        <View style={{ marginTop: Spacing[3] }}>
+        <SectionHead label="Payments during the draw period" caps={false} explain={PAYMENT_TYPE} />
+        <View>
           <Segmented options={PAYMENT_OPTIONS} value={paymentType} onChange={setPaymentType} />
         </View>
         {paymentType === 'amortizing' && (
@@ -282,10 +314,7 @@ export default function HelocTermsModal() {
 
       {/* ── Draw period ─────────────────────────────────────────────────── */}
       <Card>
-        <Text style={styles.label}>Draw period ends</Text>
-        <Text style={styles.hint}>
-          After this date you can no longer draw, so the plan has to finish before it.
-        </Text>
+        <SectionHead label="Draw period ends" caps={false} explain={DRAW_PERIOD} />
         <View style={styles.dateRow}>
           <View style={{ flex: 1 }}>
             <FormField
@@ -317,12 +346,8 @@ export default function HelocTermsModal() {
 
       {/* ── Fees ────────────────────────────────────────────────────────── */}
       <Card>
-        <Text style={styles.label}>Fees</Text>
-        <Text style={styles.hint}>
-          Optional, and worth having: a draw fee charged every cycle is a recurring cost the
-          projection would otherwise ignore.
-        </Text>
-        <View style={{ marginTop: Spacing[3] }}>
+        <SectionHead label="Fees" caps={false} explain={FEES} />
+        <View>
           <FormField
             label="Per-draw fee"
             prefix="$"

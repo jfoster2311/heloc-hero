@@ -200,8 +200,7 @@ export default function UpgradeModal() {
           }
         >
           <HeroCaption>
-            Connect your accounts and HELOC Hero watches your balances, then tells you the
-            moment it&apos;s worth moving money.
+            Watch your balances. Know the moment it&apos;s worth moving money.
           </HeroCaption>
         </Hero>
 
@@ -261,7 +260,7 @@ export default function UpgradeModal() {
 
               {!storePrice && (
                 <Text style={styles.priceNote}>
-                  US pricing. Your App Store shows the exact price in your own currency.
+                  US pricing. Your App Store shows your own currency.
                 </Text>
               )}
             </>
@@ -290,8 +289,8 @@ export default function UpgradeModal() {
           >
             <Ionicons name="cloud-offline-outline" size={18} color={colors.textSecondary} />
             <Text style={styles.retryText}>
-              We couldn&apos;t reach the App Store for current pricing. The figure above is
-              US list pricing, not your final price.
+              Couldn&apos;t reach the App Store. The figure above is US list pricing, not your
+              final price.
             </Text>
             <Text style={styles.retryAction}>Retry</Text>
           </Touchable>
@@ -312,9 +311,11 @@ export default function UpgradeModal() {
               <Text style={styles.featureText}>{f}</Text>
             </View>
           ))}
+          {/* Stays on the paywall and stays whole. Someone about to pay for a
+              product must not have to open anything to learn it will not move
+              their money for them. */}
           <Text style={styles.noAutomation}>
-            HELOC Hero never moves money. Only you can pay your mortgage or draw your HELOC —
-            we tell you when and how much, and keep the score.
+            HELOC Hero never moves money. We tell you when and how much, and keep the score.
           </Text>
         </View>
 
@@ -336,8 +337,7 @@ export default function UpgradeModal() {
 
         {!rcAvailable && (
           <Text style={styles.unavailableNote}>
-            Purchases aren&apos;t available in this build. Open HELOC Hero from the App Store to
-            subscribe.
+            Purchases aren&apos;t available in this build.
           </Text>
         )}
 
