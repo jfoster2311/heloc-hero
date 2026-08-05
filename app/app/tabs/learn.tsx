@@ -292,13 +292,13 @@ export default function LearnScreen() {
           </View>
           <View style={styles.ruleBody}>
             <Text style={styles.ruleTitle}>Surplus, not salary</Text>
+            {/* Cut to the rule and its consequence. The contrast with the
+                all-in-one variant is the opening of article 1, one tap below,
+                which is where a reader who wants the comparison is going. */}
             <Text style={styles.ruleText}>
-              Keep banking the way you already do: your paycheck lands in checking and your
-              bills are paid from there. Only what is genuinely{' '}
+              Keep banking the way you already do. Only what is genuinely{' '}
               <Text style={styles.ruleEm}>left over</Text> goes at the line, so a month where
               cash flow stops is a month you pause — not a month you cannot pay the bills.
-              The version of this strategy that runs your whole income through the HELOC is a
-              different and riskier arrangement, and this app never asks it of you.
             </Text>
           </View>
         </View>

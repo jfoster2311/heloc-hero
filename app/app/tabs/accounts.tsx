@@ -451,8 +451,8 @@ export default function AccountsScreen() {
                 icon="link-outline"
                 title="Nothing connected yet"
                 body={canLink
-                  ? 'Everything below works from figures you enter. Connecting a bank replaces those with live balances and, for many servicers, your real mortgage terms.'
-                  : 'Everything below works from figures you enter. Pro adds live balances and servicer-reported mortgage terms.'}
+                  ? 'Everything below works from figures you enter. Connect a bank for live balances.'
+                  : 'Everything below works from figures you enter. Pro adds live balances.'}
                 action={{
                   label: canLink ? 'Connect an account' : 'See Pro',
                   onPress: () => router.push(canLink ? '/modals/link-account' : '/modals/upgrade'),
@@ -533,7 +533,7 @@ export default function AccountsScreen() {
             <LinkRow
               icon="download-outline"
               label="Export my data"
-              sub="Shares a CSV of the balances, terms and assumptions held on this device"
+              sub="A CSV of the balances, terms and assumptions on this device"
               onPress={handleExport} />
             <LinkRow
               icon="mail-outline"

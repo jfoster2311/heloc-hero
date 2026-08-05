@@ -891,9 +891,8 @@ export default function CashFlowScreen() {
           ) : count === 0 && sweepCount === 0 ? (
             <View style={styles.stateBlock}>
               <Text style={styles.emptyBody}>
-                Nothing logged yet. Record the money you move — surplus onto your line, and
-                lump sums off it onto your principal — and this fills in with your real
-                history rather than a projection.
+                Nothing logged yet. Record the money you move and this fills in with your
+                real history.
               </Text>
               <Touchable
                 style={styles.emptyBtn}
@@ -950,8 +949,7 @@ export default function CashFlowScreen() {
                 />
               </View>
               <Text style={styles.chartNote}>
-                Your own record of transfers you made. These are two directions round the same
-                loop, so they are not added together.
+                Two directions round the same loop, so they are not added together.
               </Text>
             </>
           )}

@@ -609,10 +609,13 @@ export default function DashboardScreen() {
                 // balance, so without one the subtraction below would run on
                 // zeros and hand the user their whole surplus as spendable.
                 <>
+                  {/* Keeps both halves: WHAT is missing and WHY that stops the
+                      figure. Cutting to "add your balance" would lose the reason
+                      the app is refusing to guess — which is the whole point of
+                      the unknown-is-not-zero rule this state exists to honour. */}
                   <Text style={styles.sweepEmpty}>
-                    We have your limit but not what is drawn on it. What is committed to
-                    replenishing depends entirely on that balance, so there is no figure
-                    here we can stand behind yet.
+                    We have your limit but not what is drawn on it, so there is no figure here
+                    we can stand behind.
                   </Text>
                   <Touchable
                     style={styles.sweepAction}
@@ -628,8 +631,7 @@ export default function DashboardScreen() {
               ) : sweep.state === 'no_surplus' ? (
                 <>
                   <Text style={styles.sweepEmpty}>
-                    Nothing is left over each month yet — so there is nothing to sweep.
-                    Your income and expense figures are what decide that.
+                    Nothing left over yet, so there is nothing to sweep.
                   </Text>
                   {/* The assumptions sheet rather than the Cash flow tab: this
                       state exists because income minus outgoings is zero or

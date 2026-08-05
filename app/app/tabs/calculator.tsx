@@ -27,6 +27,7 @@ import { useScrollToTop } from '@react-navigation/native';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card, SectionLabel } from '../../components/ui/primitives';
+import { SectionHead, type ExplainContent } from '../../components/ui/Explain';
 import Slider from '../../components/ui/Slider';
 import { useAuth } from '../../hooks/useAuth';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -48,6 +49,26 @@ const DEFAULT_TERM_YEARS = 30;
 
 /** Shared by every field, so one bar serves the whole screen. iOS only. */
 const KEYPAD_ACCESSORY_ID = 'calculator-keypad';
+
+// The rate-arbitrage explanation, which is the most important thing this screen
+// knows and the least suited to sitting under a figure as a five-line paragraph.
+// The verdict stays on canvas; the reasoning behind it is one tap away.
+const WHERE_THE_SAVING_COMES_FROM: ExplainContent = {
+  title: 'Where the saving comes from',
+  body: [
+    'The comparison above is against doing nothing — a baseline that never spends the surplus ' +
+    'at all. So the difference between the two paths contains two separate effects, and it is ' +
+    'worth knowing which is which.',
+    'The first is simply paying the money. Any extra principal payment shortens a mortgage, ' +
+    'whether it travels through a HELOC or goes straight at the loan.',
+    'The second is routing it through the line. That is what cycling actually adds, and it is ' +
+    'a rate arbitrage: it wins only when your line is cheaper than your mortgage. At a typical ' +
+    '8.5% line against a 6.5% mortgage it is slightly negative.',
+    'Across realistic inputs the first effect is very nearly all of it. That is not an argument ' +
+    'against paying your mortgage down early — it is an argument for knowing that the lever ' +
+    'worth shopping for is the rate on your line.',
+  ],
+};
 
 /**
  * The model, stated plainly. Shown behind "How this is calculated" so the payoff
@@ -462,12 +483,9 @@ export default function CalculatorScreen() {
                 cycling. See the note in prepare(). */}
             {(inputs.lumpSum ?? 0) > 0 && (
               <Text style={styles.leverNote}>
-                The injection is applied to both paths below, because the money is
-                yours whether or not you cycle. It pulls both payoff dates in — so
-                expect &ldquo;interest saved&rdquo; to go{' '}
-                <Text style={styles.leverNoteEm}>down</Text> as you add more: a
-                smaller balance simply leaves cycling less to save. You are better
-                off, and the strategy is doing less of the work.
+                Applied to both paths, so &ldquo;interest saved&rdquo; goes{' '}
+                <Text style={styles.leverNoteEm}>down</Text> as you add more. You are better
+                off; cycling is just doing less of the work.
               </Text>
             )}
           </Card>
@@ -513,13 +531,11 @@ export default function CalculatorScreen() {
 
                 <Text style={styles.compareFoot}>
                   {clearedOutright
-                    ? 'Both paths are already clear: the injection covers the whole balance, so ' +
-                      'neither schedule has anything left to run.'
+                    ? 'The injection covers the whole balance — neither schedule has anything left to run.'
                     : hasGain
-                      ? `Cycling costs you HELOC interest and still lands ${money(projection.interestSaved)} ` +
-                        'ahead — that cost is already inside the figure on the right.'
-                      : 'At these numbers cycling does not get ahead. The HELOC interest costs more ' +
-                        'than the earlier principal saves, which is the honest answer for this input.'}
+                      ? `HELOC interest is already inside the figure on the right.`
+                      : 'At these numbers cycling does not get ahead: the HELOC interest costs more than ' +
+                        'the earlier principal saves.'}
                 </Text>
               </Card>
 
@@ -540,7 +556,11 @@ export default function CalculatorScreen() {
                   the line, and it is one they can go and shop for. */}
               {!clearedOutright && projection.interestSaved > 0 && (
                 <Card>
-                  <Text style={styles.breakdownHead}>Where that saving comes from</Text>
+                  <SectionHead
+                    label="Where that saving comes from"
+                    caps={false}
+                    explain={WHERE_THE_SAVING_COMES_FROM}
+                  />
 
                   <View style={styles.breakdownRow}>
                     <Text style={styles.breakdownLabel}>
@@ -565,16 +585,14 @@ export default function CalculatorScreen() {
                     </Text>
                   </View>
 
+                  {/* Stays: someone reading a big "interest saved" figure must not
+                      walk away believing cycling produced it when the surplus did. */}
                   <Text style={styles.breakdownNote}>
                     {projection.fromCycling >= 0
-                      ? `Your line is cheaper than your mortgage, so cycling adds ` +
-                        `${money(projection.fromCycling)} on top of what paying extra does on ` +
-                        'its own. Most of the result is the surplus either way.'
-                      : `At ${inputs.helocRate}% on your line against ${inputs.mortgageRate}% on your ` +
-                        'mortgage, the line currently costs a little more than the earlier ' +
-                        'principal saves. Almost all of this saving is the surplus itself — you ' +
-                        'would get it by paying that money straight at the mortgage. Cycling ' +
-                        'gets ahead when your line is cheaper than your mortgage.'}
+                      ? `Your line is cheaper than your mortgage, so cycling adds ${money(projection.fromCycling)}. ` +
+                        'Most of the result is the surplus either way.'
+                      : `Your line at ${inputs.helocRate}% costs more than your mortgage at ${inputs.mortgageRate}%. ` +
+                        'Almost all of this is the surplus itself.'}
                   </Text>
                 </Card>
               )}
@@ -630,7 +648,7 @@ export default function CalculatorScreen() {
                   prefix="$"
                   value={helocLimit}
                   onCommit={v => updateField('helocLimit', v)}
-                  hint="The size of the line you draw each cycle. Only what can be repaid within a year is used — up to 12× your monthly surplus."
+                  hint="The line drawn each cycle. Capped at 12× your surplus, so it can be repaid within a year."
                   isLast
                 />
               </View>
@@ -827,8 +845,7 @@ export default function CalculatorScreen() {
                   Track this {formatMonths(projection.monthsSaved)} automatically
                 </Text>
                 <Text style={styles.ctaSub}>
-                  Connect your accounts and HELOC Hero follows your real balances instead
-                  of these estimates.
+                  Follow your real balances instead of these estimates.
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
@@ -845,8 +862,7 @@ export default function CalculatorScreen() {
           </Touchable>
 
           <Text style={styles.footnote}>
-            Estimates only, based on the values above. Not financial advice, and not a lender.
-            Results vary with rates, spending, and how consistently the strategy is followed.
+            Estimates only. Not financial advice, and not a lender.
           </Text>
           </View>
         </ScrollView>
@@ -1446,12 +1462,6 @@ const useStyles = createThemedStyles(t => ({
     fontWeight: Typography.extrabold,
     color: t.colors.mint700,
     letterSpacing: 0.5,
-  },
-  breakdownHead: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: t.colors.textPrimary,
-    marginBottom: Spacing[3],
   },
   // Row, label and value are the shared `breakdown*` styles defined above with
   // the Advanced breakdown — same list shape, so they are reused rather than
