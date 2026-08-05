@@ -312,6 +312,7 @@ export default function MoveMoneyModal() {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {/* ── Amount ────────────────────────────────────────────────────── */}

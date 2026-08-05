@@ -13,7 +13,7 @@
 // Everything a user typed once — mortgage, HELOC terms, home value, the
 // projection assumptions — collapses to one summary row that opens its editor.
 // The detail lives one tap down, in the modal that owns it, not on this page.
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView,
   RefreshControl, Share, ActivityIndicator,
@@ -21,6 +21,7 @@ import {
 import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
@@ -60,6 +61,17 @@ const HORIZONS: { label: string; months: number | null; a11y: string }[] = [
 ];
 
 export default function AccountsScreen() {
+  /**
+   * Re-tapping the active tab scrolls back to the top.
+   *
+   * A reflex on iOS, and every tab here is long enough to need it — the
+   * dashboard runs seven cards past the fold. Without it the tab bar was the
+   * one control that did nothing when you pressed it a second time, which
+   * reads as the tap having missed.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -216,6 +228,7 @@ export default function AccountsScreen() {
   return (
     <View style={common.screenContainer}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={

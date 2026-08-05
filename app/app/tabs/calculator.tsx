@@ -23,7 +23,8 @@ import { Touchable, animateLayout } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState, useMemo, useEffect } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Card, SectionLabel } from '../../components/ui/primitives';
 import Slider from '../../components/ui/Slider';
@@ -111,6 +112,17 @@ function money(n: number): string {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CalculatorScreen() {
+  /**
+   * Re-tapping the active tab scrolls back to the top.
+   *
+   * A reflex on iOS, and every tab here is long enough to need it — the
+   * dashboard runs seven cards past the fold. Without it the tab bar was the
+   * one control that did nothing when you pressed it a second time, which
+   * reads as the tap having missed.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -302,8 +314,14 @@ export default function CalculatorScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
           keyboardShouldPersistTaps="handled"
+          // The screen whose whole premise is that the answer sits ABOVE the
+          // inputs — so the reflex after typing a balance is to scroll up and
+          // read the payoff. The keypad has a Done bar, but a drag should not
+          // require finding it.
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {/* ── The billboard. Everything above the fold is the answer. ────── */}

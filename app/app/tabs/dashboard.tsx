@@ -38,11 +38,12 @@
 // transaction lists, rate history, per-account balances: every one is a real
 // thing a user might want, and none is what this screen is for. Ranking is the
 // feature.
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
@@ -78,6 +79,17 @@ import { Typography, Spacing, Radius, Tracking, OnDark, TAB_BAR_CLEARANCE } from
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function DashboardScreen() {
+  /**
+   * Re-tapping the active tab scrolls back to the top.
+   *
+   * A reflex on iOS, and every tab here is long enough to need it — the
+   * dashboard runs seven cards past the fold. Without it the tab bar was the
+   * one control that did nothing when you pressed it a second time, which
+   * reads as the tap having missed.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -289,6 +301,7 @@ export default function DashboardScreen() {
       <NotificationPrimer eligible={canPrimeNotifications} userId={profile?.id ?? null} />
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={

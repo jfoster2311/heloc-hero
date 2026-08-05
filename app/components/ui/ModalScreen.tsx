@@ -66,6 +66,13 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          // Six of the modals built on this host a keypad or a text field, and
+          // several of them put the figure the user is checking BELOW the input
+          // — heloc-terms, assumptions, mortgage-details all do. Without this,
+          // scrolling down to look at it was blocked by the keyboard the user
+          // had no way to dismiss except by finding a gap to tap. The auth
+          // screens already settled on on-drag; this is the same choice.
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {intro ? (

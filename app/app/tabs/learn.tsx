@@ -24,8 +24,9 @@ import {
 import { Touchable } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { SectionLabel } from '../../components/ui/primitives';
 import { hapticLight } from '../../lib/haptics';
@@ -222,6 +223,17 @@ const FAQ = [
 ];
 
 export default function LearnScreen() {
+  /**
+   * Re-tapping the active tab scrolls back to the top.
+   *
+   * A reflex on iOS, and every tab here is long enough to need it — the
+   * dashboard runs seven cards past the fold. Without it the tab bar was the
+   * one control that did nothing when you pressed it a second time, which
+   * reads as the tap having missed.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   const insets = useSafeAreaInsets();
   const { colors, common } = useTheme();
   const styles = useStyles();
@@ -252,6 +264,7 @@ export default function LearnScreen() {
   return (
     <View style={common.screenContainer}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >

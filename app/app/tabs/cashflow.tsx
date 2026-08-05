@@ -34,7 +34,8 @@ import { Touchable } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
+import { useCallback, useMemo, useState, useRef } from 'react';
 import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
 import { parseDate } from '../../lib/mortgage';
 import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
@@ -75,6 +76,17 @@ const TREND_MONTHS = 6;
 const COLLAPSED_CATS = 6;
 
 export default function CashFlowScreen() {
+  /**
+   * Re-tapping the active tab scrolls back to the top.
+   *
+   * A reflex on iOS, and every tab here is long enough to need it — the
+   * dashboard runs seven cards past the fold. Without it the tab bar was the
+   * one control that did nothing when you pressed it a second time, which
+   * reads as the tap having missed.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   const { categoryRamp, common, colors } = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -370,6 +382,7 @@ export default function CashFlowScreen() {
   return (
     <View style={common.screenContainer}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
