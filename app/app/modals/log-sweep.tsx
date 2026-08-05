@@ -29,7 +29,8 @@ import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
-import { Card, SourceNote } from '../../components/ui/primitives';
+import { Card } from '../../components/ui/primitives';
+import { SectionHead, Caveat, type ExplainContent } from '../../components/ui/Explain';
 import SuccessReveal from '../../components/ui/SuccessReveal';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
@@ -41,6 +42,57 @@ import { computeStrike } from '../../lib/strike';
 import { hapticSuccess } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
+
+// ── The prose that used to sit between each figure and the next ────────────
+const HOW_THE_FIGURE_IS_SET: ExplainContent = {
+  title: 'Safe to sweep today',
+  body: [
+    '"Send every spare dollar at the line" is the strategy\'s own instruction, and it is ' +
+    'what causes the overdraft. Someone who sweeps their whole surplus on the 28th and has ' +
+    'rent leave on the 2nd learns one thing from the resulting fee: that this strategy is ' +
+    'dangerous. They would be right, and they would have learned it from us.',
+    'So this figure is not your surplus. It walks the dated bills and paydays in the next ' +
+    `${RUNWAY_HORIZON_DAYS} days and returns the most that can leave today without the ` +
+    'projected balance dipping below zero.',
+    'It is never more than is owed on your line either — repaying past the balance would ' +
+    'just park your cash somewhere it earns nothing.',
+    'Where there is nothing dated to reason from, the screen shows no figure at all rather ' +
+    'than guessing one.',
+  ],
+};
+
+const THE_DIVISION_OF_LABOUR: ExplainContent = {
+  title: 'What to do',
+  body: [
+    'HELOC Hero has no payment rail and will not get one: moving money on someone\'s behalf ' +
+    'means money-transmitter licensing.',
+    'So the split is the honest one. The app does the arithmetic nobody wants to do by hand, ' +
+    'you make the transfer only you can authorise, and then the app records it. There is no ' +
+    '"auto-sweep" button here because there is no automation to put behind one.',
+    'Recording a sweep updates your own ledger only. It does not contact your bank, and ' +
+    'nothing on this screen initiates a transfer.',
+  ],
+};
+
+const WHAT_A_SWEEP_CHANGES: ExplainContent = {
+  title: 'What this changes',
+  body: [
+    'A sweep reduces what your LINE charges, not your mortgage interest. Mortgage interest ' +
+    'falls when a dump reduces mortgage principal — that is the other half of the cycle.',
+    'The interest figure is arithmetic on your line\'s rate, which is the debt this transfer ' +
+    'actually reduces.',
+  ],
+};
+
+const NEXT_DAYS: ExplainContent = {
+  title: 'The next weeks',
+  body: [
+    'This is the subtraction behind the figure at the top of the screen, laid out so you can ' +
+    'check it rather than take it on trust.',
+    'Rows marked expected are patterns from your own history extended forward, not scheduled ' +
+    'payments. The mortgage date is your servicer\'s where we have it.',
+  ],
+};
 
 export default function LogSweepScreen() {
   const { colors } = useTheme();
@@ -181,7 +233,7 @@ export default function LogSweepScreen() {
       <ModalScreen
         title="Sweep recorded"
         save={{ label: 'Done', onPress: () => router.back() }}
-        footnote="Your line's balance is reported by your bank, not by this app. We have asked for a fresh read — it will land on the dashboard once your bank returns it."
+        footnote="Your line's balance comes from your bank. We have asked for a fresh read."
       >
         <Card>
           <SuccessReveal
@@ -221,14 +273,13 @@ export default function LogSweepScreen() {
   return (
     <ModalScreen
       title="Sweep to your line"
-      intro="We work out the amount and keep your bills covered. You make the transfer at your bank — this app never moves your money."
       save={value > 0 ? {
         label: logging ? 'Recording…' : 'I have made this transfer',
         onPress: handleLog,
         disabled: logging,
         saving: logging,
       } : undefined}
-      footnote="Recording a sweep updates your own ledger only. It does not contact your bank, and nothing here initiates a transfer."
+      footnote="You make the transfer at your bank. This app never moves your money."
     >
       {/* ── The amount ──────────────────────────────────────────────────────
           Selectable so it can be long-pressed and copied into a banking app.
@@ -236,14 +287,15 @@ export default function LogSweepScreen() {
           build does not carry, and a button that silently did nothing would be
           worse than a number the user can select. */}
       <Card>
-        <Text style={styles.eyebrow}>SAFE TO SWEEP TODAY</Text>
+        <SectionHead label="Safe to sweep today" explain={HOW_THE_FIGURE_IS_SET} />
         {suggested === null ? (
           <>
             <Text style={styles.amountUnknown}>—</Text>
+            {/* Stays whole: it is the only thing on screen that says why there
+                is no number, and what the user can do about it. */}
             <Text style={styles.body}>
-              We cannot see any dated bills or income for the next {RUNWAY_HORIZON_DAYS} days,
-              so there is no figure we can stand behind. Link a checking account, or decide the
-              amount yourself and record it below.
+              Nothing dated in the next {RUNWAY_HORIZON_DAYS} days to reason from. Link a checking
+              account, or set the amount yourself below.
             </Text>
           </>
         ) : (
@@ -251,31 +303,35 @@ export default function LogSweepScreen() {
             <Text style={styles.amount} selectable>
               ${value.toLocaleString()}
             </Text>
+            {/* Was a sentence explaining the subtraction. The subtraction itself
+                is the useful part, so it reads as figures now — and the
+                reasoning behind it is one tap up at the ⓘ. */}
             <Text style={styles.body}>
               {runway.reserved > 0
-                ? `Of the ${money(f.liquidCash)} in checking, ${money(runway.reserved)} is spoken for ` +
-                  `before ${runway.troughDate ? friendly(runway.troughDate) : 'the end of the fortnight'}. ` +
-                  'This is what can leave without putting those payments at risk.'
-                : `Nothing is due in the next ${RUNWAY_HORIZON_DAYS} days that this would put at risk.`}
+                ? `${money(f.liquidCash)} in checking · ${money(runway.reserved)} spoken for by ` +
+                  `${runway.troughDate ? friendly(runway.troughDate) : 'the end of the fortnight'}`
+                : `${money(f.liquidCash)} in checking · nothing due in ${RUNWAY_HORIZON_DAYS} days`}
             </Text>
 
-            {/* The single most load-bearing caveat on the screen. */}
+            {/* The single most load-bearing caveat on the screen, and the clearest
+                case for the rule in Explain.tsx: someone who never opens a sheet
+                must not sweep this figure believing it is unconditional. */}
             {runway.dependsOnExpectedIncome && (
               <View style={styles.warnRow}>
                 <Ionicons name="alert-circle-outline" size={16} color={colors.gray500} />
                 <Text style={styles.warnText}>
-                  This figure assumes a deposit we have seen before arrives on time. Without it,
-                  {' '}{money(runway.freeIfNoIncome ?? 0)} is the amount that stays safe.
+                  Assumes an expected deposit arrives. Without it,
+                  {' '}{money(runway.freeIfNoIncome ?? 0)} stays safe.
                 </Text>
               </View>
             )}
 
             {runway.undatedCount > 0 && (
-              <Text style={styles.caveat}>
-                {runway.undatedCount} repeating charge{runway.undatedCount === 1 ? '' : 's'} totalling
-                about {money(runway.undatedTotal)} could not be dated, so {runway.undatedCount === 1 ? 'it is' : 'they are'} not
+              <Caveat lines={2}>
+                {runway.undatedCount} repeating charge{runway.undatedCount === 1 ? '' : 's'} (about
+                {' '}{money(runway.undatedTotal)}) could not be dated, so {runway.undatedCount === 1 ? 'it is' : 'they are'} not
                 counted above.
-              </Text>
+              </Caveat>
             )}
           </>
         )}
@@ -295,19 +351,30 @@ export default function LogSweepScreen() {
           not an input to the arithmetic. */}
       {history.sweptThisMonth > 0 && (
         <Card>
-          <Text style={styles.eyebrow}>ALREADY RECORDED IN {monthName().toUpperCase()}</Text>
+          <SectionHead
+            label={`Already recorded in ${monthName()}`}
+            explain={{
+              title: 'Already recorded',
+              body: [
+                'This block is the record, not an input to the arithmetic above.',
+                'The suggested figure comes from your checking and line balances as they stand ' +
+                'now, and a real transfer has already moved both — so subtracting what you have ' +
+                'logged a second time would understate what is free by exactly the amount you ' +
+                'already swept.',
+                'It is here so you do not record the same transfer twice.',
+              ],
+            }}
+          />
           <View style={styles.effectRow}>
             <Text style={styles.effectLabel}>Swept onto your line</Text>
             <Text style={styles.effectValue}>{money(history.sweptThisMonth)}</Text>
           </View>
           {history.lastSweepAt && (
-            <Text style={styles.caveat}>
+            <Caveat>
               Most recent {history.lastSweepAt.toLocaleDateString('en-US', {
                 weekday: 'short', day: 'numeric', month: 'short',
-              })}. The suggested figure at the top of this screen comes from your balances
-              as they stand now, so it already accounts for that transfer — this is here so
-              you do not record the same one twice.
-            </Text>
+              })}
+            </Caveat>
           )}
         </Card>
       )}
@@ -315,7 +382,7 @@ export default function LogSweepScreen() {
       {/* ── What is due, so the subtraction is checkable ─────────────────── */}
       {runway.events.length > 0 && (
         <Card>
-          <Text style={styles.eyebrow}>THE NEXT {RUNWAY_HORIZON_DAYS} DAYS</Text>
+          <SectionHead label={`The next ${RUNWAY_HORIZON_DAYS} days`} explain={NEXT_DAYS} />
           {runway.events.slice(0, 8).map((ev, i) => (
             <View key={`${ev.date}-${ev.label}-${i}`} style={styles.row}>
               <Text style={styles.rowDate}>{friendly(ev.date)}</Text>
@@ -327,10 +394,6 @@ export default function LogSweepScreen() {
               </Text>
             </View>
           ))}
-          <SourceNote>
-            Rows marked expected are patterns from your own history extended forward, not
-            scheduled payments. The mortgage date is your servicer&apos;s where we have it.
-          </SourceNote>
         </Card>
       )}
 
@@ -339,20 +402,16 @@ export default function LogSweepScreen() {
           user has to be able to leave, do it, and come back without losing
           their place. */}
       <Card>
-        <Text style={styles.eyebrow}>WHAT TO DO</Text>
+        <SectionHead label="What to do" explain={THE_DIVISION_OF_LABOUR} />
         <Step n={1} text="Open your bank's app or website." />
         <Step n={2} text={`Transfer ${money(value)} from checking to your HELOC.`} />
-        <Step
-          n={3}
-          text="Come back and tap the button below, so your ledger and the next dump reflect it."
-          last
-        />
+        <Step n={3} text="Come back and tap the button below." last />
       </Card>
 
       {/* ── What it does, honestly ──────────────────────────────────────── */}
       {value > 0 && (
         <Card>
-          <Text style={styles.eyebrow}>WHAT THIS CHANGES</Text>
+          <SectionHead label="What this changes" explain={WHAT_A_SWEEP_CHANGES} />
           <View style={styles.effectRow}>
             <Text style={styles.effectLabel}>Interest your line stops charging</Text>
             <Text style={styles.effectValue}>{money(dailyInterestSaved)}/day</Text>
@@ -367,10 +426,6 @@ export default function LogSweepScreen() {
               <Text style={styles.effectValue}>{money(Math.max(0, strike.toGo - value))}</Text>
             </View>
           )}
-          <SourceNote>
-            A sweep reduces what your LINE charges, not your mortgage interest. Mortgage interest
-            falls when a dump reduces mortgage principal.
-          </SourceNote>
         </Card>
       )}
 
@@ -429,13 +484,6 @@ function friendly(isoDay: string): string {
 }
 
 const useStyles = createThemedStyles(t => ({
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: Typography.extrabold,
-    color: t.colors.textMuted,
-    letterSpacing: 1,
-    marginBottom: Spacing[2],
-  },
   amount: {
     fontSize: 40,
     fontWeight: Typography.extrabold,
@@ -460,7 +508,6 @@ const useStyles = createThemedStyles(t => ({
     borderTopColor: t.colors.borderSubtle,
   },
   warnText: { flex: 1, fontSize: Typography.xs, color: t.colors.gray500, lineHeight: 17 },
-  caveat: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: Spacing[2], lineHeight: 17 },
 
   row: {
     flexDirection: 'row',

@@ -38,12 +38,37 @@ import SuccessReveal from '../../components/ui/SuccessReveal';
 import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
+import { SectionHead, type ExplainContent } from '../../components/ui/Explain';
 import { hapticSuccess } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
 
 const AMOUNT_ACCESSORY_ID = 'move-money-amount';
+
+// This screen gets FAR less cutting than the other modals, and the reason is the
+// rule in components/ui/Explain rather than an exception to it. Almost every
+// string below is a caveat by that rule's own test: someone who never opened a
+// disclosure would be misled about what a draw against their house costs them.
+// The reasoning IS the product here — see the principles at the top of the file.
+//
+// So what moved is the methodology, which is identical on every visit. The
+// figures, the cautions and the trade stay exactly where a finger can reach them.
+const HOW_WE_REASON: ExplainContent = {
+  title: 'What this is based on',
+  body: [
+    'This screen states the numbers it is reasoning from rather than issuing a verdict, so ' +
+    'you build judgement about your own cash flow instead of learning to obey a button.',
+    'Utilization is your drawn balance against your credit limit. Replenish time is the draw ' +
+    'divided by your monthly surplus — the figure from Assumptions, or from your transactions ' +
+    'if you adopted those.',
+    'Interest avoided is mortgage interest that never accrues because principal fell today. ' +
+    'Against it sits the interest your line charges while the draw is outstanding. The net ' +
+    'figure is the difference, and it is only shown when the draw actually clears.',
+    'Available credit counts as liquidity because on a HELOC it is your emergency fund. That ' +
+    'is the whole reason drawing it down has a cost worth stating next to the interest saved.',
+  ],
+};
 
 export default function MoveMoneyModal() {
   const { colors } = useTheme();
@@ -361,7 +386,7 @@ export default function MoveMoneyModal() {
 
           {/* ── The reasoning, in plain sentences ─────────────────────────── */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>What this is based on</Text>
+            <SectionHead label="What this is based on" caps={false} explain={HOW_WE_REASON} />
 
             {/* Held back until the balances land. Every sentence below names a
                 figure — "your HELOC is at 0%, $0 drawn of a $100,000 limit" —
@@ -383,8 +408,8 @@ export default function MoveMoneyModal() {
             />
             <Reason
               text={surplus > 0
-                ? `You told us your monthly surplus is $${fmt(surplus)}. That's what replenishes the HELOC.`
-                : `Your stated income minus expenses and mortgage payment leaves no surplus, so there's nothing to replenish a draw with.`}
+                ? `Your monthly surplus is $${fmt(surplus)} — that's what replenishes the line.`
+                : `You have no monthly surplus, so there's nothing to replenish a draw with.`}
             />
             {amount > 0 && hasLimit && (
               <Reason
@@ -397,7 +422,7 @@ export default function MoveMoneyModal() {
 
             {helocBalance === null && (
               <Text style={styles.estimateNote}>
-                Based on the figures you entered, not live balances. Link your accounts for real numbers.
+                From the figures you entered, not live balances.
               </Text>
             )}
             {/* The HELOC rate drives every cost figure below. If we're guessing
@@ -409,8 +434,7 @@ export default function MoveMoneyModal() {
                 accessibilityLabel="Add your HELOC rate"
               >
                 <Text style={styles.rateWarnText}>
-                  Interest below assumes an 8.5% APR. No bank shares HELOC rates —
-                  add yours for accurate costs.
+                  Interest below assumes 8.5% APR. Add your rate →
                 </Text>
               </Touchable>
             )}
@@ -481,19 +505,18 @@ export default function MoveMoneyModal() {
           )}
           {!analysis.exceedsLimit && analysis.crossesCaution && (
             <Caution
-              text={`This puts you above ${Math.round(CAUTION_UTILIZATION * 100)}% utilization, leaving ` +
-                `$${fmt(analysis.availableAfter)} for an emergency. A high balance also costs more if your rate rises.`}
+              text={`Above ${Math.round(CAUTION_UTILIZATION * 100)}% utilization, leaving ` +
+                `$${fmt(analysis.availableAfter)} for an emergency.`}
             />
           )}
           {!analysis.replenishable && amount > 0 && (
             <Caution
-              text="Your surplus can't repay this draw, so the cycle never completes and the balance keeps costing interest."
+              text="Your surplus can't repay this draw, so the cycle never completes."
             />
           )}
           {bufferAfter !== null && bufferAfter < BUFFER.minMonths && amount > 0 && (
             <Caution
-              text={`This leaves under ${BUFFER.minMonths} months of expenses in cash and available credit. ` +
-                'An unexpected bill afterwards would have to go on something more expensive than this line.'}
+              text={`Leaves under ${BUFFER.minMonths} months of expenses in cash and available credit.`}
             />
           )}
           {analysis.mortgageStalls && (
@@ -522,9 +545,13 @@ export default function MoveMoneyModal() {
             </Touchable>
           </View>
 
+          {/* Both halves are load-bearing and neither may move behind a tap: the
+              first says the button does not do what its label could be read to
+              say, and the second is CLAUDE.md's standing requirement on any
+              payoff figure. Cut to the bone, kept in the open. */}
           <Text style={styles.footnote}>
-            HELOC Hero doesn&apos;t move money. Make the transfer with your bank, then record it
-            here so your cycle and payoff stay accurate. Projections are estimates, not advice.
+            HELOC Hero doesn&apos;t move money — make the transfer at your bank, then record it
+            here. Projections are estimates, not advice.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -632,12 +659,6 @@ const useStyles = createThemedStyles(t => ({
     borderWidth: 1,
     borderColor: t.colors.borderSubtle,
     ...t.shadows.card,
-  },
-  cardTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: t.colors.textPrimary,
-    marginBottom: Spacing[3],
   },
   label: { fontSize: Typography.sm, color: t.colors.textSecondary, marginBottom: Spacing[2] },
 
