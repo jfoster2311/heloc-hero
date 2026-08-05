@@ -22,7 +22,7 @@ import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
 import { EmptyState } from '../../components/ui/primitives';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 import {
   detectRecurringExpenses, committedAhead, annualCost,
   type RecurringExpense,
@@ -93,7 +93,7 @@ export default function RecurringScreen() {
           body="Link an account and the charges that repeat every month are found here automatically."
           action={{
             label: 'Link an account',
-            onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+            onPress: () => { router.push('/modals/link-account' as never); },
           }}
         />
       ) : !hasAnything ? (

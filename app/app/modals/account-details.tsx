@@ -268,7 +268,7 @@ export default function AccountDetailsModal() {
             icon="create-outline"
             label={editor.label}
             sub={editor.sub}
-            onPress={() => { hapticLight(); router.push(editor.route as never); }}
+            onPress={() => { router.push(editor.route as never); }}
           />
           <SourceNote>
             Balances above are your bank&apos;s and cannot be edited here — a change would
@@ -288,7 +288,7 @@ export default function AccountDetailsModal() {
           icon="repeat-outline"
           label="Reconnect this institution"
           sub="Re-run the bank login if balances have stopped arriving"
-          onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+          onPress={() => { router.push('/modals/link-account' as never); }}
         />
         {unlinking ? (
           <View style={styles.unlinkBusy}>

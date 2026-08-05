@@ -258,7 +258,7 @@ export default function ActivityScreen() {
                 }
               : {
                   label: 'Link an account',
-                  onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+                  onPress: () => { router.push('/modals/link-account' as never); },
                 }}
           />
         ) : rows.length === 0 ? (

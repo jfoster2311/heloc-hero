@@ -5,13 +5,14 @@
 // label, a meter or a status, it comes from here.
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform,
+  View, Text, StyleSheet, LayoutAnimation, Platform,
   type ViewStyle, type StyleProp, type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Spacing, Radius, Tracking, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
+import { Touchable, PressScale } from './press';
 
 // ─── Surfaces ─────────────────────────────────────────────────────────────────
 
@@ -56,14 +57,13 @@ export function Card({ children, style, onPress, accessibilityLabel, onDark }: C
 
   if (!onPress) return body;
   return (
-    <TouchableOpacity
+    <Touchable
       onPress={onPress}
-      activeOpacity={0.86}
-      accessibilityRole="button"
+      scale={PressScale.surface}
       accessibilityLabel={accessibilityLabel}
     >
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -121,9 +121,17 @@ export function Chip({ label, icon, tone = 'neutral', onPress }: {
   );
   if (!onPress) return body;
   return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+    <Touchable
+      onPress={onPress}
+      scale={PressScale.chip}
+      // Selection, not impact. A chip is a filter or a jump between views, and
+      // the lighter tick is what iOS uses for changing what you are looking at
+      // rather than committing to something.
+      haptic="selection"
+      accessibilityLabel={label}
+    >
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -217,9 +225,9 @@ export function DataRow({ label, value, hint, onPress, last }: {
   );
   if (!onPress) return body;
   return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+    <Touchable onPress={onPress} accessibilityLabel={label}>
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -308,23 +316,21 @@ export function ActionPair({ primary, secondary }: {
   const styles = useStyles();
   return (
     <View style={styles.actionPair}>
-      <TouchableOpacity
+      <Touchable
         style={[styles.actionBtn, primary.disabled && styles.actionBtnDisabled]}
         onPress={primary.onPress}
         disabled={primary.disabled}
-        accessibilityRole="button"
         accessibilityLabel={primary.label}
       >
         <Text style={styles.actionBtnText}>{primary.label}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
+      </Touchable>
+      <Touchable
         style={styles.actionBtn}
         onPress={secondary.onPress}
-        accessibilityRole="button"
         accessibilityLabel={secondary.label}
       >
         <Text style={styles.actionBtnText}>{secondary.label}</Text>
-      </TouchableOpacity>
+      </Touchable>
     </View>
   );
 }
@@ -340,16 +346,19 @@ export function PrimaryButton({ label, onPress, icon, disabled, style }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.primaryBtn, disabled && styles.actionBtnDisabled, style]}
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="button"
+      // The one place a screen commits to something. Medium impact rather than
+      // light — it is the heaviest feedback the app uses, reserved for the tap
+      // that actually does the thing.
+      haptic="medium"
       accessibilityLabel={label}
     >
       <Text style={styles.primaryBtnText}>{label}</Text>
       {icon ? <Ionicons name={icon} size={18} color={colors.onAccent} /> : null}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -364,10 +373,9 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={styles.linkRow}
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={label}
     >
       {icon ? (
@@ -380,7 +388,7 @@ export function LinkRow({ label, sub, icon, onPress, danger }: {
         {sub ? <Text style={styles.linkSub}>{sub}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -405,11 +413,10 @@ export function NavTile({ eyebrow, value, sub, icon, onPress, muted, accessibili
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={styles.navTile}
       onPress={onPress}
-      activeOpacity={0.86}
-      accessibilityRole="button"
+      scale={PressScale.surface}
       accessibilityLabel={`${eyebrow}: ${value}`}
       accessibilityHint={accessibilityHint}
     >
@@ -427,7 +434,7 @@ export function NavTile({ eyebrow, value, sub, icon, onPress, muted, accessibili
         {value}
       </Text>
       {sub ? <Text style={styles.navTileSub} numberOfLines={2}>{sub}</Text> : null}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -455,7 +462,7 @@ export function Disclosure({ count, children, label = 'details' }: {
   return (
     <>
       {open ? children : null}
-      <TouchableOpacity
+      <Touchable
         style={styles.disclosure}
         onPress={() => {
           if (Platform.OS === 'ios') {
@@ -463,7 +470,7 @@ export function Disclosure({ count, children, label = 'details' }: {
           }
           setOpen(o => !o);
         }}
-        accessibilityRole="button"
+        haptic="selection"
         accessibilityState={{ expanded: open }}
         accessibilityLabel={open ? `Hide ${label}` : `Show ${count} more ${label}`}
       >
@@ -475,7 +482,7 @@ export function Disclosure({ count, children, label = 'details' }: {
           size={15}
           color={colors.accentInk}
         />
-      </TouchableOpacity>
+      </Touchable>
     </>
   );
 }

@@ -110,7 +110,7 @@ export default function ReportsScreen() {
             : 'Link an account and six months of trend appear here.'}
           action={f.hasLinkedAccounts ? undefined : {
             label: 'Link an account',
-            onPress: () => { hapticLight(); router.push('/modals/link-account' as never); },
+            onPress: () => { router.push('/modals/link-account' as never); },
           }}
         />
       </ModalScreen>

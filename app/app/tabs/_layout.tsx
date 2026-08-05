@@ -10,12 +10,14 @@
 // Because the bar is absolutely positioned, every tab's scroll content must
 // clear it — see TAB_BAR_CLEARANCE, which those screens import rather than
 // each inventing their own bottom padding.
+import { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticSelection } from '../../lib/haptics';
+import { useReduceMotion } from '../../components/ui/press';
 import { Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
 import { useTheme } from '../../lib/themeContext';
 
@@ -139,19 +141,49 @@ export default function TabsLayout() {
  * The weight change carries the state on its own, so the mint tint is
  * reinforcement rather than the only signal — which is the same rule the rest
  * of the app follows for status.
+ *
+ * ── Why it springs ────────────────────────────────────────────────────────
+ * The outline→filled swap used to happen on a single frame, which is a state
+ * change rather than a response: the most-touched control in the app was also
+ * the only one that gave nothing back. A short spring on arrival makes the tap
+ * land on something.
+ *
+ * It animates only INTO focus, never out. Both directions would leave two icons
+ * moving at once every time you switch tabs, which reads as the bar being
+ * unsettled rather than as the new tab arriving — the departing tab should
+ * simply stop being the answer.
  */
 function TabIcon({ name, color, focused }: {
   name: 'home' | 'wallet' | 'calculator' | 'pie-chart' | 'book';
   color: string;
   focused: boolean;
 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReduceMotion();
+
+  useEffect(() => {
+    if (!focused || reduceMotion) return;
+    // From slightly under, not over. Overshooting first reads as a bounce and
+    // draws the eye to the chrome; settling UP into place reads as the icon
+    // taking its position, which is the thing that actually happened.
+    scale.setValue(0.86);
+    Animated.spring(scale, {
+      toValue: 1,
+      speed: 18,
+      bounciness: 6,
+      useNativeDriver: true,
+    }).start();
+  }, [focused, reduceMotion, scale]);
+
   return (
     <View style={styles.icon}>
-      <Ionicons
-        name={(focused ? name : `${name}-outline`) as never}
-        size={21}
-        color={color}
-      />
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Ionicons
+          name={(focused ? name : `${name}-outline`) as never}
+          size={21}
+          color={color}
+        />
+      </Animated.View>
     </View>
   );
 }

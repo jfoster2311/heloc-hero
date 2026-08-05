@@ -393,7 +393,6 @@ export default function DashboardScreen() {
               label={f.hasLinkedAccounts ? 'Accounts' : 'Connect'}
               icon="link-outline"
               onPress={() => {
-                hapticLight();
                 router.push(
                   f.hasLinkedAccounts ? '/tabs/accounts' : isPro ? '/modals/link-account' : '/modals/upgrade',
                 );
@@ -525,10 +524,10 @@ export default function DashboardScreen() {
               <ActionPair
                 primary={{
                   label: 'Log this move',
-                  onPress: () => { hapticLight(); router.push('/modals/move-money' as never); },
+                  onPress: () => { router.push('/modals/move-money' as never); },
                   disabled: f.safeToMove.status === 'HOLD',
                 }}
-                secondary={{ label: 'Not now', onPress: () => { hapticLight(); setMoveDismissed(true); } }}
+                secondary={{ label: 'Not now', onPress: () => { setMoveDismissed(true); } }}
               />
             )}
             {moveDismissed && (
@@ -895,7 +894,6 @@ export default function DashboardScreen() {
                     ? 'add your line balance'
                     : 'add your home value'}
                 onPress={() => {
-                  hapticLight();
                   router.push(
                     f.combinedLTV === null && f.helocBalanceUnknown
                       ? '/modals/heloc-terms' as never
@@ -917,7 +915,7 @@ export default function DashboardScreen() {
               sub={f.surplusBasis === 'trailing'
                 ? 'from your transactions'
                 : 'from the figures you entered'}
-              onPress={() => { hapticLight(); router.push('/tabs/cashflow' as never); }}
+              onPress={() => { router.push('/tabs/cashflow' as never); }}
               accessibilityHint="Opens the Cash flow tab"
             />
           </View>
@@ -940,7 +938,6 @@ export default function DashboardScreen() {
                   ? `$${fmtK(f.helocLimit)} limit · add your balance`
                   : `$${fmtK(f.helocDrawn)} of $${fmtK(f.helocLimit)} drawn`}
               onPress={() => {
-                hapticLight();
                 router.push(
                   f.helocLimit && f.helocLimit > 0 && f.helocDrawn === null
                     ? '/modals/heloc-terms' as never
@@ -966,7 +963,7 @@ export default function DashboardScreen() {
               icon="trending-down-outline"
               value={`$${fmtK(f.projection.interestSaved)}`}
               sub="interest, over the whole plan"
-              onPress={() => { hapticLight(); router.push('/tabs/calculator' as never); }}
+              onPress={() => { router.push('/tabs/calculator' as never); }}
               accessibilityHint="Opens the Calculator tab"
             />
           </View>
@@ -978,7 +975,7 @@ export default function DashboardScreen() {
               icon="sparkles-outline"
               label="Connect your accounts with Pro"
               sub="Live balances, servicer figures, and alerts when it is time to act"
-              onPress={() => { hapticLight(); router.push('/modals/upgrade'); }}
+              onPress={() => { router.push('/modals/upgrade'); }}
             />
           )}
         </View>
