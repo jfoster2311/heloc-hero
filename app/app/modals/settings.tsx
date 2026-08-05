@@ -50,7 +50,7 @@ const APPEARANCE_OPTIONS: {
   { value: 'light',  label: 'Light',  icon: 'sunny-outline',          a11y: 'Always light' },
   { value: 'dark',   label: 'Dark',   icon: 'moon-outline',           a11y: 'Always dark' },
 ];
-import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
 import type { AutomationSettings } from '../../lib/types';
 
 // Tapping the DEV Pro Override row cycles through these, so both sides of every
@@ -709,7 +709,7 @@ const useStyles = createThemedStyles(t => ({
   card: {
     backgroundColor: t.colors.surface,
     borderRadius: Radius.lg,
-    ...Shadows.card,
+    ...t.shadows.card,
     overflow: 'hidden',
   },
   row: {

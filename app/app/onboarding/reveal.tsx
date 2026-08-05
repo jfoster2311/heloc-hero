@@ -14,7 +14,7 @@ import PayoffBoard from '../../components/PayoffBoard';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { useAuth } from '../../hooks/useAuth';
 import { computeProjection, genericProjection, formatMonths } from '../../lib/projections';
-import { Typography, Spacing, Radius, Shadows, Aurora, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
 
@@ -746,7 +746,7 @@ const useStyles = createThemedStyles(t => ({
     padding:          Spacing[4],
     borderWidth:      1,
     borderColor:      t.colors.mint200,
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   noHelocRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   noHelocIcon: {
@@ -775,7 +775,7 @@ const useStyles = createThemedStyles(t => ({
     borderWidth:     1,
     borderColor:     t.colors.mint200,
     gap:             Spacing[3],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   differentTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.mint700 },
   differentBody:  { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
@@ -798,7 +798,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems:      'center',
     justifyContent:  'center',
     gap:             Spacing[2],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   primaryBtnText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },
   // Shared by both CTAs. The spinner carries the state; this only stops the

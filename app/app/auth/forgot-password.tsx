@@ -25,7 +25,7 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError, hapticSuccess } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Aurora, Shadows, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function ForgotPasswordScreen() {
@@ -247,7 +247,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing[2],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
   submitText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.bold },

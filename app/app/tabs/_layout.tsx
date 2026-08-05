@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticSelection } from '../../lib/haptics';
 import { useReduceMotion } from '../../components/ui/press';
-import { Typography, Spacing, Radius, Shadows, TAB_BAR_HEIGHT } from '../../lib/theme';
+import { Typography, Spacing, Radius, TAB_BAR_HEIGHT } from '../../lib/theme';
 import { useTheme } from '../../lib/themeContext';
 
 export default function TabsLayout() {
@@ -27,7 +27,7 @@ export default function TabsLayout() {
   // most visible thing still painted from the static light palette: in dark mode
   // a white pill floated over five dark screens. Nothing else had to change for
   // that to be wrong everywhere at once.
-  const { colors, mode } = useTheme();
+  const { colors, mode, shadows } = useTheme();
 
   return (
     <>
@@ -62,11 +62,18 @@ export default function TabsLayout() {
           borderRadius: Radius.full,
           borderTopWidth: 0,
           backgroundColor: colors.surface,
-          ...Shadows.lifted,
-          // A drop shadow is what lifts the pill off the page in light mode, and
-          // it does almost nothing on a dark canvas — dark-on-dark has no
-          // contrast to cast. A hairline does that job instead, so the bar keeps
-          // an edge rather than dissolving into the screen behind it.
+          // The THEME's lifted shadow, not the static one. This read the light
+          // token in both themes, and the light token is tuned to darken a pale
+          // page — at 0.10 opacity it is invisible over a near-black one, which
+          // is exactly why DarkShadows exists at 0.55. The bar floats over
+          // scrolling content, so it is the surface with the most to gain from
+          // an elevation that actually renders.
+          ...shadows.lifted,
+          // The hairline stays, and is not now redundant. It was added because
+          // the light shadow did nothing here on dark; the dark shadow does the
+          // lifting, and the hairline still draws the EDGE — which is the job
+          // theme.ts assigns it on a theme where a border carries what a shadow
+          // cannot. Together they read as a raised pill rather than a smudge.
           ...(mode === 'dark' ? { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border } : null),
         },
         tabBarItemStyle: { borderRadius: Radius.full },

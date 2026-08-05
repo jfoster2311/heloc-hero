@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useIsPro } from '../../hooks/useIsPro';
 import { invokeFunction } from '../../lib/supabase';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { PlaidAccountType } from '../../lib/types';
 
@@ -441,7 +441,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing[2],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   connectBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
   connectBtnText: { color: t.colors.onAccent, fontSize: Typography.base, fontWeight: Typography.semibold },

@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { eligibleLenders } from '../../lib/lenders';
 import { hapticLight, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function GetHelocModal() {
@@ -215,7 +215,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: Radius.lg,
     padding: Spacing[5],
     gap: Spacing[4],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   requirementRow: { flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start' },
   requirementIcon: { paddingTop: 2, flexShrink: 0 },
@@ -237,7 +237,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: Radius.lg,
     padding: Spacing[5],
     gap: Spacing[3],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   listRow: { flexDirection: 'row', gap: Spacing[3], alignItems: 'flex-start' },
   listRowText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
@@ -256,7 +256,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: Radius.lg,
     padding: Spacing[4],
     gap: Spacing[2],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   lenderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lenderName: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },

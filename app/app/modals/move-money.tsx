@@ -39,7 +39,7 @@ import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
 import { hapticSuccess } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
 
@@ -631,7 +631,7 @@ const useStyles = createThemedStyles(t => ({
     padding: Spacing[5],
     borderWidth: 1,
     borderColor: t.colors.borderSubtle,
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   cardTitle: {
     fontSize: Typography.base,

@@ -5,7 +5,7 @@ import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { hapticLight } from '../lib/haptics';
-import { Typography, Spacing, Gradients, Shadows } from '../lib/theme';
+import { Typography, Spacing, Gradients } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
 import {
   shouldLock, authenticate, recordBackgroundTime, isLockEnabled,
@@ -94,7 +94,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: 24,
     padding: Spacing[8],
     marginHorizontal: Spacing[8],
-    ...Shadows.modal,
+    ...t.shadows.modal,
   },
   title: {
     fontSize: Typography['2xl'],
@@ -116,7 +116,7 @@ const useStyles = createThemedStyles(t => ({
     paddingVertical: Spacing[4],
     paddingHorizontal: Spacing[8],
     marginTop: Spacing[2],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   unlockText: {
     color: t.colors.onAccent,

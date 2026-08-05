@@ -32,7 +32,7 @@ import FormField from '../../components/ui/FormField';
 import { auth } from '../../lib/supabase';
 import { describeAuthError, type AuthErrorInfo } from '../../lib/authErrors';
 import { hapticLight, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Aurora, Shadows, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Radius, Aurora, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /**
@@ -290,7 +290,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing[4],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   submitDisabled: { opacity: 0.4, shadowOpacity: 0 },
   submitText: {

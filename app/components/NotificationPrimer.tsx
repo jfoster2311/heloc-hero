@@ -22,7 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { permissionStatus, requestPermission } from '../lib/notify';
 import { supabase } from '../lib/supabase';
 import { hapticLight } from '../lib/haptics';
-import { Typography, Spacing, Radius, Shadows } from '../lib/theme';
+import { Typography, Spacing, Radius } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
 
 const PRIMER_SHOWN_KEY = '@heloc_hero:notification_primer_shown';
@@ -152,7 +152,7 @@ const useStyles = createThemedStyles(t => ({
     paddingBottom: Spacing[8],
     gap: Spacing[4],
     alignItems: 'center',
-    ...Shadows.modal,
+    ...t.shadows.modal,
   },
   iconRow: { marginBottom: Spacing[2] },
   iconBg: {
@@ -191,7 +191,7 @@ const useStyles = createThemedStyles(t => ({
     paddingVertical: Spacing[4],
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   primaryBtnText: {
     color: t.colors.onAccent,

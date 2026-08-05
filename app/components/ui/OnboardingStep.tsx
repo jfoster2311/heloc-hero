@@ -1,12 +1,12 @@
 // components/ui/OnboardingStep.tsx
+import { useEffect, useRef } from 'react';
 import {
-  View, Text, KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing,
 } from 'react-native';
-import { Touchable } from './press';
+import { Touchable, useReduceMotion } from './press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
+import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 interface Props {
@@ -30,6 +30,41 @@ export default function OnboardingStep({
 }: Props) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const reduceMotion = useReduceMotion();
+
+  /**
+   * The bar fills from the PREVIOUS step to this one on arrival.
+   *
+   * Each step is its own route, so this component unmounts and remounts on every
+   * screen and the bar simply appeared at its new width — the one piece of
+   * chrome whose entire job is to show movement was the piece that never moved.
+   * Seeding at `step - 1` and animating in gives back the thing a progress bar
+   * is for: not "you are 60% through", but "you just got further".
+   *
+   * It runs on mount only, which is correct here — `step` is fixed for the life
+   * of each screen. 420ms and eased out, so it lands just after the slide-in
+   * rather than competing with it.
+   */
+  const progress = useRef(new Animated.Value((step - 1) / totalSteps)).current;
+
+  useEffect(() => {
+    const to = step / totalSteps;
+    if (reduceMotion) {
+      progress.setValue(to);
+      return;
+    }
+    const a = Animated.timing(progress, {
+      toValue: to,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      // Width cannot be driven natively, and this is a 3pt bar animating once
+      // per screen — the JS driver is not a cost worth engineering around.
+      useNativeDriver: false,
+    });
+    a.start();
+    return () => a.stop();
+  }, [step, totalSteps, progress, reduceMotion]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -38,10 +73,15 @@ export default function OnboardingStep({
       >
         {/* Progress bar */}
         <View style={styles.progressTrack}>
-          <View
+          <Animated.View
             style={[
               styles.progressFill,
-              { width: `${(step / totalSteps) * 100}%` },
+              {
+                width: progress.interpolate({
+                  inputRange:  [0, 1],
+                  outputRange: ['0%', '100%'],
+                }),
+              },
             ]}
           />
         </View>
@@ -212,7 +252,7 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing[2],
-    ...Shadows.glow,
+    ...t.shadows.glow,
   },
   nextBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
   nextBtnText: {

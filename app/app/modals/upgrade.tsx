@@ -42,7 +42,7 @@ import {
   PACKAGE_MATCH, PRO_FEATURES, FREE_FEATURES,
 } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Shadows, OnDark } from '../../lib/theme';
+import { Typography, Spacing, Radius, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { BillingPeriod } from '../../lib/types';
 
@@ -469,7 +469,7 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
     gap: 1,
   },
-  periodBtnActive: { backgroundColor: t.colors.surface, ...Shadows.card },
+  periodBtnActive: { backgroundColor: t.colors.surface, ...t.shadows.card },
   periodText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
   periodTextActive: { color: t.colors.textPrimary, fontWeight: Typography.semibold },
   periodBadge: { fontSize: 10, color: t.colors.textMuted },
@@ -508,7 +508,7 @@ const useStyles = createThemedStyles(t => ({
     borderRadius: Radius.xl,
     padding: Spacing[5],
     gap: Spacing[3],
-    ...Shadows.card,
+    ...t.shadows.card,
   },
   cardTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
