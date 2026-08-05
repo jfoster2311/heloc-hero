@@ -53,6 +53,22 @@ export const auth = {
     if (!error && data.user) {
       // Upsert profile row — ignoreDuplicates guards against the DB trigger
       // or onAuthStateChange creating the row first (signup race condition).
+      //
+      // ── This error is ignored ON PURPOSE, and it is the one place in the
+      //    codebase where that is the right answer ─────────────────────────
+      // The obvious fix is to fold it into the returned `error`. That would be
+      // wrong and actively harmful: by this line the AUTH account already
+      // exists, so reporting a failure would send signup.tsx into its "Account
+      // not created" branch, the user would retry, and Supabase would tell them
+      // they already have an account — a dead end manufactured out of a
+      // recoverable hiccup.
+      //
+      // It is recoverable because three independent things create this row: the
+      // DB trigger, useAuth's onAuthStateChange upsert, and this. And the one
+      // write that genuinely must land — the onboarding figures — goes through
+      // submitOnboarding, which DOES report its error and is checked in
+      // signup.tsx. So a failure here is either already fixed by a sibling or
+      // surfaced a moment later by something that can act on it.
       await supabase.from('users').upsert(
         { id: data.user.id, email, full_name: fullName, tier: 'free', onboarding_complete: false },
         { onConflict: 'id', ignoreDuplicates: true },

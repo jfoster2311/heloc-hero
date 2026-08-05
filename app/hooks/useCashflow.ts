@@ -114,13 +114,25 @@ export function useCashflow(
     // Distinguish "this user has no spending" from "Plaid hasn't sent it yet".
     // Without that, a freshly linked account looks like a broken feature.
     if (rows.length === 0) {
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from('plaid_accounts')
         .select('transactions_backfilled, transactions_synced_at')
         .eq('user_id', userId);
-      setAwaitingBackfill(
-        (items ?? []).some((i: { transactions_backfilled: boolean | null }) => !i.transactions_backfilled),
-      );
+
+      // A failed read is not an answer, and `items ?? []` turned it into one.
+      // `.some()` over an empty array is false, so this set awaitingBackfill to
+      // FALSE — which is the branch that tells a freshly linked user they have
+      // no spending. That is precisely the confusion the comment above says
+      // this check exists to prevent, produced by the check itself.
+      //
+      // When we cannot tell, we leave the flag where it was rather than
+      // asserting the flattering-looking half of a distinction we just failed
+      // to make.
+      if (!itemsError) {
+        setAwaitingBackfill(
+          (items ?? []).some((i: { transactions_backfilled: boolean | null }) => !i.transactions_backfilled),
+        );
+      }
     } else {
       setAwaitingBackfill(false);
     }

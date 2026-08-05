@@ -241,6 +241,13 @@ export default function SettingsModal() {
               // attaches the session token; a raw process.env URL is undefined in
               // release builds.
               await invokeFunction('delete-account');
+              // The error IS deliberately ignored here, unlike handleSignOut
+              // below — noting it so this does not get "fixed" into reporting a
+              // failure that would be a lie. By this line the account is gone
+              // server-side, so the local session is already dead whether or
+              // not clearing it succeeded, and the only honest thing left to do
+              // is leave. Surfacing "could not sign out" would tell someone
+              // their deletion had not worked when it had.
               await supabase.auth.signOut();
               router.replace('/auth/login');
             } catch (err) {
@@ -266,7 +273,19 @@ export default function SettingsModal() {
         text: 'Sign Out',
         style: 'destructive',
         onPress: async () => {
-          await supabase.auth.signOut();
+          const { error } = await supabase.auth.signOut();
+          // Navigating regardless would be theatre: app/_layout.tsx routes on
+          // the session, so a sign-out that failed leaves it intact and the
+          // guard sends the user straight back to the tabs. They would see
+          // themselves land on the dashboard still signed in, with no
+          // explanation — which reads as the app refusing to let them leave.
+          if (error) {
+            Alert.alert(
+              'Could not sign out',
+              `${error.message}\n\nYou are still signed in. Please try again.`,
+            );
+            return;
+          }
           router.replace('/auth/login');
         },
       },

@@ -15,13 +15,13 @@
 //      figures. HELOC Hero has no payment rail: nothing "runs", nothing moves
 //      money, and the copy must not imply otherwise.
 import { useState, useEffect } from 'react';
-import { View, Text, Modal } from 'react-native';
+import { View, Text, Modal, Alert } from 'react-native';
 import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { permissionStatus, requestPermission } from '../lib/notify';
 import { supabase } from '../lib/supabase';
-import { hapticLight } from '../lib/haptics';
+import { hapticLight, hapticError } from '../lib/haptics';
 import { Typography, Spacing, Radius } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
 
@@ -76,12 +76,34 @@ export default function NotificationPrimer({ eligible, userId }: Props) {
     // Only the two boolean columns are sent. The thresholds are the user's and
     // may already be set; a row created here gets the schema defaults for them
     // rather than having them overwritten.
-    await supabase
+    const { error } = await supabase
       .from('automation_settings')
       .upsert(
         { user_id: userId, safe_sweep_enabled: true, safe_dump_enabled: true },
         { onConflict: 'user_id' },
       );
+
+    // This write failing silently was a dead end with no way back into it, and
+    // every step above has already been spent by the time it runs:
+    //
+    //   · iOS grants exactly ONE permission prompt per install, and it has just
+    //     been used. There is no second chance to ask.
+    //   · PRIMER_SHOWN_KEY is already set, so this sheet will not reappear.
+    //   · Both preferences default to OFF, so nothing is scheduled.
+    //
+    // The user has agreed to reminders, granted the system permission, watched
+    // the sheet close, and will never hear from the app. Nothing on screen
+    // would contradict that until they eventually notice the silence — and the
+    // only recovery is a Settings screen they have no reason to open, because
+    // as far as they know it worked.
+    if (error) {
+      hapticError();
+      Alert.alert(
+        'Reminders are not on yet',
+        'Your phone allowed notifications, but we could not save the setting. ' +
+        'Turn them on under Settings → Alerts and nothing else needs redoing.',
+      );
+    }
   }
 
   async function handleDismiss() {
