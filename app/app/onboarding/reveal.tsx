@@ -363,7 +363,18 @@ export default function RevealScreen() {
 
             {/* PRIMARY: years removed */}
             <View style={styles.gapBlock}>
-              <Text style={styles.gapValue} allowFontScaling={false}>
+              {/* Scales — capped — but deliberately WITHOUT the
+                  adjustsFontSizeToFit that HeroValue uses. These two figures
+                  count up: their text changes every frame while the ritual
+                  runs, so shrink-to-fit would re-measure on each one and the
+                  number would visibly wobble as it climbed. They sit in a
+                  ScrollView, so larger text scrolls rather than clipping, which
+                  is what makes the cap enough on its own here. */}
+              <Text
+                style={styles.gapValue}
+                maxFontSizeMultiplier={1.3}
+                numberOfLines={1}
+              >
                 {formatMonths(Math.max(0, Math.round(shownMonths)))}
               </Text>
               <Text style={styles.gapSublabel}>OFF YOUR MORTGAGE</Text>
@@ -372,7 +383,11 @@ export default function RevealScreen() {
             {/* PRIMARY: interest saved — the other half of the answer */}
             {targetInterest > 100 && (
               <View style={styles.savedBlock}>
-                <Text style={styles.savedValue} allowFontScaling={false}>
+                <Text
+                  style={styles.savedValue}
+                  maxFontSizeMultiplier={1.3}
+                  numberOfLines={1}
+                >
                   ${Math.round(shownInterest).toLocaleString('en-US')}
                 </Text>
                 <Text style={styles.savedSublabel}>LESS INTEREST PAID</Text>

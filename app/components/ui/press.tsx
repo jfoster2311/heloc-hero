@@ -94,16 +94,25 @@ export function animateLayout() {
 /**
  * Whether the user has asked the system to stop animating things.
  *
- * Six components already read this, each with a one-shot
- * `isReduceMotionEnabled().then(...)` in a mount effect. That misses the case
- * where the setting is changed WHILE the app is open — the user turns Reduce
- * Motion on, comes back, and everything still moves. This subscribes as well,
- * so the answer stays current.
+ * For CONTINUOUS or REPEATED motion — a press response, a looping shimmer, a
+ * control's grab state. It seeds from the module cache above rather than from
+ * `false`, which matters: the setting is only readable asynchronously, so a hook
+ * starting at `false` would let the first press of the session animate before
+ * the answer arrived. After the first read at app start the cache is warm, so
+ * every component mounting later is correct on its very first render.
  *
- * Exported so the existing six can adopt it rather than each keeping a copy.
+ * ── Not for entrance animations, and that is not an oversight ──────────────
+ * Five components here — BootSplash, SuccessReveal, FreedomBoard, the welcome
+ * screen and the reveal — keep their own one-shot `isReduceMotionEnabled()`
+ * read, and they are right to. Their animation runs ONCE on mount and then
+ * never again, so there is nothing for a live subscription to update; what it
+ * would do instead is re-run the effect mid-flight if the setting changed,
+ * restarting or jumping an entrance that was halfway through. A one-shot read
+ * is the correct shape for a one-shot animation. Reach for this hook when the
+ * motion outlives the decision to start it.
  */
 export function useReduceMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(reduceMotionNow);
 
   useEffect(() => {
     let gone = false;

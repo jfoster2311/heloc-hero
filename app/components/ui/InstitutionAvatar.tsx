@@ -84,6 +84,13 @@ export default function InstitutionAvatar({ name, accountType, size = 40 }: {
       {name ? (
         <Text
           style={[styles.initials, { color: tint.fg, fontSize: size * 0.36 }]}
+          // The last `allowFontScaling={false}` in the app, and the only one
+          // that earns it. This is one or two letters centred in a circle of a
+          // FIXED diameter, sized from it — scaled up they simply overflow the
+          // disc. And there is no accessibility cost to weigh against that,
+          // because the view is hidden from assistive tech either way: the
+          // institution's actual name sits in the Text beside it. Everywhere
+          // else, including the 56pt hero figure, now scales.
           allowFontScaling={false}
         >
           {initialsFor(name)}

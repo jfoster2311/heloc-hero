@@ -16,11 +16,12 @@
 // not jump when the real thing arrives — the second half of the same problem.
 import { useEffect, useRef } from 'react';
 import {
-  View, StyleSheet, Animated, AccessibilityInfo,
+  View, StyleSheet, Animated,
   type StyleProp, type ViewStyle, type DimensionValue,
 } from 'react-native';
 import { Radius, Spacing } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
+import { useReduceMotion } from './press';
 
 /** One shimmering block. `onDark` for placeholders sitting on the aurora hero. */
 export function Skeleton({ width = '100%', height = 14, radius = Radius.sm, onDark, style }: {
@@ -32,27 +33,31 @@ export function Skeleton({ width = '100%', height = 14, radius = Radius.sm, onDa
 }) {
   const styles = useStyles();
   const pulse = useRef(new Animated.Value(0.45)).current;
+  // The hook rather than a one-shot read, and this is the component that needs
+  // it: the pulse is a LOOP, so it can still be running minutes later when the
+  // user goes to Settings and asks for less motion. An entrance animation has
+  // finished by then and is right to read once — see the note on
+  // useReduceMotion. Seeded from the module cache, so a skeleton mounting after
+  // app start never flashes one frame of pulse before the answer arrives.
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
-    let cancelled = false;
-    let loop: Animated.CompositeAnimation | null = null;
-
     // A pulse is motion, and motion is exactly what some users have asked the
     // system to stop. Reduce Motion gets a flat block, which still reserves the
     // space and still reads as "not here yet".
-    AccessibilityInfo.isReduceMotionEnabled().then(reduced => {
-      if (cancelled || reduced) return;
-      loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1, duration: 720, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 0.45, duration: 720, useNativeDriver: true }),
-        ]),
-      );
-      loop.start();
-    });
-
-    return () => { cancelled = true; loop?.stop(); };
-  }, [pulse]);
+    if (reduceMotion) {
+      pulse.setValue(0.45);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 720, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 720, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, reduceMotion]);
 
   return (
     <Animated.View

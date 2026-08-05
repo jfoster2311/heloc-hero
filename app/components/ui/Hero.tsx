@@ -110,13 +110,38 @@ export default function Hero({
   );
 }
 
-/** The display numeral a hero exists to carry. */
+/**
+ * The display numeral a hero exists to carry.
+ *
+ * ── Why this is not `allowFontScaling={false}` any more ────────────────────
+ * It was, and that traded away the wrong thing. Turning scaling off entirely
+ * means a user on Larger Text gets no help at all on the single most important
+ * figure in the app — the payoff date, the equity, the projection — while every
+ * caption around it grows. That is backwards.
+ *
+ * The reason it was switched off is real, though: this text is 56pt and the
+ * dashboard's own content is a month and a year. "September 2037" at 56pt with
+ * display tracking runs about 420pt, against roughly 358pt of usable width on a
+ * standard phone — so it was already overflowing at 1.0x, before any
+ * accessibility multiplier touched it.
+ *
+ * So the fix is the one NavTile already uses in this same file's neighbour:
+ * let it scale, cap how far, and shrink to fit rather than wrap or clip. A long
+ * value now sets a little smaller instead of breaking the hero, and a user who
+ * asked for larger text gets larger text.
+ */
 export function HeroValue({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
   const styles = useStyles();
   return (
     <Text
       style={[styles.value, accent && { color: OnDark.accent }]}
-      allowFontScaling={false}
+      // 1.3x of 56pt is already 73pt. Past that the figure stops being readable
+      // as one unit at arm's length, and shrink-to-fit would claw it all back
+      // anyway — so the cap is where the two behaviours stop fighting.
+      maxFontSizeMultiplier={1.3}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.6}
     >
       {children}
     </Text>

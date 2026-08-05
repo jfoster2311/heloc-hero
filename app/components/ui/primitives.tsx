@@ -194,7 +194,18 @@ export function StatTile({ label, value, sub }: { label: string; value: string; 
   const styles = useStyles();
   return (
     <View style={styles.tile}>
-      <Text style={styles.tileValue} allowFontScaling={false}>{value}</Text>
+      {/* Scales, but capped and shrink-to-fit — same trade as HeroValue, and
+          for the same reason: switching Dynamic Type off on the figure while
+          leaving it on for the label beneath is backwards. */}
+      <Text
+        style={styles.tileValue}
+        maxFontSizeMultiplier={1.4}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {value}
+      </Text>
       <Text style={styles.tileLabel}>{label}</Text>
       {sub ? <Text style={styles.tileSub}>{sub}</Text> : null}
     </View>
