@@ -425,7 +425,11 @@ export default function SignupScreen() {
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
             <Link href="/auth/login" asChild>
-              <TouchableOpacity accessibilityRole="link" accessibilityLabel="Sign in">
+              <TouchableOpacity
+                style={styles.footerBtn}
+                accessibilityRole="link"
+                accessibilityLabel="Sign in"
+              >
                 <Text style={styles.footerLink}>Sign in</Text>
               </TouchableOpacity>
             </Link>
@@ -476,7 +480,9 @@ const useStyles = createThemedStyles(t => ({
     lineHeight: 18,
     marginTop: 2,
   },
-  problemAction: { minHeight: 36, justifyContent: 'center', marginTop: Spacing[1] },
+  // The recovery from "that account already exists" — the one tap that resolves
+  // the failure, so it gets a full target rather than 36pt.
+  problemAction: { minHeight: 44, justifyContent: 'center', marginTop: Spacing[1] },
   problemActionText: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
@@ -514,6 +520,8 @@ const useStyles = createThemedStyles(t => ({
     minHeight: 44,
   },
   footerText: { color: t.colors.textSecondary, fontSize: Typography.sm },
+  // See the note in auth/login — `footer`'s 44pt is the row's, not the link's.
+  footerBtn: { alignSelf: 'stretch', justifyContent: 'center' },
   footerLink: { color: t.colors.mint700, fontSize: Typography.sm, fontWeight: Typography.semibold },
 
   // ── Confirmation ───────────────────────────────────────────────────────────

@@ -350,7 +350,15 @@ const useStyles = createThemedStyles(t => ({
   rangeLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
   rangeScore: { fontSize: Typography.xs, color: t.colors.textMuted, marginTop: 1 },
 
-  link: { flexDirection: 'row', gap: Spacing[2], alignItems: 'flex-start' },
+  // Two lines of 11pt with no vertical padding is a ~34pt target on the one
+  // control that leaves the app. Padding rather than hitSlop, because the row
+  // sits at the end of a card where the slop would reach past the card's edge.
+  link: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    alignItems: 'flex-start',
+    paddingVertical: Spacing[2],
+  },
   linkText: { flex: 1, fontSize: 11, color: t.colors.textSecondary, lineHeight: 17 },
 
   error: { fontSize: Typography.xs, color: t.colors.textSecondary },

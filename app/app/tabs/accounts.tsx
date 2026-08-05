@@ -231,6 +231,11 @@ export default function AccountsScreen() {
                 <TouchableOpacity
                   style={styles.addBtn}
                   onPress={() => { hapticLight(); router.push('/modals/link-account'); }}
+                  // Same trade the horizon pills below make: a 36pt pill is the
+                  // right weight for a hero action and 44 would read as a
+                  // toolbar button, so slop buys the HIG target back without
+                  // the bulk.
+                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
                   accessibilityRole="button"
                   accessibilityLabel="Link an account"
                 >

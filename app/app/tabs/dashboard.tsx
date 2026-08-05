@@ -532,7 +532,12 @@ export default function DashboardScreen() {
               />
             )}
             {moveDismissed && (
-              <TouchableOpacity onPress={() => setMoveDismissed(false)} accessibilityLabel="Show move actions">
+              <TouchableOpacity
+                style={styles.undoBtn}
+                onPress={() => setMoveDismissed(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Show move actions"
+              >
                 <Text style={styles.undoText}>Show actions</Text>
               </TouchableOpacity>
             )}
@@ -1184,6 +1189,9 @@ const useStyles = createThemedStyles(t => ({
     padding: Spacing[3],
   },
   bufferText: { flex: 1, fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },
+  // The only way back to the actions this card just hid, so it has to be a real
+  // target rather than one line of 14pt text.
+  undoBtn: { minHeight: 44, justifyContent: 'center' },
   undoText: { fontSize: Typography.sm, color: t.colors.accentInk, fontWeight: Typography.medium },
 
   sweepMath: { gap: Spacing[2] },

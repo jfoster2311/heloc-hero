@@ -221,7 +221,11 @@ export default function LoginScreen() {
           <View style={styles.footer}>
             <Text style={styles.footerText}>New to HELOC Hero? </Text>
             <Link href="/auth/signup" asChild>
-              <TouchableOpacity accessibilityRole="link" accessibilityLabel="Create an account">
+              <TouchableOpacity
+                style={styles.footerBtn}
+                accessibilityRole="link"
+                accessibilityLabel="Create an account"
+              >
                 <Text style={styles.footerLink}>Create an account</Text>
               </TouchableOpacity>
             </Link>
@@ -303,6 +307,15 @@ const useStyles = createThemedStyles(t => ({
     minHeight: 44,
   },
   footerText: { color: t.colors.textSecondary, fontSize: Typography.sm },
+  /**
+   * The 44pt already on `footer` was the ROW's height, not the link's.
+   *
+   * The row centres its children, so the touchable stayed exactly as tall as one
+   * line of 14pt text and the other ~24pt of that row belonged to nothing. This
+   * stretches the link to fill it — the only route from sign-in to sign-up, on
+   * the first screen a new user sees.
+   */
+  footerBtn: { alignSelf: 'stretch', justifyContent: 'center' },
   footerLink: {
     color: t.colors.mint700,
     fontSize: Typography.sm,

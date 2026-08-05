@@ -238,6 +238,11 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
             <TouchableOpacity
               style={styles.filterNote}
               onPress={() => { hapticLight(); setSelected(null); }}
+              // The only way out of a day filter, at 32pt of inline text. Slop
+              // rather than height: growing the row would push the list down
+              // every time a day is selected, so the control would move the
+              // content it is filtering.
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel="Clear the day filter and show everything again"
             >

@@ -35,7 +35,18 @@ export default function TabsLayout() {
       <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor:   colors.mint600,
+        // `accentInk`, not `mint600`, and this is the one control in the app
+        // where that distinction is most expensive to get wrong. The tint paints
+        // BOTH the icon and a 10pt label — text, at the size that needs 4.5:1 —
+        // and `mint600` on the bar's white fill measures 2.62:1. It is the exact
+        // failure the token exists for, and it was here on all five tabs of every
+        // screen. `accentInk` is 5.00:1 in light and IS `mint600` in dark, so
+        // this costs nothing on the theme that already passed at 8.34:1.
+        //
+        // It also fixes a second thing: at 2.62 against the inactive 2.54 the two
+        // states were separated by hue alone. They now differ in luminance too,
+        // reinforcing the filled/outline swap below rather than leaning on it.
+        tabBarActiveTintColor:   colors.accentInk,
         tabBarInactiveTintColor: colors.gray400,
         tabBarStyle: {
           position: 'absolute',

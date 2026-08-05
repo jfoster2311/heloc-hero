@@ -225,6 +225,7 @@ export default function BreakdownScreen() {
                       key={p}
                       style={[styles.pivotChip, active && styles.pivotChipActive]}
                       onPress={() => { hapticSelection(); setPivot(p); setExpanded(false); }}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       accessibilityLabel={`View by ${p}`}
