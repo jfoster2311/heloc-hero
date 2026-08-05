@@ -5,14 +5,14 @@
 // label, a meter or a status, it comes from here.
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet, LayoutAnimation, Platform,
+  View, Text, StyleSheet,
   type ViewStyle, type StyleProp, type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Spacing, Radius, Tracking, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
-import { Touchable, PressScale } from './press';
+import { Touchable, PressScale, animateLayout } from './press';
 
 // ─── Surfaces ─────────────────────────────────────────────────────────────────
 
@@ -465,9 +465,7 @@ export function Disclosure({ count, children, label = 'details' }: {
       <Touchable
         style={styles.disclosure}
         onPress={() => {
-          if (Platform.OS === 'ios') {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          }
+          animateLayout();
           setOpen(o => !o);
         }}
         haptic="selection"

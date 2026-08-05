@@ -23,8 +23,8 @@
 // make the screen that says what the score is and is not unreachable for the
 // users furthest along.
 import { useState } from 'react';
-import { View, Text, LayoutAnimation, Platform } from 'react-native';
-import { Touchable } from './ui/press';
+import { View, Text } from 'react-native';
+import { Touchable, animateLayout } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Card } from './ui/primitives';
@@ -122,9 +122,7 @@ export default function GettingStarted({
         <Touchable
           style={styles.toggle}
           onPress={() => {
-            if (Platform.OS === 'ios') {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            }
+            animateLayout();
             setExpanded(e => !e);
           }}
           accessibilityRole="button"

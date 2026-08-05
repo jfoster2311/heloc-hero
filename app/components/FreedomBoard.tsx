@@ -42,9 +42,9 @@
 // alternative is not having the affordance at all.
 import { useRef, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Easing, AccessibilityInfo, LayoutAnimation, Platform,
+  View, Text, StyleSheet, Animated, Easing, AccessibilityInfo,
 } from 'react-native';
-import { Touchable } from './ui/press';
+import { Touchable, animateLayout } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../lib/haptics';
 import { Typography, Spacing, Radius, Aurora, OnDark } from '../lib/theme';
@@ -167,9 +167,7 @@ export default function FreedomBoard({
               // its neighbour. See the note on the 44pt rule in the header.
               hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
               onPress={() => {
-                if (Platform.OS === 'ios') {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                }
+                animateLayout();
                 setSelected(s => (s === i ? null : i));
               }}
               accessibilityRole="button"
@@ -207,9 +205,7 @@ export default function FreedomBoard({
           style={styles.detail}
           hitSlop={{ top: 7, bottom: 7, left: 0, right: 0 }}
           onPress={() => {
-            if (Platform.OS === 'ios') {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            }
+            animateLayout();
             setSelected(null);
           }}
           accessibilityRole="button"

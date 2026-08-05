@@ -29,10 +29,67 @@
 // half of them had (5 of 8 LinkRows were silent).
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Pressable, AccessibilityInfo,
+  Animated, Pressable, AccessibilityInfo, LayoutAnimation, Platform, UIManager,
   type ViewStyle, type StyleProp, type AccessibilityRole,
+  type LayoutAnimationConfig,
 } from 'react-native';
 import { hapticLight, hapticSelection, hapticMedium } from '../../lib/haptics';
+
+/**
+ * A module-level mirror of the Reduce Motion setting.
+ *
+ * `useReduceMotion` below covers components. `animateLayout` is called from
+ * inside event handlers, where a hook cannot reach — so the value is cached here
+ * and kept current by the same subscription. Read it; never write it.
+ */
+let reduceMotionNow = false;
+AccessibilityInfo.isReduceMotionEnabled().then(r => { reduceMotionNow = r; });
+AccessibilityInfo.addEventListener('reduceMotionChanged', r => { reduceMotionNow = r; });
+
+// LayoutAnimation is opt-in on Android and silently does nothing without this.
+// It used to be enabled at the top of app/tabs/calculator.tsx — a ROUTE module,
+// so whether the app's accordions animated depended on whether the user had
+// visited the Calculator tab yet. Here it runs when the press system loads,
+// which every screen does.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+/**
+ * The app's one disclosure curve — for a section opening or closing in place.
+ *
+ * 200ms rather than the 300ms of `Presets.easeInEaseOut`, which every call site
+ * used. On a disclosure that is noticeably slow: the user has already decided to
+ * open the thing and is waiting on the chrome to catch up. 200 still reads as a
+ * reveal rather than a jump.
+ *
+ * `opacity` on create/delete so the content fades as the container resizes
+ * instead of appearing at full strength against a box still growing under it.
+ */
+const DISCLOSURE: LayoutAnimationConfig = {
+  duration: 200,
+  create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  update: { type: LayoutAnimation.Types.easeInEaseOut },
+  delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+};
+
+/**
+ * Animate the next layout pass — for expanding a section, revealing rows, or
+ * any state change whose only visual is the page reflowing.
+ *
+ * Call it immediately before the `setState` that changes the layout.
+ *
+ * This exists because six call sites each rolled their own, and they had drifted
+ * into three different behaviours: three guarded on `Platform.OS === 'ios'` and
+ * so never animated on Android at all, three did not and depended on a flag set
+ * in a route module, and NONE of them checked Reduce Motion — so the one setting
+ * a user can use to say "stop moving things" was honoured by every animation in
+ * the app except the ones that reflow the page under their finger.
+ */
+export function animateLayout() {
+  if (reduceMotionNow) return;
+  LayoutAnimation.configureNext(DISCLOSURE);
+}
 
 /**
  * Whether the user has asked the system to stop animating things.

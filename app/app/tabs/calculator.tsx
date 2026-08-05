@@ -16,10 +16,10 @@
 //  · Exactly one accent element: the payoff number. Everything else is muted.
 import {
   View, Text, ScrollView,
-  TextInput, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
+  TextInput, KeyboardAvoidingView, Platform,
   InputAccessoryView, Keyboard,
 } from 'react-native';
-import { Touchable } from '../../components/ui/press';
+import { Touchable, animateLayout } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -36,9 +36,6 @@ import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../li
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { CalculatorInputs } from '../../lib/types';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // Years LEFT on the note, not the original term. Most people running this
 // calculator are part-way through a mortgage, and assuming a fresh 30-year
@@ -273,19 +270,19 @@ export default function CalculatorScreen() {
 
   function toggleAdvanced() {
     hapticLight();
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateLayout();
     setShowAdvanced(v => !v);
   }
 
   function toggleSchedule() {
     hapticLight();
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateLayout();
     setShowSchedule(v => !v);
   }
 
   function toggleAssumptions() {
     hapticLight();
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateLayout();
     setShowAssumptions(v => !v);
   }
 
