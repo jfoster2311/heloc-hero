@@ -105,6 +105,15 @@ export interface Financials {
   surplus: number;
   surplusBasis: 'entered' | 'trailing';
   liquidCash: number;
+  /**
+   * Whether `liquidCash` is an observed balance at all.
+   *
+   * It floors to 0 when no checking or savings account is linked, and a 0 there
+   * is indistinguishable from a genuinely empty account. Anything that reasons
+   * about the cash LEVEL — the threshold alert above all — has to know which it
+   * is looking at before it draws a conclusion from it.
+   */
+  hasCashAccount: boolean;
   /** Trailing transaction average, when there is enough history to derive one. */
   derivedCashflow: DerivedCashflow | null;
   /** The rows behind that average, for the Cash flow tab's category breakdown. */
@@ -155,7 +164,7 @@ export function useFinancials(): Financials {
   const { profile } = useAuth();
   const {
     accounts, loading, refreshing, error, refresh,
-    mortgageAccount, helocAccount, savingsAccount,
+    mortgageAccount, helocAccount, cashAccount,
   } = useAccounts(profile?.id ?? null);
 
   // Rows the user marked as duplicates. Read HERE, at the top of the shared
@@ -173,13 +182,13 @@ export function useFinancials(): Financials {
 
   return useMemo(
     () => derive(
-      profile, accounts, mortgageAccount, helocAccount, savingsAccount,
+      profile, accounts, mortgageAccount, helocAccount, cashAccount,
       loading, refreshing, error, refresh, refreshTransactions,
       derived, transactions, awaitingBackfill,
       transactionMeta, categories,
     ),
     [
-      profile, accounts, mortgageAccount, helocAccount, savingsAccount,
+      profile, accounts, mortgageAccount, helocAccount, cashAccount,
       loading, refreshing, error, refresh, refreshTransactions,
       derived, transactions, awaitingBackfill,
       transactionMeta, categories,
@@ -192,7 +201,7 @@ function derive(
   accounts: LinkedAccount[],
   mortgageAccount: LinkedAccount | null,
   helocAccount: LinkedAccount | null,
-  savingsAccount: LinkedAccount | null,
+  cashAccount: LinkedAccount | null,
   loading: boolean,
   refreshing: boolean,
   error: string | null,
@@ -264,7 +273,7 @@ function derive(
   const expenses = profile?.monthly_expenses ?? 0;
   const payment  = mortgage.nextPayment.value ?? profile?.monthly_payment ?? 0;
   const surplus  = income - expenses - payment;
-  const liquidCash = firstBalance(savingsAccount) ?? 0;
+  const liquidCash = firstBalance(cashAccount) ?? 0;
   const surplusBasis: 'entered' | 'trailing' =
     profile?.cashflow_source === 'derived' ? 'trailing' : 'entered';
 
@@ -375,6 +384,7 @@ function derive(
     income, expenses, payment, surplus,
     surplusBasis,
     liquidCash,
+    hasCashAccount: cashAccount !== null,
     derivedCashflow,
     transactions,
     transactionMeta,

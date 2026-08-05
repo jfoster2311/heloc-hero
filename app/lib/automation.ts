@@ -8,6 +8,7 @@ export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
   buffer_target:            2000,
   upcoming_bills_estimate:  500,
   min_dump_amount:          5000,
+  min_sweep_amount:         100,
 };
 
 /**

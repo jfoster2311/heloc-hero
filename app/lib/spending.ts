@@ -15,6 +15,7 @@
 // screen says so instead of drawing a plausible-looking split.
 import type { Ionicons } from '@expo/vector-icons';
 import type { TransactionRow, TransactionClassification } from './cashflow';
+import { isCashAccountType } from './types';
 
 // ─── Taxonomy ─────────────────────────────────────────────────────────────────
 
@@ -370,7 +371,7 @@ export function summarizableRows(
 ): TransactionRow[] {
   return transactions.filter(t =>
     !t.pending &&
-    t.account_type === 'savings' &&
+    isCashAccountType(t.account_type) &&
     !classification.excludedIds.has(t.transaction_id),
   );
 }
@@ -653,7 +654,7 @@ export function dailyBreakdown(args: {
   }
 
   for (const t of transactions) {
-    if (t.pending || t.account_type !== 'savings') continue;
+    if (t.pending || !isCashAccountType(t.account_type)) continue;
     if (classification.excludedIds.has(t.transaction_id)) continue;
     const cell = cells.get(t.date);
     if (!cell) continue;
@@ -737,7 +738,7 @@ export function categoryHistory(args: {
   const index = new Map(points.map((p, i) => [p.key, i]));
 
   for (const t of transactions) {
-    if (t.pending || t.account_type !== 'savings') continue;
+    if (t.pending || !isCashAccountType(t.account_type)) continue;
     if (classification.excludedIds.has(t.transaction_id)) continue;
     if (t.amount <= 0) continue;                     // spend only
     const i = index.get(t.date.slice(0, 7));
@@ -853,7 +854,7 @@ export function merchantDetail(args: {
 
   const matching = transactions.filter(t =>
     !t.pending &&
-    t.account_type === 'savings' &&
+    isCashAccountType(t.account_type) &&
     !classification.excludedIds.has(t.transaction_id) &&
     t.amount > 0 &&
     merchantKey(t) === key,

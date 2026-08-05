@@ -60,10 +60,16 @@ const ACCOUNT_TYPES: { type: PlaidAccountType; label: string; desc: string; icon
     icon: 'card-outline',
   },
   {
-    type: 'savings',
-    label: 'Savings / Checking',
-    desc: 'Connect the account where you receive your paycheck',
+    type: 'checking',
+    label: 'Checking',
+    desc: 'Where your paycheck lands — the balance sweep alerts watch',
     icon: 'wallet-outline',
+  },
+  {
+    type: 'savings',
+    label: 'Savings',
+    desc: 'Optional. Counted as cash, used if no checking is linked',
+    icon: 'cash-outline',
   },
 ];
 

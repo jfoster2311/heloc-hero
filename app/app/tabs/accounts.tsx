@@ -765,7 +765,16 @@ function connectionHealth(syncedAt: string | null): {
 }
 
 function typeLabel(t: PlaidAccountType): string {
-  return t === 'home equity' ? 'HELOC' : t === 'mortgage' ? 'Mortgage' : 'Savings';
+  // Exhaustive rather than falling through to 'Savings'. The old default was
+  // safe while savings was the only remaining role; with checking split out it
+  // would have labelled a checking account as savings on the one screen whose
+  // job is telling the user which account is which.
+  switch (t) {
+    case 'home equity': return 'HELOC';
+    case 'mortgage':    return 'Mortgage';
+    case 'checking':    return 'Checking';
+    case 'savings':     return 'Savings';
+  }
 }
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function money(n: number) { return `$${fmt(n)}`; }

@@ -29,6 +29,7 @@
 // the app recommend a smaller move than it could have. A surplus that is too
 // large makes it recommend a draw the user cannot replenish, secured against
 // their home. Those are not symmetric mistakes.
+import { isCashAccountType } from './types';
 
 export interface TransactionRow {
   transaction_id: string;
@@ -172,7 +173,7 @@ export function deriveCashflow(
   const mortgage = opts.mortgagePaymentIds ?? new Set<string>();
   const inWindow = transactions.filter(t =>
     !t.pending &&
-    t.account_type === 'savings' &&
+    isCashAccountType(t.account_type) &&
     !hidden.has(t.transaction_id) &&
     !mortgage.has(t.transaction_id) &&
     withinRange(t.date, start, endExclusive),
@@ -341,7 +342,7 @@ export function classifyTransactions(
   const mortgage = opts.mortgagePaymentIds ?? new Set<string>();
   // Same gate as deriveCashflow: only depository rows describe living costs.
   // Mortgage and HELOC activity is the strategy's own machinery, not spending.
-  const usable = transactions.filter(t => !t.pending && t.account_type === 'savings');
+  const usable = transactions.filter(t => !t.pending && isCashAccountType(t.account_type));
 
   const transferIds = findTransfers(usable);
   const recurring   = findRecurringInflows(usable, transferIds);

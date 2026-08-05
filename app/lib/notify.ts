@@ -12,6 +12,7 @@
 //
 // The native module is absent in Expo Go, so every call is guarded and every
 // entry point degrades to a no-op rather than throwing.
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { computeStrike } from './strike';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,10 +35,11 @@ export function notificationsAvailable(): boolean {
 
 /** Identifiers so a reschedule replaces its predecessor rather than stacking. */
 export const REMINDER_IDS = {
-  dumpReady:   'heloc-hero.dump-ready',
-  sweepDue:    'heloc-hero.sweep-due',
-  termsStale:  'heloc-hero.terms-stale',
-  termsReview: 'heloc-hero.terms-review',
+  dumpReady:     'heloc-hero.dump-ready',
+  sweepDue:      'heloc-hero.sweep-due',
+  termsStale:    'heloc-hero.terms-stale',
+  termsReview:   'heloc-hero.terms-review',
+  cashThreshold: 'heloc-hero.cash-threshold',
 } as const;
 
 export type ReminderId = typeof REMINDER_IDS[keyof typeof REMINDER_IDS];
@@ -267,6 +269,150 @@ export async function syncCycleReminders(
   }
 
   return scheduled;
+}
+
+// ─── Cash threshold ───────────────────────────────────────────────────────────
+//
+// The other prompts in this file are scheduled against a DATE — the 1st of the
+// month, a projected replenish date. This one is a LEVEL: it fires when the
+// cash account rises past what the user asked to keep, because that is the
+// moment a sweep becomes worth making and it does not fall on a calendar.
+//
+// The honest limitation, which the UI must not overstate: a local notification
+// cannot observe a bank balance while the app is closed. There is no push
+// pipeline here — no token store, no deployed sender — so this is evaluated
+// when the app is in the foreground and balances refresh. It reaches someone
+// who opens the app; it does not reach someone who does not. Any copy
+// describing it has to say "when you open the app", never "we'll alert you".
+
+/**
+ * Whether a crossing may fire, and when one last did.
+ *
+ * Persisted by the caller. `armed` is the whole point: without it, every
+ * balance refresh while the account sits above the line would fire again, so a
+ * user with a healthy buffer would be buzzed on every app open until they spent
+ * the money. The alert is about the CROSSING, not the state.
+ */
+export interface ThresholdArmState {
+  armed: boolean;
+  lastFiredAt: string | null;
+}
+
+export const INITIAL_ARM_STATE: ThresholdArmState = { armed: true, lastFiredAt: null };
+
+/**
+ * Decides whether this observation is a fireable crossing.
+ *
+ * Pure, and separate from the notification call, because the rules are the part
+ * worth getting right:
+ *
+ *  - Below the floor re-arms. Falling back under the line is what makes the
+ *    next rise a new crossing rather than a continuation of this one.
+ *  - Above the floor fires only when armed, so one crossing yields one prompt.
+ *  - `minGapDays` is a backstop for a balance that oscillates across the line —
+ *    a paycheck landing and direct debits clearing can cross it repeatedly in a
+ *    week, and each crossing is technically real. Without the gap that is a
+ *    daily buzz, which trains the user to ignore the one that matters.
+ */
+export function evaluateCashThreshold(
+  spare: number,
+  floor: number,
+  prev: ThresholdArmState,
+  minGapDays: number,
+  now = new Date(),
+): { fire: boolean; next: ThresholdArmState } {
+  // Below the line: nothing to say, and the next rise counts as fresh.
+  if (spare < floor) {
+    return { fire: false, next: { armed: true, lastFiredAt: prev.lastFiredAt } };
+  }
+  if (!prev.armed) return { fire: false, next: prev };
+
+  if (prev.lastFiredAt) {
+    const since = now.getTime() - new Date(prev.lastFiredAt).getTime();
+    // NaN from an unparseable stored date must not read as "long enough ago".
+    if (!Number.isFinite(since) || since < minGapDays * 86_400_000) {
+      return { fire: false, next: prev };
+    }
+  }
+
+  return { fire: true, next: { armed: false, lastFiredAt: now.toISOString() } };
+}
+
+/**
+ * Arm state lives on the device, not in `automation_settings`.
+ *
+ * It describes what THIS install has already said to the user, which is what
+ * "don't tell them twice" is actually about. Putting it in Postgres would make
+ * a second device's refresh swallow the prompt on the first, and would write a
+ * row on every balance refresh for a value no server reads.
+ */
+const ARM_KEY_PREFIX = 'heloc-hero.cash-threshold-arm.';
+
+export async function readArmState(userId: string): Promise<ThresholdArmState> {
+  try {
+    const raw = await AsyncStorage.getItem(ARM_KEY_PREFIX + userId);
+    if (!raw) return INITIAL_ARM_STATE;
+    const parsed = JSON.parse(raw) as Partial<ThresholdArmState>;
+    return {
+      // Default to ARMED on a malformed read. The failure modes are not
+      // symmetric: defaulting to disarmed silently kills the feature with no
+      // way for the user to notice, while the worst case here is one extra
+      // prompt that minGapDays still bounds.
+      armed: parsed.armed !== false,
+      lastFiredAt: typeof parsed.lastFiredAt === 'string' ? parsed.lastFiredAt : null,
+    };
+  } catch {
+    return INITIAL_ARM_STATE;
+  }
+}
+
+export async function writeArmState(userId: string, state: ThresholdArmState): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ARM_KEY_PREFIX + userId, JSON.stringify(state));
+  } catch {
+    // A failed write means at worst a repeated prompt, bounded by minGapDays.
+    // Not worth surfacing to someone who was looking at their balance.
+  }
+}
+
+/**
+ * Presents a prompt immediately rather than booking one for later.
+ *
+ * A null trigger is expo's "deliver now". The scheduled path is wrong here: the
+ * crossing has already happened, and by the time any future date arrived the
+ * balance it describes could be gone.
+ */
+export async function notifyCashThreshold(
+  spare: number,
+  committed: number | null,
+): Promise<boolean> {
+  const mod = loadModule();
+  if (!mod) return false;
+  if (!(await hasPermission())) return false;
+
+  try {
+    await cancel(REMINDER_IDS.cashThreshold);
+    await mod.scheduleNotificationAsync({
+      identifier: REMINDER_IDS.cashThreshold,
+      content: {
+        title: 'Cash is building up',
+        // Names the same figure the Safe to Sweep card shows, for the same
+        // reason the dump reminder does: the user taps this and lands on that
+        // card, and a notification the destination screen contradicts costs
+        // more trust than it buys attention.
+        body: committed !== null && committed > 0
+          ? `You have about $${round(spare)} spare. About $${round(committed)} of it is ` +
+            "owed to your line — you make the transfer, we'll track it."
+          : `You have about $${round(spare)} above what you asked to keep. Open HELOC ` +
+            'Hero to see what is worth moving to your line.',
+        sound: true,
+      },
+      trigger: null,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Terms review ─────────────────────────────────────────────────────────────

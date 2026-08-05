@@ -76,7 +76,7 @@ export default function MoveMoneyModal() {
   const router = useRouter();
   const { profile } = useAuth();
   const {
-    mortgageAccount, helocAccount, savingsAccount, loading: accountsLoading,
+    mortgageAccount, helocAccount, cashAccount, loading: accountsLoading,
     refresh: refreshAccounts,
   } = useAccounts(profile?.id ?? null);
 
@@ -142,7 +142,7 @@ export default function MoveMoneyModal() {
   // Liquidity, before and after. Available credit counts because on a HELOC it
   // IS the emergency fund — which is the whole reason drawing it down has a
   // cost worth stating next to the interest saved.
-  const liquidCash    = firstBalance(savingsAccount) ?? 0;
+  const liquidCash    = firstBalance(cashAccount) ?? 0;
   const bufferBefore  = bufferMonths(liquidCash, Math.max(0, limit - drawn), expenses);
   const bufferAfter   = bufferMonths(liquidCash, analysis.availableAfter, expenses);
 

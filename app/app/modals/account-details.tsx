@@ -54,15 +54,17 @@ const EDITOR: Record<PlaidAccountType, { route: string; label: string; sub: stri
     label: 'HELOC terms',
     sub: 'Limit, rate, draw period and how interest is charged',
   },
-  // Nothing to enter. A savings balance is only ever the live figure, and the
+  // Nothing to enter. A cash balance is only ever the live figure, and the
   // buffer rules that reason about it are not per-account settings.
   'savings': null,
+  'checking': null,
 };
 
 const TYPE_LABEL: Record<PlaidAccountType, string> = {
   'mortgage': 'Mortgage',
   'home equity': 'HELOC',
   'savings': 'Savings',
+  'checking': 'Checking',
 };
 
 export default function AccountDetailsModal() {

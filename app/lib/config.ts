@@ -69,6 +69,17 @@ export const DRAW_LOOKAHEAD_MONTHS = 18;
  */
 export const TERMS_REVIEW_DAYS = 30;
 
+/**
+ * The minimum spacing between cash-threshold alerts.
+ *
+ * The arm/re-arm rule already collapses a sustained high balance into a single
+ * prompt. This bounds the other shape: a balance that oscillates across the
+ * line as a paycheck lands and direct debits clear. Every one of those is a
+ * genuine crossing, and firing on each would be a near-daily buzz saying
+ * roughly the same thing — which is how a user mutes the app entirely.
+ */
+export const CASH_ALERT_MIN_GAP_DAYS = 5;
+
 /** How far ahead a mortgage payment counts as "due". */
 export const PAYMENT_DUE_LOOKAHEAD_DAYS = 7;
 

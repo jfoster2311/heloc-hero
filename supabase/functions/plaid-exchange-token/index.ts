@@ -5,7 +5,7 @@ import { getAdminClient } from "../_shared/supabase.ts";
 import { requireSelf } from "../_shared/auth.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
-const VALID_TYPES = ["mortgage", "home equity", "savings"] as const;
+const VALID_TYPES = ["mortgage", "home equity", "savings", "checking"] as const;
 type AccountType = typeof VALID_TYPES[number];
 
 Deno.serve(async (req: Request) => {
@@ -19,7 +19,9 @@ Deno.serve(async (req: Request) => {
     if (!accountType) return errorResponse("accountType is required");
     if (!userId) return errorResponse("userId is required");
     if (!VALID_TYPES.includes(accountType)) {
-      return errorResponse("accountType must be: mortgage | home equity | savings");
+      // Derived, not restated. This string drifted out of step with VALID_TYPES
+      // the moment a fourth role was added.
+      return errorResponse(`accountType must be: ${VALID_TYPES.join(" | ")}`);
     }
 
     // Checked BEFORE the exchange, not after: an unauthorized caller should not

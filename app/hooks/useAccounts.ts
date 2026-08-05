@@ -27,6 +27,9 @@ interface AccountsState {
   mortgageAccount: LinkedAccount | null;
   helocAccount: LinkedAccount | null;
   savingsAccount: LinkedAccount | null;
+  checkingAccount: LinkedAccount | null;
+  /** Checking if linked, else savings. What a sweep is measured against. */
+  cashAccount: LinkedAccount | null;
 }
 
 /**
@@ -180,7 +183,22 @@ export function useAccounts(userId: string | null): AccountsState {
   const mortgageAccount = accounts.find(a => a.account_type === 'mortgage') ?? null;
   const helocAccount    = accounts.find(a => a.account_type === 'home equity') ?? null;
   const savingsAccount  = accounts.find(a => a.account_type === 'savings') ?? null;
-  const hasAllAccounts  = !!(mortgageAccount && helocAccount && savingsAccount);
+  const checkingAccount = accounts.find(a => a.account_type === 'checking') ?? null;
+
+  /**
+   * The account the sweep is measured against.
+   *
+   * Checking wins when both are linked: it is where the paycheck lands and
+   * where the surplus actually accumulates, so it is the balance a threshold
+   * alert should watch. Savings is the fallback, and it has to be — every
+   * account linked before the roles were split is stored as 'savings', and
+   * preferring checking blindly would have blanked their figures on upgrade.
+   */
+  const cashAccount     = checkingAccount ?? savingsAccount;
+  // Unchanged in meaning: mortgage, line, and somewhere to sweep from. Which
+  // KIND of cash account satisfies it is deliberately not specified, so a user
+  // who links only checking is not told they are missing something.
+  const hasAllAccounts  = !!(mortgageAccount && helocAccount && cashAccount);
 
   return {
     accounts,
@@ -192,5 +210,7 @@ export function useAccounts(userId: string | null): AccountsState {
     mortgageAccount,
     helocAccount,
     savingsAccount,
+    checkingAccount,
+    cashAccount,
   };
 }

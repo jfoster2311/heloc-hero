@@ -12,6 +12,7 @@
 // meant to tell someone whether they are actually improving. The UI states the
 // range so the omission is visible rather than silent.
 import type { TransactionRow, TransactionClassification } from './cashflow';
+import { isCashAccountType } from './types';
 import { defaultCategory, type SpendCategory, type CategoryMeta } from './spending';
 import {
   isFavorable, percentChange, changeArrow, type ChangeSubject,
@@ -73,7 +74,7 @@ export function buildReportSeries(args: {
   const index = new Map(buckets.map((b, i) => [b.key, i]));
 
   for (const t of transactions) {
-    if (t.pending || t.account_type !== 'savings') continue;
+    if (t.pending || !isCashAccountType(t.account_type)) continue;
     if (classification.excludedIds.has(t.transaction_id)) continue;
     const i = index.get(t.date.slice(0, 7));
     if (i === undefined) continue;
@@ -144,7 +145,7 @@ export function buildCategorySeries(args: {
   const byCategory = new Map<SpendCategory, number[]>();
 
   for (const t of transactions) {
-    if (t.pending || t.account_type !== 'savings') continue;
+    if (t.pending || !isCashAccountType(t.account_type)) continue;
     if (classification.excludedIds.has(t.transaction_id)) continue;
     if (t.amount <= 0) continue;
     const i = index.get(t.date.slice(0, 7));

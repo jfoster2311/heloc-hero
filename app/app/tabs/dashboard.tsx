@@ -235,6 +235,10 @@ export default function DashboardScreen() {
     // number the screen it links to disagrees with.
     sweepAmount:         sweep.state === 'no_line' || sweep.state === 'unknown_balance'
                            ? null : sweep.committed,
+    // Drives the threshold alert. Null when no cash account is linked — there
+    // is no balance to have crossed anything, and f.liquidCash floors to 0,
+    // which would read as a genuinely empty account.
+    cashBalance:         f.hasCashAccount ? f.liquidCash : null,
     enabled:             remindersEnabled,
     // A set (non-assumed) rate is the signal that terms exist to re-confirm.
     hasHelocTerms:       !f.helocRateAssumed,

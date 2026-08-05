@@ -11,7 +11,36 @@ export type Tier = 'free' | 'pro' | 'medium' | 'full';
 export type SubscriptionTier = Tier;
 
 /** Plaid account category stored in linked_accounts */
-export type PlaidAccountType = 'mortgage' | 'home equity' | 'savings';
+export type PlaidAccountType = 'mortgage' | 'home equity' | 'savings' | 'checking';
+
+/**
+ * The account types that hold spendable cash.
+ *
+ * 'savings' was the only one for a long time and came to mean two different
+ * things: the role the user linked, and "the side of the ledger that is not the
+ * mortgage or the line". Splitting checking out broke the second meaning
+ * silently — every transaction filter written as `account_type === 'savings'`
+ * would have dropped a newly linked checking account, which is precisely where
+ * the paycheck lands and the spending happens. Cash flow, surplus, recurring
+ * detection and the reports would all have quietly under-counted.
+ *
+ * So the second meaning gets its own name. Filter transactions with
+ * `isCashAccountType`, never with a literal.
+ */
+export const CASH_ACCOUNT_TYPES = ['savings', 'checking'] as const;
+
+export type CashAccountType = typeof CASH_ACCOUNT_TYPES[number];
+
+/**
+ * Whether a row's account_type is a spendable-cash account.
+ *
+ * Takes a string, not a PlaidAccountType: `transactions.account_type` is a free
+ * text column, so a narrowed parameter would be a claim about the data that the
+ * schema does not enforce.
+ */
+export function isCashAccountType(type: string | null | undefined): boolean {
+  return type === 'savings' || type === 'checking';
+}
 
 export interface UserProfile {
   id: string;
@@ -180,6 +209,8 @@ export interface AutomationSettings {
   buffer_target: number;
   upcoming_bills_estimate: number;
   min_dump_amount: number;
+  /** How much spare cash a threshold alert must clear before it fires. */
+  min_sweep_amount: number;
 }
 
 export interface HelocScore {

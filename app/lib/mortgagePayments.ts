@@ -22,6 +22,7 @@
 // each; the user confirms. Confirmation is stored on transaction_meta and is
 // what `classifyTransactions` actually reads.
 import type { TransactionRow } from './cashflow';
+import { isCashAccountType } from './types';
 
 /** Plaid's own label, when the institution supplies it. */
 const PFC_MORTGAGE = 'LOAN_PAYMENTS_MORTGAGE_PAYMENT';
@@ -88,7 +89,7 @@ export function detectMortgagePayments(opts: DetectOptions): PaymentCandidate[] 
   // Money out, on a depository account, not pending. Same gate as everything
   // else that reads these rows — see lib/cashflow.ts.
   const outflows = transactions.filter(t =>
-    !t.pending && t.account_type === 'savings' && t.amount > 0,
+    !t.pending && isCashAccountType(t.account_type) && t.amount > 0,
   );
 
   const groups = new Map<string, TransactionRow[]>();

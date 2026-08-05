@@ -60,7 +60,10 @@ function initialsFor(name: string): string {
 const TYPE_ICON: Record<PlaidAccountType, keyof typeof Ionicons.glyphMap> = {
   mortgage: 'home',
   'home equity': 'card',
-  savings: 'wallet',
+  // Matches the icons the link screen offers these roles under, so the account
+  // a user picked there is the one they recognise in the list afterwards.
+  checking: 'wallet',
+  savings: 'cash',
 };
 
 export default function InstitutionAvatar({ name, accountType, size = 40 }: {

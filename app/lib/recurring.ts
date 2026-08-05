@@ -20,6 +20,7 @@
 // needs a stable payee, a stable amount, and a stable gap — three agreements,
 // not one.
 import type { TransactionRow, TransactionClassification } from './cashflow';
+import { isCashAccountType } from './types';
 
 export interface RecurringExpense {
   /** Normalised payee, used to group and as a stable key. */
@@ -74,7 +75,7 @@ export function detectRecurringExpenses(
   // monthly is the user moving their own money, not a bill.
   const outflows = transactions.filter(t =>
     !t.pending &&
-    t.account_type === 'savings' &&
+    isCashAccountType(t.account_type) &&
     t.amount > 0 &&
     !classification.excludedIds.has(t.transaction_id),
   );

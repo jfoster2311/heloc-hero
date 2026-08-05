@@ -13,8 +13,10 @@ import { supabase } from '../lib/supabase';
 import {
   syncCycleReminders, scheduleTermsReview, cancelTermsReview,
   notificationsAvailable, hasPermission,
+  evaluateCashThreshold, notifyCashThreshold, readArmState, writeArmState,
 } from '../lib/notify';
-import { TERMS_REVIEW_DAYS } from '../lib/config';
+import { computeSweepAmount, DEFAULT_AUTOMATION_SETTINGS } from '../lib/automation';
+import { TERMS_REVIEW_DAYS, CASH_ALERT_MIN_GAP_DAYS } from '../lib/config';
 import type { AutomationSettings } from '../lib/types';
 
 export interface UseCycleRemindersResult {
@@ -41,6 +43,14 @@ export interface CycleInputs {
   dumpAmount: number;
   /** What is committed to the line this month — computeSafeToSweep's own figure. */
   sweepAmount: number | null;
+  /**
+   * Live balance of the cash account the sweep is measured against.
+   *
+   * Null when nothing is linked, and NOT coerced to zero — a zero reads as
+   * "your account is empty", which re-arms the threshold on no evidence and
+   * would fire a spurious prompt the moment a balance did arrive.
+   */
+  cashBalance?: number | null;
   /** Skip scheduling entirely when the user has no paid access. */
   enabled: boolean;
   /** True once the user has entered HELOC terms worth re-confirming. */
@@ -115,6 +125,61 @@ export function useCycleReminders(
     cycle.enabled, cycle.helocDrawn, cycle.replenishTarget, cycle.helocRate,
     cycle.monthlySurplus, cycle.dumpAmount, cycle.sweepAmount,
     sweepOn, dumpOn, loading, granted,
+  ]);
+
+  // Cash threshold — a LEVEL, not a date.
+  //
+  // The two reminders above are booked against a calendar. This one watches the
+  // balance and fires the moment it clears what the user asked to keep, because
+  // that is when a sweep becomes worth making.
+  //
+  // It runs on foreground refresh, which is the honest bound of a local-only
+  // notification: nothing can read a bank balance while the app is closed, and
+  // there is no push pipeline here to do it server-side. So this reaches a user
+  // who opens the app — the monthly sweepDue reminder is what brings them in.
+  //
+  // Rides on `safe_sweep_enabled`: it is the same question that switch already
+  // asks ("tell me when surplus is ready to move"), just answered by the
+  // balance instead of the 1st of the month. A second switch for the same
+  // intent would be a settings screen explaining itself.
+  useEffect(() => {
+    if (!cycle.enabled || loading || !granted || !sweepOn) return;
+    if (!userId) return;
+    // Undefined means the caller does not track it; null means nothing linked.
+    // Neither is an observation of the balance, so neither may move arm state.
+    if (cycle.cashBalance === null || cycle.cashBalance === undefined) return;
+
+    let cancelled = false;
+    const buffer = settings?.buffer_target ?? DEFAULT_AUTOMATION_SETTINGS.buffer_target;
+    const bills  = settings?.upcoming_bills_estimate
+                     ?? DEFAULT_AUTOMATION_SETTINGS.upcoming_bills_estimate;
+    const floor  = settings?.min_sweep_amount ?? DEFAULT_AUTOMATION_SETTINGS.min_sweep_amount;
+
+    // The same function the Safe to Sweep card and the thresholds modal use, so
+    // the alert cannot fire on a definition of "spare" the screens disagree with.
+    const spare = computeSweepAmount(cycle.cashBalance, buffer, bills);
+
+    (async () => {
+      const prev = await readArmState(userId);
+      if (cancelled) return;
+
+      const { fire, next } = evaluateCashThreshold(spare, floor, prev, CASH_ALERT_MIN_GAP_DAYS);
+
+      // Persist only on an actual change, so a balance sitting quietly above or
+      // below the line does not rewrite storage on every refresh.
+      if (next.armed !== prev.armed || next.lastFiredAt !== prev.lastFiredAt) {
+        await writeArmState(userId, next);
+      }
+      if (!fire || cancelled) return;
+
+      await notifyCashThreshold(spare, cycle.sweepAmount);
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    cycle.enabled, cycle.cashBalance, cycle.sweepAmount, userId,
+    settings?.buffer_target, settings?.upcoming_bills_estimate, settings?.min_sweep_amount,
+    sweepOn, loading, granted,
   ]);
 
   // The monthly terms-confirm nudge rides on the same consent as the cycle
