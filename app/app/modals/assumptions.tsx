@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
 import { Card, Chip, Meter } from '../../components/ui/primitives';
+import { SectionHead, Caveat, type ExplainContent } from '../../components/ui/Explain';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { parsePositive } from '../../lib/parseNumeric';
@@ -32,6 +33,69 @@ import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** Thresholds offered, not a free-text percentage. A 63% cap helps nobody. */
 const THRESHOLD_STEPS = [0.6, 0.7, 0.8, 0.9];
+
+// ── The prose that used to live on the canvas ──────────────────────────────
+// Every string below was a paragraph rendered between a section title and its
+// control. Together they made this screen — whose actual job is two number
+// fields and a threshold picker — read as an essay. See components/ui/Explain
+// for the rule that decides what moved here and what stayed.
+const WHY_THESE: ExplainContent = {
+  title: 'Your assumptions',
+  body: [
+    'Every payoff date and interest figure in the app is built on these two numbers. ' +
+    'A projection is only as good as the surplus it assumes.',
+    'They are in front of you rather than behind an "advanced" screen on purpose. ' +
+    'Hiding them would imply a precision that is not there.',
+  ],
+};
+
+const WHAT_TRANSACTIONS_SHOW: ExplainContent = {
+  title: 'What your transactions show',
+  body: [
+    'These figures are averaged over whole months, with the current part-month left out. ' +
+    'Annual and irregular costs are included on purpose — they are exactly what gets ' +
+    'forgotten in an estimate.',
+    'Money moving between your own accounts is excluded, and so is your mortgage payment, ' +
+    'which is counted separately.',
+    'Deposits we cannot identify as income are not counted either. Refunds and one-off ' +
+    'gifts would otherwise inflate your surplus.',
+    'The app shows this next to what you entered and stops there. It never substitutes. ' +
+    'The derived figure is better evidence, but it is still an inference from categorised ' +
+    'bank data, and the person who lives the life is better placed to judge it than the ' +
+    'arithmetic is.',
+  ],
+};
+
+const REPLENISH: ExplainContent = {
+  title: 'Replenish threshold',
+  body: [
+    'This is how far the app is willing to see your line drawn before it stops recommending ' +
+    'moves and starts pointing your surplus back at the balance.',
+    'Lower keeps more emergency room. Higher pays the mortgage down faster.',
+    'It is the single number that decides how much of your line the app will ever suggest ' +
+    'drawing, which is why it is yours to set rather than ours to assume.',
+  ],
+};
+
+const SURPLUS_MODEL: ExplainContent = {
+  title: 'Surplus in the projection',
+  body: [
+    'A modelling choice, not an instruction to the app. HELOC Hero never moves money.',
+    'This only decides whether the payoff projection assumes your whole surplus reaches ' +
+    'the line every month, or that some of it does not. Leaving it off is the more ' +
+    'conservative assumption.',
+  ],
+};
+
+const RATE_STRESS: ExplainContent = {
+  title: 'If your HELOC rate rose',
+  body: [
+    'A HELOC rate is variable, so the plan should be judged on more than today’s number.',
+    'This changes nothing about your terms. It re-runs the payoff projection as if the ' +
+    'rate were higher, so you can see what a spike would actually cost you before it ' +
+    'happens rather than after.',
+  ],
+};
 
 export default function AssumptionsModal() {
   const styles = useStyles();
@@ -126,13 +190,6 @@ export default function AssumptionsModal() {
   return (
     <ModalScreen
       title="Assumptions"
-      intro={
-        d?.usable
-          ? 'Every projection in the app is built on these. Your linked accounts give a ' +
-            'second opinion below — compare, then decide which figures to run on.'
-          : 'Every projection in the app is built on these. Link an account and the app can ' +
-            'check them against what you actually spend.'
-      }
       save={{ label: 'Save assumptions', onPress: handleSave, saving, error }}
       footnote="Changing these changes every payoff date and interest figure in the app."
     >
@@ -142,20 +199,19 @@ export default function AssumptionsModal() {
           figures they entered with its own arithmetic. */}
       {f.awaitingTransactions && (
         <Card>
-          <Text style={styles.sectionTitle}>Gathering your history</Text>
-          <Text style={styles.hint}>
-            Your bank is still sending the last two years of transactions. It usually takes a
-            few minutes, and nothing here is blocked while it arrives.
-          </Text>
+          <SectionHead label="Gathering your history" caps={false} />
+          <Caveat>Your bank is still sending your transactions. Usually a few minutes.</Caveat>
         </Card>
       )}
 
       {d?.usable && (
         <Card>
-          <View style={styles.derivedHead}>
-            <Text style={styles.sectionTitle}>What your transactions show</Text>
-            <Chip label={`${d.coverageMonths} months`} tone="accent" />
-          </View>
+          <SectionHead
+            label="What your transactions show"
+            caps={false}
+            right={<Chip label={`${d.coverageMonths} months`} tone="accent" />}
+            explain={WHAT_TRANSACTIONS_SHOW}
+          />
 
           <View style={styles.compareRow}>
             <View style={styles.compareCol}>
@@ -187,33 +243,23 @@ export default function AssumptionsModal() {
             </View>
           </View>
 
+          {/* Stays on the canvas: it says the figure the projections run on is
+              wrong, and in the risky direction it says every recommended move is
+              too large. Nobody should have to open a sheet to find that out. */}
           {gap?.material && (
             <Text style={styles.gapLine}>
               {gap.risky
-                ? `That is ${money(Math.abs(gap.expenseGap))} a month more than the figure your ` +
-                  'projections currently use, which makes every recommended move larger than it should be.'
-                : `That is ${money(Math.abs(gap.expenseGap))} a month less than the figure your ` +
-                  'projections currently use.'}
+                ? `${money(Math.abs(gap.expenseGap))} a month more than your projections use — ` +
+                  'every recommended move is larger than it should be.'
+                : `${money(Math.abs(gap.expenseGap))} a month less than your projections use.`}
             </Text>
           )}
 
-          {/* The audit trail. A derived number the user cannot check is worse
-              than the one they typed, because it arrives with more authority. */}
-          <Text style={styles.auditLine}>
-            {d.excludedCount > 0
-              ? `${d.excludedCount} transfers totalling ${money(d.excludedTotal)} were left out — ` +
-                'money moving between your own accounts, and your mortgage payment, which is ' +
-                'counted separately.'
-              : 'No internal transfers were detected in this window.'}
-            {d.unclassifiedInflow > 100 &&
-              ` ${money(d.unclassifiedInflow)} of deposits could not be identified as income, so ` +
-              'they are not counted — refunds and one-off gifts would otherwise inflate your surplus.'}
-          </Text>
-
+          {/* Also stays: only the spending figure is on offer below, and the
+              button's own label is not enough to explain why. */}
           {!d.incomeConfident && (
             <Text style={styles.gapLine}>
-              We could not identify regular income in this account — most often because pay
-              lands somewhere you have not linked. Only the spending figure is offered below.
+              No regular income found here — usually pay landing in an account you have not linked.
             </Text>
           )}
 
@@ -230,18 +276,27 @@ export default function AssumptionsModal() {
             </Text>
           </Touchable>
 
-          <Text style={styles.hint}>
-            Averaged over {d.coverageMonths} whole months, with the current part-month left out.
-            Annual and irregular costs are included on purpose — they are exactly what gets
-            forgotten in an estimate.
-          </Text>
+          {/* The audit trail keeps its FIGURES — a derived number the user
+              cannot check is worse than one they typed, because it arrives with
+              more authority. What moved to the ⓘ is the explanation of why each
+              exclusion is made, which is the same three sentences every time. */}
+          <Caveat lines={2}>
+            {d.excludedCount > 0
+              ? `${d.excludedCount} internal transfers (${money(d.excludedTotal)}) excluded`
+              : 'No internal transfers found'}
+            {d.unclassifiedInflow > 100
+              ? ` · ${money(d.unclassifiedInflow)} of deposits unidentified`
+              : ''}
+            {` · ${d.coverageMonths} whole months`}
+          </Caveat>
         </Card>
       )}
 
       <Card>
+        <SectionHead label="Your figures" caps={false} explain={WHY_THESE} />
         {f.surplusBasis === 'trailing' && (
           <Text style={styles.basisNote}>
-            These came from your transactions. Editing them makes them yours again.
+            From your transactions. Editing makes them yours again.
           </Text>
         )}
         <FormField
@@ -275,21 +330,16 @@ export default function AssumptionsModal() {
             {surplus < 0 ? '−' : ''}{money(Math.abs(surplus))}
           </Text>
         </View>
+        {/* Stays: it explains why the rest of the app will go quiet. */}
         {surplus <= 0 && (
           <Text style={styles.warn}>
-            With no surplus there is nothing to replenish a draw with, so the app will not
-            recommend moving money to principal.
+            With no surplus there is nothing to replenish a draw with, so no moves are recommended.
           </Text>
         )}
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>Replenish threshold</Text>
-        <Text style={styles.hint}>
-          How far the app is willing to see your line drawn before it stops recommending
-          moves and starts pointing surplus back at the balance. Lower keeps more emergency
-          room; higher pays the mortgage down faster.
-        </Text>
+        <SectionHead label="Replenish threshold" caps={false} explain={REPLENISH} />
 
         <View style={styles.thresholdRow}>
           {THRESHOLD_STEPS.map(t => {
@@ -322,12 +372,7 @@ export default function AssumptionsModal() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>Surplus in the projection</Text>
-        <Text style={styles.hint}>
-          A modelling choice, not an instruction to the app. HELOC Hero never moves money —
-          this only decides whether the payoff projection assumes your surplus reaches the
-          line every month, or that some of it does not.
-        </Text>
+        <SectionHead label="Surplus in the projection" caps={false} explain={SURPLUS_MODEL} />
         <Touchable
           style={styles.toggleRow}
           onPress={() => { setAssumeSweep(v => !v); }}
@@ -339,7 +384,7 @@ export default function AssumptionsModal() {
             {assumeSweep && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={styles.toggleLabel}>
-            Assume the full surplus reaches the line each month
+            Assume the full surplus reaches the line
           </Text>
         </Touchable>
       </Card>
@@ -350,11 +395,7 @@ export default function AssumptionsModal() {
           the user to test the base case rather than trust it. Lives here, beside
           the other assumptions it shares, rather than on the daily Accounts view. */}
       <Card>
-        <Text style={styles.sectionTitle}>If your HELOC rate rose</Text>
-        <Text style={styles.hint}>
-          A HELOC rate is variable. This does not change your terms — it re-runs the payoff
-          projection as if the rate were higher, so the plan is judged on more than today’s number.
-        </Text>
+        <SectionHead label="If your HELOC rate rose" caps={false} explain={RATE_STRESS} />
         <View style={styles.stressRow}>
           {RATE_STRESS_STEPS_BPS.map(bps => {
             const active = f.forwardRateDeltaBps === bps;
@@ -391,12 +432,15 @@ export default function AssumptionsModal() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>As it stands</Text>
+        <SectionHead label="As it stands" caps={false} />
         <Text style={styles.result}>
           Mortgage-free in {formatMonths(f.projection.acceleratedMonths)}, around{' '}
           {f.projection.acceleratedPayoffDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.
-          Projected, not guaranteed.
         </Text>
+        {/* Never behind a disclosure. CLAUDE.md's honesty rule is explicit that
+            payoff figures are always labelled projected, and a payoff date is
+            the single most quotable number on this screen. */}
+        <Caveat>Projected, not guaranteed.</Caveat>
       </Card>
     </ModalScreen>
   );
@@ -410,14 +454,10 @@ function fmtK(n: number) {
   return Math.round(n).toLocaleString('en-US');
 }
 
+// Section titles and their paragraphs are gone from this file — SectionHead owns
+// the first and the ⓘ owns the second. What is left here styles the figures.
 const useStyles = createThemedStyles(t => ({
-  sectionTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
-
-  derivedHead: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', gap: Spacing[3],
-  },
-  compareRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: Spacing[2] },
+  compareRow: { flexDirection: 'row', alignItems: 'flex-start' },
   compareCol: { flex: 1, gap: 1 },
   compareDivider: {
     width: 1, alignSelf: 'stretch',
@@ -437,7 +477,6 @@ const useStyles = createThemedStyles(t => ({
     marginTop: Spacing[4], paddingTop: Spacing[3],
     borderTopWidth: 1, borderTopColor: t.colors.borderSubtle,
   },
-  auditLine: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 17 },
   adoptBtn: {
     minHeight: 48, borderRadius: Radius.md,
     alignItems: 'center', justifyContent: 'center',
@@ -449,7 +488,6 @@ const useStyles = createThemedStyles(t => ({
     fontSize: Typography.xs, color: t.colors.textMuted,
     lineHeight: 17, marginBottom: Spacing[2],
   },
-  hint: { fontSize: Typography.xs, color: t.colors.textMuted, lineHeight: 18, marginTop: Spacing[1] },
 
   derived: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -461,7 +499,7 @@ const useStyles = createThemedStyles(t => ({
   derivedNegative: { color: t.colors.gray400 },
   warn: { fontSize: Typography.xs, color: t.colors.textSecondary, lineHeight: 18, marginTop: Spacing[2] },
 
-  thresholdRow: { flexDirection: 'row', gap: Spacing[2], marginTop: Spacing[3] },
+  thresholdRow: { flexDirection: 'row', gap: Spacing[2] },
   thresholdChip: {
     flex: 1, minHeight: 46,
     alignItems: 'center', justifyContent: 'center',
@@ -475,7 +513,7 @@ const useStyles = createThemedStyles(t => ({
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing[3],
-    minHeight: 48, marginTop: Spacing[3],
+    minHeight: 48,
   },
   checkbox: {
     width: 24, height: 24, borderRadius: Radius.sm,
@@ -488,7 +526,7 @@ const useStyles = createThemedStyles(t => ({
 
   result: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 21 },
 
-  stressRow: { flexDirection: 'row', gap: Spacing[2], flexWrap: 'wrap', marginTop: Spacing[3] },
+  stressRow: { flexDirection: 'row', gap: Spacing[2], flexWrap: 'wrap' },
   stressChip: {
     minHeight: 44, minWidth: 60,
     paddingHorizontal: Spacing[3],
