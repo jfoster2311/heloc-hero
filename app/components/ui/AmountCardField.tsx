@@ -1,6 +1,7 @@
 // components/ui/AmountCardField.tsx
 import { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from './press';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import SliderField from './SliderField';
@@ -50,7 +51,7 @@ export default function AmountCardField({
         {presets.map(p => {
           const active = !showCustom && p.value === value;
           return (
-            <TouchableOpacity
+            <Touchable
               key={p.value}
               style={[styles.card, active && styles.cardActive]}
               onPress={() => selectPreset(p.value)}
@@ -58,17 +59,17 @@ export default function AmountCardField({
               accessibilityState={{ selected: active }}
             >
               <Text style={[styles.cardText, active && styles.cardTextActive]}>{p.label}</Text>
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
-        <TouchableOpacity
+        <Touchable
           style={[styles.card, showCustom && styles.cardActive]}
           onPress={selectCustom}
           accessibilityRole="radio"
           accessibilityState={{ selected: showCustom }}
         >
           <Text style={[styles.cardText, showCustom && styles.cardTextActive]}>Custom</Text>
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       {showCustom && (

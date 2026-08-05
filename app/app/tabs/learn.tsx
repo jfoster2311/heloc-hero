@@ -20,8 +20,8 @@
 // than typed as prose, so they cannot drift out of sync again.
 import {
   View, Text, ScrollView,
-  TouchableOpacity,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -321,10 +321,9 @@ export default function LearnScreen() {
           {/* marginTop moved to the row, so the label sits on the button's
               centre line instead of 8pt below it. */}
           <SectionLabel style={styles.sectionRowLabel}>STRATEGY GUIDES</SectionLabel>
-          <TouchableOpacity
+          <Touchable
             style={styles.expandAll}
             onPress={() => {
-              hapticLight();
               setExpandedArticle(allArticlesOpen ? new Set() : new Set(ARTICLES.map(a => a.id)));
             }}
             accessibilityRole="button"
@@ -333,7 +332,7 @@ export default function LearnScreen() {
             <Text style={styles.expandAllText}>
               {allArticlesOpen ? 'Collapse all' : 'Expand all'}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
         {ARTICLES.map(article => {
           const open = expandedArticle.has(article.id);
@@ -343,10 +342,9 @@ export default function LearnScreen() {
             // them would let TouchableOpacity's implicit `accessible` group the
             // link into the card and put it out of VoiceOver's reach entirely.
             <View key={article.id} style={[common.card, styles.articleCard]}>
-              <TouchableOpacity
+              <Touchable
                 style={styles.articleToggle}
                 onPress={() => toggle(expandedArticle, setExpandedArticle, article.id)}
-                activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
                 accessibilityLabel={`${article.title}. ${article.category}.`}
@@ -363,24 +361,22 @@ export default function LearnScreen() {
                   />
                 </View>
                 <Text style={styles.articleTitle}>{article.title}</Text>
-              </TouchableOpacity>
+              </Touchable>
 
               {open && <Text style={styles.articleBody}>{article.body}</Text>}
 
               {open && article.action && (
-                <TouchableOpacity
+                <Touchable
                   style={styles.articleAction}
                   onPress={() => {
-                    hapticLight();
                     router.push(article.action!.route as never);
                   }}
-                  activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={article.action.label}
                 >
                   <Text style={styles.articleActionText}>{article.action.label}</Text>
                   <Ionicons name="arrow-forward" size={15} color={colors.mint700} />
-                </TouchableOpacity>
+                </Touchable>
               )}
             </View>
           );
@@ -391,11 +387,10 @@ export default function LearnScreen() {
         {FAQ.map((item, i) => {
           const open = expandedFaq.has(i);
           return (
-            <TouchableOpacity
+            <Touchable
               key={item.q}
               style={[common.card, styles.faqCard]}
               onPress={() => toggle(expandedFaq, setExpandedFaq, i)}
-              activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityState={{ expanded: open }}
               accessibilityLabel={item.q}
@@ -410,7 +405,7 @@ export default function LearnScreen() {
                 />
               </View>
               {open && <Text style={styles.faqAnswer}>{item.a}</Text>}
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
 

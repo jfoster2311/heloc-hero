@@ -10,9 +10,10 @@
 // section would make Settings' shape depend on how you arrived, so a user who
 // opened it from Accounts would never learn the rest exists.
 import {
-  View, Text, ScrollView, TouchableOpacity, Switch, Alert, Linking,
+  View, Text, ScrollView, Switch, Alert, Linking,
   type LayoutChangeEvent,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ import {
 import { loadDemo, clearDemo } from '../../lib/seedDemo';
 import { getDevProMode, setDevProMode, subscribeDevPro, type DevProMode } from '../../lib/devPro';
 import { createThemedStyles, type ThemePreference, useTheme, useThemePreference } from '../../lib/themeContext';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 
 /**
  * System is first and is the default, because it is not the same as Light.
@@ -285,14 +286,14 @@ export default function SettingsModal() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity
-          onPress={() => { hapticLight(); router.back(); }}
+        <Touchable
+          onPress={() => { router.back(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Close settings"
         >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <ScrollView
@@ -424,10 +425,11 @@ export default function SettingsModal() {
             {APPEARANCE_OPTIONS.map(opt => {
               const active = preference === opt.value;
               return (
-                <TouchableOpacity
+                <Touchable
+                  haptic="selection"
                   key={opt.value}
                   style={[styles.appearancePill, active && styles.appearancePillActive]}
-                  onPress={() => { hapticSelection(); setPreference(opt.value); }}
+                  onPress={() => { setPreference(opt.value); }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={opt.a11y}
@@ -440,7 +442,7 @@ export default function SettingsModal() {
                   <Text style={[styles.appearanceText, active && styles.appearanceTextActive]}>
                     {opt.label}
                   </Text>
-                </TouchableOpacity>
+                </Touchable>
               );
             })}
           </View>
@@ -501,15 +503,15 @@ export default function SettingsModal() {
         {/* Danger zone */}
         <SectionHeader title="Account Actions" />
         <View style={styles.card}>
-          <TouchableOpacity
+          <Touchable
             style={[styles.row, styles.dangerRow]}
-            onPress={() => { hapticLight(); handleSignOut(); }}
+            onPress={() => { handleSignOut(); }}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
           >
             <Ionicons name="log-out-outline" size={18} color={colors.gray400} style={styles.rowIcon} />
             <Text style={styles.dangerText}>Sign Out</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         {/* Debug builds only — __DEV__ is false in release, so Metro strips this. */}
@@ -531,7 +533,7 @@ export default function SettingsModal() {
           </>
         )}
 
-        <TouchableOpacity
+        <Touchable
           onLongPress={() => {
             if (!profile?.id) return;
             Alert.alert('Demo Data', 'Load or clear demo scenario?', [
@@ -557,7 +559,7 @@ export default function SettingsModal() {
           }}
         >
           <Text style={styles.version}>HELOC Hero v1.0 · © 2026</Text>
-        </TouchableOpacity>
+        </Touchable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -601,11 +603,10 @@ function SettingRow({
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.row, isLast && styles.rowLast]}
-      onPress={onPress ? () => { hapticLight(); onPress(); } : undefined}
+      onPress={onPress}
       disabled={!onPress}
-      activeOpacity={onPress ? 0.6 : 1}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={onPress ? `${label}${value ? `, ${value}` : ''}` : undefined}
     >
@@ -614,7 +615,7 @@ function SettingRow({
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
       {actionLabel && <Text style={styles.rowAction}>{actionLabel}</Text>}
       {onPress && !actionLabel && <Ionicons name="chevron-forward" size={16} color={colors.gray300} />}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -631,11 +632,10 @@ function NoticeRow({
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={styles.row}
-      onPress={onPress ? () => { hapticLight(); onPress(); } : undefined}
+      onPress={onPress}
       disabled={!onPress}
-      activeOpacity={onPress ? 0.6 : 1}
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={`${label}. ${subtitle}`}
     >
@@ -645,7 +645,7 @@ function NoticeRow({
         <Text style={styles.toggleSubtitle}>{subtitle}</Text>
       </View>
       {actionLabel && <Text style={styles.rowAction}>{actionLabel}</Text>}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

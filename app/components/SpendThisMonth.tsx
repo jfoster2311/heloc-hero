@@ -18,13 +18,14 @@
 // they have not, it is their own stated monthly spend, scaled. Calling an
 // unset figure "Budget" would invent a commitment they never made.
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from './ui/primitives';
 import LineChart from './ui/LineChart';
 import { Typography, Spacing, Radius } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
-import { hapticLight, hapticSelection } from '../lib/haptics';
+import { hapticSelection } from '../lib/haptics';
 import type { DayCell, SpendSeries, PeriodId } from '../lib/spending';
 
 type ViewMode = 'chart' | 'grid';
@@ -95,7 +96,7 @@ function ModeButton({ icon, label, active, onPress }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.modeBtn, active && styles.modeBtnActive]}
       onPress={onPress}
       accessibilityRole="tab"
@@ -107,7 +108,7 @@ function ModeButton({ icon, label, active, onPress }: {
         size={17}
         color={active ? colors.white : colors.textSecondary}
       />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -303,7 +304,7 @@ function SpendGrid({ days, onSelectDay }: {
           const busy = intensity > 0.55;
           return (
             <View key={d.date} style={styles.cellSlot}>
-              <TouchableOpacity
+              <Touchable
                 style={[
                   styles.cell,
                   d.future && styles.cellFuture,
@@ -312,7 +313,7 @@ function SpendGrid({ days, onSelectDay }: {
                 // A day that has not happened is not a target. Tapping it would
                 // open a sheet that can only say "nothing here yet".
                 disabled={d.future || (d.spend === 0 && d.credit === 0)}
-                onPress={() => { hapticLight(); onSelectDay(d); }}
+                onPress={() => { onSelectDay(d); }}
                 accessibilityRole="button"
                 accessibilityLabel={
                   d.future
@@ -342,7 +343,7 @@ function SpendGrid({ days, onSelectDay }: {
                     {d.spend > 0 ? compact(d.spend) : '0'}
                   </Text>
                 )}
-              </TouchableOpacity>
+              </Touchable>
             </View>
           );
         })}

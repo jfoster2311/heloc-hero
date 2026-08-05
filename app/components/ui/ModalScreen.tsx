@@ -4,14 +4,15 @@
 // and a save button, which is how three of them ended up with different
 // touch-target heights. The frame is here so the screens are only their fields.
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from './press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -48,14 +49,14 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
             haptic belongs here — unlike `save.onPress` below, where the caller
             supplies it and adding a second would double-buzz. Every modal in
             the app closes through this button. */}
-        <TouchableOpacity
-          onPress={() => { hapticLight(); router.back(); }}
+        <Touchable
+          onPress={() => { router.back(); }}
           style={styles.close}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
           <Ionicons name="close" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <KeyboardAvoidingView
@@ -77,7 +78,7 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
           {children}
 
           {save ? (
-            <TouchableOpacity
+            <Touchable
               style={[styles.saveBtn, (save.disabled || save.saving) && styles.saveBtnDisabled]}
               onPress={save.onPress}
               disabled={save.disabled || save.saving}
@@ -87,7 +88,7 @@ export default function ModalScreen({ title, intro, children, save, footnote }: 
               {save.saving
                 ? <ActivityIndicator color={colors.onAccent} />
                 : <Text style={styles.saveText}>{save.label}</Text>}
-            </TouchableOpacity>
+            </Touchable>
           ) : null}
 
           {footnote ? <Text style={styles.footnote}>{footnote}</Text> : null}
@@ -110,7 +111,8 @@ export function Segmented<T extends string>({ options, value, onChange, columns 
       {options.map(o => {
         const active = value === o.value;
         return (
-          <TouchableOpacity
+          <Touchable
+            haptic="selection"
             key={o.value}
             style={[
               styles.segmentBtn,
@@ -121,13 +123,13 @@ export function Segmented<T extends string>({ options, value, onChange, columns 
             // setter, so there is no caller-side haptic to double up with, and
             // a segmented control that does not buzz reads as unresponsive
             // beside the sliders and preset cards on the same forms.
-            onPress={() => { hapticSelection(); onChange(o.value); }}
+            onPress={() => { onChange(o.value); }}
             accessibilityRole="radio"
             accessibilityState={{ selected: active }}
             accessibilityLabel={o.label}
           >
             <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{o.label}</Text>
-          </TouchableOpacity>
+          </Touchable>
         );
       })}
     </View>

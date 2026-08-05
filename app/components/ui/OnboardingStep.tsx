@@ -1,7 +1,8 @@
 // components/ui/OnboardingStep.tsx
 import {
-  View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { Touchable } from './press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../lib/haptics';
@@ -48,15 +49,15 @@ export default function OnboardingStep({
         {/* Header row */}
         <View style={styles.header}>
           {onBack ? (
-            <TouchableOpacity
-              onPress={() => { hapticLight(); onBack(); }}
+            <Touchable
+              onPress={() => { onBack(); }}
               style={styles.backBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel="Go back to the previous step"
             >
               <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+            </Touchable>
           ) : <View style={styles.backBtn} />}
 
           {/* Step dot indicators */}
@@ -105,9 +106,9 @@ export default function OnboardingStep({
           {/* The most-pressed control in the app's first five minutes, and it
               was the one with no haptic — while the sliders and preset cards
               above it all buzz. */}
-          <TouchableOpacity
+          <Touchable
             style={[styles.nextBtn, (nextDisabled || loading) && styles.nextBtnDisabled]}
-            onPress={() => { hapticLight(); onNext(); }}
+            onPress={() => { onNext(); }}
             disabled={nextDisabled || loading}
             accessibilityRole="button"
             accessibilityLabel={loading ? 'Saving' : nextLabel}
@@ -119,7 +120,7 @@ export default function OnboardingStep({
             {!loading && (
               <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
             )}
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

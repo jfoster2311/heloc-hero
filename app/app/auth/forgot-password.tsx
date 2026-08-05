@@ -13,8 +13,9 @@
 // and, unlike the old line, true.
 import { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  View, Text, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -70,7 +71,7 @@ export default function ForgotPasswordScreen() {
       <AuroraBackground style={styles.header} intensity={0.75}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerBar}>
-            <TouchableOpacity
+            <Touchable
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/auth/login'))}
               style={styles.back}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -78,7 +79,7 @@ export default function ForgotPasswordScreen() {
               accessibilityLabel="Go back"
             >
               <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
-            </TouchableOpacity>
+            </Touchable>
           </View>
           <View style={styles.headerBody}>
             <Text style={styles.headline} accessibilityRole="header">Reset your password</Text>
@@ -112,24 +113,23 @@ export default function ForgotPasswordScreen() {
                 </View>
               </View>
 
-              <TouchableOpacity
+              <Touchable
                 style={styles.submit}
-                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
-                activeOpacity={0.88}
+                onPress={() => { router.replace('/auth/login'); }}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sign in"
               >
                 <Text style={styles.submitText}>Back to sign in</Text>
-              </TouchableOpacity>
+              </Touchable>
 
-              <TouchableOpacity
+              <Touchable
                 style={styles.secondary}
-                onPress={() => { hapticLight(); setSent(''); setProblem(null); }}
+                onPress={() => { setSent(''); setProblem(null); }}
                 accessibilityRole="button"
                 accessibilityLabel="Use a different email address"
               >
                 <Text style={styles.secondaryText}>Use a different email</Text>
-              </TouchableOpacity>
+              </Touchable>
             </>
           ) : (
             <>
@@ -165,11 +165,10 @@ export default function ForgotPasswordScreen() {
                 accessibilityLabel="Email address"
               />
 
-              <TouchableOpacity
+              <Touchable
                 style={[styles.submit, !canSubmit && styles.submitDisabled]}
                 onPress={handleReset}
                 disabled={!canSubmit}
-                activeOpacity={0.88}
                 accessibilityRole="button"
                 accessibilityLabel="Send reset link"
                 accessibilityState={{ disabled: !canSubmit, busy: loading }}
@@ -177,16 +176,16 @@ export default function ForgotPasswordScreen() {
                 {loading
                   ? <ActivityIndicator color={colors.onAccent} />
                   : <Text style={styles.submitText}>Send reset link</Text>}
-              </TouchableOpacity>
+              </Touchable>
 
-              <TouchableOpacity
+              <Touchable
                 style={styles.secondary}
-                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
+                onPress={() => { router.replace('/auth/login'); }}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sign in"
               >
                 <Text style={styles.secondaryText}>Back to sign in</Text>
-              </TouchableOpacity>
+              </Touchable>
             </>
           )}
         </ScrollView>

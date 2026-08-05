@@ -1,9 +1,10 @@
 // app/onboarding/reveal.tsx — personalized projection reveal + conversion CTA
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   Animated, Easing, AccessibilityInfo, Alert, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -420,9 +421,9 @@ export default function RevealScreen() {
             line. Same destination, since the guide covers what to look for
             either way; different sentence, because only one of them is known. */}
         {!data.hasHeloc && (
-          <TouchableOpacity
+          <Touchable
             style={styles.noHelocCard}
-            onPress={() => { hapticLight(); router.push('/modals/get-heloc' as never); }}
+            onPress={() => { router.push('/modals/get-heloc' as never); }}
             accessibilityRole="button"
             accessibilityLabel="Open HELOC guide"
           >
@@ -451,7 +452,7 @@ export default function RevealScreen() {
                   is a UI affordance on a light card, where 3:1 applies. */}
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </View>
-          </TouchableOpacity>
+          </Touchable>
         )}
 
         {/* "Not a budgeting app" card */}
@@ -482,9 +483,9 @@ export default function RevealScreen() {
             onboarding looked like it had not registered, and the natural
             response to that is to tap again. */}
         <View style={styles.ctas}>
-          <TouchableOpacity
+          <Touchable
             style={[styles.primaryBtn, saving && styles.btnBusy]}
-            onPress={() => { hapticLight(); finishAndNavigate(true); }}
+            onPress={() => { finishAndNavigate(true); }}
             disabled={saving}
             accessibilityRole="button"
             accessibilityLabel="See what Pro adds"
@@ -498,7 +499,7 @@ export default function RevealScreen() {
                 <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
               </>
             )}
-          </TouchableOpacity>
+          </Touchable>
 
           {/* No introductory offer is configured in App Store Connect, so this
               must not promise a trial. The paywall shows a trial only when
@@ -512,9 +513,9 @@ export default function RevealScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
+          <Touchable
             style={[styles.secondaryBtn, saving && styles.btnBusy]}
-            onPress={() => { hapticLight(); finishAndNavigate(false); }}
+            onPress={() => { finishAndNavigate(false); }}
             disabled={saving}
             accessibilityRole="button"
             accessibilityLabel="Continue with free version"
@@ -523,7 +524,7 @@ export default function RevealScreen() {
             <Text style={styles.secondaryBtnText}>
               {saving ? 'Saving…' : 'Continue with the free version'}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
 
           <Text style={styles.freeNote}>
             Calculator, projections, and cycle tracker always free.
@@ -568,10 +569,9 @@ export default function RevealScreen() {
             The labelled button below carries the accessibility identity. This
             layer is the same action with a bigger target, and announcing both
             would put two identical controls in VoiceOver's path. */}
-        <TouchableOpacity
+        <Touchable
           style={StyleSheet.absoluteFill}
           onPress={skipRitual}
-          activeOpacity={1}
           accessible={false}
           importantForAccessibility="no-hide-descendants"
         />
@@ -590,14 +590,14 @@ export default function RevealScreen() {
             black, before anything has been shown, invites a skip past the one
             moment this screen exists for. */}
         <Animated.View style={[styles.skipWrap, { opacity: ritualOpacity }]}>
-          <TouchableOpacity
+          <Touchable
             style={styles.skipBtn}
             onPress={skipRitual}
             accessibilityRole="button"
             accessibilityLabel="Skip the animation and show my results"
           >
             <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
+          </Touchable>
         </Animated.View>
       </Animated.View>
     </SafeAreaView>

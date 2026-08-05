@@ -42,9 +42,9 @@
 // alternative is not having the affordance at all.
 import { useRef, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Easing, AccessibilityInfo,
-  TouchableOpacity, LayoutAnimation, Platform,
+  View, Text, StyleSheet, Animated, Easing, AccessibilityInfo, LayoutAnimation, Platform,
 } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../lib/haptics';
 import { Typography, Spacing, Radius, Aurora, OnDark } from '../lib/theme';
@@ -151,7 +151,7 @@ export default function FreedomBoard({
               });
 
           return (
-            <TouchableOpacity
+            <Touchable
               key={i}
               style={[
                 styles.tile,
@@ -166,9 +166,7 @@ export default function FreedomBoard({
               // Brings a ~39pt tile to ~43pt without crossing the 5pt gap into
               // its neighbour. See the note on the 44pt rule in the header.
               hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-              activeOpacity={0.7}
               onPress={() => {
-                hapticLight();
                 if (Platform.OS === 'ios') {
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 }
@@ -194,7 +192,7 @@ export default function FreedomBoard({
                   color={Aurora.deepest}
                 />
               )}
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
       </View>
@@ -205,11 +203,10 @@ export default function FreedomBoard({
           hero on tap would push the whole card stream down under the user's
           thumb. */}
       {selected !== null && selected < totalYears ? (
-        <TouchableOpacity
+        <Touchable
           style={styles.detail}
           hitSlop={{ top: 7, bottom: 7, left: 0, right: 0 }}
           onPress={() => {
-            hapticLight();
             if (Platform.OS === 'ios') {
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             }
@@ -234,7 +231,7 @@ export default function FreedomBoard({
               year stated flat. */}
           {!hasRealData && <Text style={styles.exampleTag}>example</Text>}
           <Ionicons name="close" size={14} color={OnDark.muted} />
-        </TouchableOpacity>
+        </Touchable>
       ) : (
         <View style={styles.legend}>
           <LegendItem

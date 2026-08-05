@@ -23,7 +23,8 @@
 // make the screen that says what the score is and is not unreachable for the
 // users furthest along.
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, LayoutAnimation, Platform } from 'react-native';
+import { View, Text, LayoutAnimation, Platform } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Card } from './ui/primitives';
@@ -81,9 +82,9 @@ export default function GettingStarted({
           A tap target rather than a figure, because the number is close to
           meaningless without the four factors behind it — and the screen it
           opens is where the app says what it is and is not. */}
-      <TouchableOpacity
+      <Touchable
         style={styles.scoreRow}
-        onPress={() => { hapticLight(); router.push('/modals/heloc-score' as never); }}
+        onPress={() => { router.push('/modals/heloc-score' as never); }}
         accessibilityRole="button"
         accessibilityLabel={
           scoreIncomplete
@@ -101,7 +102,7 @@ export default function GettingStarted({
           <Text style={styles.scoreHeadline} numberOfLines={2}>{scoreHeadline}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-      </TouchableOpacity>
+      </Touchable>
 
       <View style={styles.steps}>
         {shown.map(s => (
@@ -118,10 +119,9 @@ export default function GettingStarted({
       </View>
 
       {dense && (
-        <TouchableOpacity
+        <Touchable
           style={styles.toggle}
           onPress={() => {
-            hapticLight();
             if (Platform.OS === 'ios') {
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             }
@@ -139,7 +139,7 @@ export default function GettingStarted({
             size={15}
             color={colors.accentInk}
           />
-        </TouchableOpacity>
+        </Touchable>
       )}
     </Card>
   );
@@ -161,11 +161,10 @@ function StepRow({ step, index, highlighted, onPress }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.step, highlighted && styles.stepNext]}
       onPress={onPress}
       disabled={step.blocked}
-      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityState={{ checked: step.done, disabled: step.blocked }}
       accessibilityLabel={
@@ -208,7 +207,7 @@ function StepRow({ step, index, highlighted, onPress }: {
       {!step.done && !step.blocked && (
         <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
       )}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

@@ -24,7 +24,8 @@
 // 2nd learns one thing from the resulting fee: that this strategy is dangerous.
 // They would be right, and they would have learned it from us.
 import { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Alert } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -37,7 +38,7 @@ import { supabase } from '../../lib/supabase';
 import { computeCashRunway, RUNWAY_HORIZON_DAYS } from '../../lib/cashRunway';
 import { detectRecurringExpenses } from '../../lib/recurring';
 import { computeStrike } from '../../lib/strike';
-import { hapticLight, hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
@@ -382,10 +383,10 @@ export default function LogSweepScreen() {
             const v = Math.floor(suggested * pct);
             const active = value === v;
             return (
-              <TouchableOpacity
+              <Touchable
                 key={pct}
                 style={[styles.adjustBtn, active && styles.adjustBtnActive]}
-                onPress={() => { hapticLight(); setAmount(v); }}
+                onPress={() => { setAmount(v); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`Set the amount to ${money(v)}`}
@@ -393,7 +394,7 @@ export default function LogSweepScreen() {
                 <Text style={[styles.adjustText, active && styles.adjustTextActive]}>
                   {money(v)}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>

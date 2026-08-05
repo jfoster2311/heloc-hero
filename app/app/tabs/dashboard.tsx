@@ -39,7 +39,8 @@
 // thing a user might want, and none is what this screen is for. Ranking is the
 // feature.
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -308,18 +309,18 @@ export default function DashboardScreen() {
               </Text>
               <View style={styles.topBarRight}>
                 {__DEV__ && (
-                  <TouchableOpacity style={styles.devBadge} onPress={handleDevTools} accessibilityLabel="DEV tools">
+                  <Touchable style={styles.devBadge} onPress={handleDevTools} accessibilityLabel="DEV tools">
                     <Text style={styles.devBadgeText}>DEV</Text>
-                  </TouchableOpacity>
+                  </Touchable>
                 )}
-                <TouchableOpacity
+                <Touchable
                   style={styles.iconBtn}
-                  onPress={() => { hapticLight(); router.push('/modals/settings'); }}
+                  onPress={() => { router.push('/modals/settings'); }}
                   accessibilityRole="button"
                   accessibilityLabel="Settings"
                 >
                   <Ionicons name="settings-outline" size={20} color={OnDark.secondary} />
-                </TouchableOpacity>
+                </Touchable>
               </View>
             </View>
           }
@@ -404,9 +405,9 @@ export default function DashboardScreen() {
               their last values, or at nothing, with the screen still presenting
               them as current. Every figure below is only as good as this. */}
           {!f.loading && f.error && (
-            <TouchableOpacity
+            <Touchable
               style={styles.staleBanner}
-              onPress={() => { hapticLight(); f.refresh(); }}
+              onPress={() => { f.refresh(); }}
               accessibilityRole="button"
               accessibilityLabel="Balances may be out of date. Tap to retry."
             >
@@ -415,7 +416,7 @@ export default function DashboardScreen() {
                 Couldn't reach your balances{f.hasLinkedAccounts ? ' — showing the last we have' : ''}.
               </Text>
               <Text style={styles.staleAction}>Retry</Text>
-            </TouchableOpacity>
+            </Touchable>
           )}
 
           {/* ── CARD 0 — Getting started ────────────────────────────────
@@ -531,14 +532,14 @@ export default function DashboardScreen() {
               />
             )}
             {moveDismissed && (
-              <TouchableOpacity
+              <Touchable
                 style={styles.undoBtn}
                 onPress={() => setMoveDismissed(false)}
                 accessibilityRole="button"
                 accessibilityLabel="Show move actions"
               >
                 <Text style={styles.undoText}>Show actions</Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
           </Card>
           )}
@@ -579,16 +580,16 @@ export default function DashboardScreen() {
                     Add your HELOC to see how much of your surplus you can spend without
                     pushing back your next dump.
                   </Text>
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.sweepAction}
-                    onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+                    onPress={() => { router.push('/modals/heloc-terms' as never); }}
                     accessibilityRole="button"
                     accessibilityLabel="Add your HELOC"
                   >
                     <Ionicons name="create-outline" size={17} color={colors.accentInk} />
                     <Text style={styles.sweepActionText}>Add your HELOC</Text>
                     <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
-                  </TouchableOpacity>
+                  </Touchable>
                 </>
               ) : sweep.state === 'unknown_balance' ? (
                 // Everything this card commits is derived from the drawn
@@ -600,16 +601,16 @@ export default function DashboardScreen() {
                     replenishing depends entirely on that balance, so there is no figure
                     here we can stand behind yet.
                   </Text>
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.sweepAction}
-                    onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+                    onPress={() => { router.push('/modals/heloc-terms' as never); }}
                     accessibilityRole="button"
                     accessibilityLabel="Add your HELOC balance"
                   >
                     <Ionicons name="create-outline" size={17} color={colors.accentInk} />
                     <Text style={styles.sweepActionText}>Add your balance</Text>
                     <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
-                  </TouchableOpacity>
+                  </Touchable>
                 </>
               ) : sweep.state === 'no_surplus' ? (
                 <>
@@ -623,16 +624,16 @@ export default function DashboardScreen() {
                       changed. Sending someone to a tab that reports the same
                       shortfall back at them is a longer route to the same
                       screen they are already on. */}
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.sweepAction}
-                    onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+                    onPress={() => { router.push('/modals/assumptions' as never); }}
                     accessibilityRole="button"
                     accessibilityLabel="Review your income and expenses"
                   >
                     <Ionicons name="create-outline" size={17} color={colors.accentInk} />
                     <Text style={styles.sweepActionText}>Review your figures</Text>
                     <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
-                  </TouchableOpacity>
+                  </Touchable>
                 </>
               ) : sweep.state === 'under_water' ? (
                 <>
@@ -650,16 +651,16 @@ export default function DashboardScreen() {
                       their bank, and heloc-terms only records what it already
                       is. Assumptions holds income and expenses and prints the
                       resulting surplus as you edit them. */}
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.sweepAction}
-                    onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+                    onPress={() => { router.push('/modals/assumptions' as never); }}
                     accessibilityRole="button"
                     accessibilityLabel="Review the figures behind your surplus"
                   >
                     <Ionicons name="create-outline" size={17} color={colors.accentInk} />
                     <Text style={styles.sweepActionText}>Review your figures</Text>
                     <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
-                  </TouchableOpacity>
+                  </Touchable>
                 </>
               ) : (
                 <>
@@ -717,16 +718,16 @@ export default function DashboardScreen() {
                       records it. Hidden when there is no drawn balance to repay,
                       because then there is nothing to sweep toward. */}
                   {(f.helocDrawn ?? 0) > 0 && (
-                    <TouchableOpacity
+                    <Touchable
                       style={styles.sweepAction}
-                      onPress={() => { hapticLight(); router.push('/modals/log-sweep' as never); }}
+                      onPress={() => { router.push('/modals/log-sweep' as never); }}
                       accessibilityRole="button"
                       accessibilityLabel="Work out and record a sweep to your line"
                     >
                       <Ionicons name="arrow-up-circle-outline" size={17} color={colors.accentInk} />
                       <Text style={styles.sweepActionText}>Sweep to your line</Text>
                       <Ionicons name="chevron-forward" size={15} color={colors.accentInk} />
-                    </TouchableOpacity>
+                    </Touchable>
                   )}
                 </>
               )}

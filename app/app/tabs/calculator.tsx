@@ -16,9 +16,10 @@
 //  · Exactly one accent element: the payoff number. Everything else is muted.
 import {
   View, Text, ScrollView,
-  TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
+  TextInput, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager,
   InputAccessoryView, Keyboard,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -567,7 +568,7 @@ export default function CalculatorScreen() {
 
           {/* ── Advanced disclosure ────────────────────────────────────────── */}
           <Card>
-            <TouchableOpacity
+            <Touchable
               style={styles.advancedHeader}
               onPress={toggleAdvanced}
               accessibilityRole="button"
@@ -587,7 +588,7 @@ export default function CalculatorScreen() {
                   color={colors.textMuted}
                 />
               </View>
-            </TouchableOpacity>
+            </Touchable>
 
             {showAdvanced && (
               <View style={styles.advancedBody}>
@@ -687,7 +688,7 @@ export default function CalculatorScreen() {
                   answer than no table. */}
               {schedule && schedule.dumpCount > 0 && (
                 <>
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.scheduleToggle}
                     onPress={toggleSchedule}
                     accessibilityRole="button"
@@ -704,7 +705,7 @@ export default function CalculatorScreen() {
                       size={16}
                       color={colors.accentInk}
                     />
-                  </TouchableOpacity>
+                  </Touchable>
 
                   {showSchedule && (
                     <View style={styles.scheduleWrap}>
@@ -770,7 +771,7 @@ export default function CalculatorScreen() {
               its own is what actually delivers that. */}
           {projection && status === 'ok' && (
             <Card>
-              <TouchableOpacity
+              <Touchable
                 style={styles.assumeToggle}
                 onPress={toggleAssumptions}
                 accessibilityRole="button"
@@ -784,7 +785,7 @@ export default function CalculatorScreen() {
                   size={16}
                   color={colors.accentInk}
                 />
-              </TouchableOpacity>
+              </Touchable>
               {showAssumptions && (
                 <View style={styles.assumePanel}>
                   {ASSUMPTIONS.map((line, i) => (
@@ -800,7 +801,7 @@ export default function CalculatorScreen() {
 
           {/* ── Contextual upgrade, shown against their own result ──────────── */}
           {tier === 'free' && hasGain && projection && (
-            <TouchableOpacity
+            <Touchable
               style={styles.ctaBanner}
               onPress={() => router.push('/modals/upgrade')}
               accessibilityRole="button"
@@ -816,17 +817,17 @@ export default function CalculatorScreen() {
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
-            </TouchableOpacity>
+            </Touchable>
           )}
 
-          <TouchableOpacity
+          <Touchable
             style={styles.resetBtn}
             onPress={handleReset}
             accessibilityRole="button"
             accessibilityLabel="Reset to default values"
           >
             <Text style={styles.resetText}>Reset to defaults</Text>
-          </TouchableOpacity>
+          </Touchable>
 
           <Text style={styles.footnote}>
             Estimates only, based on the values above. Not financial advice, and not a lender.
@@ -847,14 +848,14 @@ export default function CalculatorScreen() {
                 ? `${formatMonths(projection.monthsSaved)} sooner`
                 : 'Results update as you type'}
             </Text>
-            <TouchableOpacity
+            <Touchable
               style={styles.keypadDone}
-              onPress={() => { hapticLight(); Keyboard.dismiss(); }}
+              onPress={() => { Keyboard.dismiss(); }}
               accessibilityRole="button"
               accessibilityLabel="Done editing"
             >
               <Text style={styles.keypadDoneText}>Done</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
         </InputAccessoryView>
       )}
@@ -898,7 +899,7 @@ function TermPicker({ years, onChange, disabled, isLast }: {
         {TERM_OPTIONS.map(y => {
           const active = !disabled && y === years;
           return (
-            <TouchableOpacity
+            <Touchable
               key={y}
               style={[
                 termStyles.chip,
@@ -914,7 +915,7 @@ function TermPicker({ years, onChange, disabled, isLast }: {
               <Text style={[termStyles.chipText, active && termStyles.chipTextActive]}>
                 {y}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
         <View style={[termStyles.customBox, disabled && termStyles.chipDisabled]}>

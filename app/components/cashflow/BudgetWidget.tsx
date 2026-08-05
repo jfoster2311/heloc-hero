@@ -10,7 +10,8 @@
 // The over-ceiling state is grey plus the word "over", never colour alone. See
 // `Semantic` in lib/theme.ts for why, and `getBarColor` in lib/budget.ts for the
 // single threshold rule this shares with every other bar in the app.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Touchable } from '../ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../ui/primitives';
 import { Typography, Spacing, Radius } from '../../lib/theme';
@@ -69,16 +70,16 @@ export default function BudgetWidget({
 
   return (
     <Card>
-      <TouchableOpacity
+      <Touchable
         style={styles.head}
-        onPress={() => { hapticLight(); onOpenAll(); }}
+        onPress={() => { onOpenAll(); }}
         accessibilityRole="button"
         accessibilityLabel="Budget"
         accessibilityHint="Opens the full budget"
       >
         <Text style={common.eyebrow}>BUDGET</Text>
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-      </TouchableOpacity>
+      </Touchable>
 
       {!anyBudget ? (
         // No ceilings set. An empty budget screen full of zeroes would be a
@@ -95,9 +96,9 @@ export default function BudgetWidget({
                 'Set a limit on the categories that matter — you can do this now, ' +
                 'and it fills in with real figures once transactions arrive.'}
           </Text>
-          <TouchableOpacity
+          <Touchable
             style={styles.startBtn}
-            onPress={() => { hapticLight(); onStartBudget(); }}
+            onPress={() => { onStartBudget(); }}
             accessibilityRole="button"
             accessibilityLabel="Start a budget"
           >
@@ -109,7 +110,7 @@ export default function BudgetWidget({
               <Text style={styles.startBtnGoText}>Begin</Text>
               <Ionicons name="arrow-forward" size={16} color={colors.onAccent} />
             </View>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       ) : !spentMeasured ? (
         // Ceilings set, nothing measured against them. The plan is stated back
@@ -125,11 +126,10 @@ export default function BudgetWidget({
             {budgeted.slice(0, PREVIEW_COUNT).map(([id, b]) => {
               const meta = categoryFor(id as CategoryTotal['id']);
               return (
-                <TouchableOpacity
+                <Touchable
                   key={id}
                   style={styles.row}
-                  onPress={() => { hapticLight(); onOpenCategory(id as CategoryTotal['id']); }}
-                  activeOpacity={0.85}
+                  onPress={() => { onOpenCategory(id as CategoryTotal['id']); }}
                   accessibilityRole="button"
                   accessibilityLabel={`${meta.label}, $${fmt(b?.ceiling ?? 0)} budget`}
                   accessibilityHint="Opens this category to change its budget"
@@ -140,7 +140,7 @@ export default function BudgetWidget({
                   <Text style={styles.planRowLabel} numberOfLines={1}>{meta.label}</Text>
                   <Text style={styles.planRowValue}>${fmt(b?.ceiling ?? 0)}</Text>
                   <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
-                </TouchableOpacity>
+                </Touchable>
               );
             })}
           </View>
@@ -165,11 +165,10 @@ export default function BudgetWidget({
             {preview.map(c => {
               const ceiling = budgets[c.id]?.ceiling ?? null;
               return (
-                <TouchableOpacity
+                <Touchable
                   key={c.id}
                   style={styles.row}
-                  onPress={() => { hapticLight(); onOpenCategory(c.id); }}
-                  activeOpacity={0.85}
+                  onPress={() => { onOpenCategory(c.id); }}
                   accessibilityRole="button"
                   accessibilityLabel={
                     `${c.label}, $${fmt(c.amount)} spent` +
@@ -186,7 +185,7 @@ export default function BudgetWidget({
                     <BudgetBar label={c.label} spent={c.amount} ceiling={ceiling} />
                   </View>
                   <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
-                </TouchableOpacity>
+                </Touchable>
               );
             })}
           </View>

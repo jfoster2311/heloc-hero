@@ -15,7 +15,8 @@
 // who wants to keep more emergency room should be able to say so without
 // arguing with a recommendation every month.
 import { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import FormField from '../../components/ui/FormField';
@@ -194,7 +195,7 @@ export default function AssumptionsModal() {
             </Text>
           )}
 
-          <TouchableOpacity
+          <Touchable
             style={styles.adoptBtn}
             onPress={handleAdopt}
             accessibilityRole="button"
@@ -205,7 +206,7 @@ export default function AssumptionsModal() {
             <Text style={styles.adoptText}>
               {d.incomeConfident ? 'Use these figures' : 'Use the spending figure'}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
 
           <Text style={styles.hint}>
             Averaged over {d.coverageMonths} whole months, with the current part-month left out.
@@ -272,10 +273,10 @@ export default function AssumptionsModal() {
           {THRESHOLD_STEPS.map(t => {
             const active = Math.abs(threshold - t) < 0.001;
             return (
-              <TouchableOpacity
+              <Touchable
                 key={t}
                 style={[styles.thresholdChip, active && styles.thresholdChipActive]}
-                onPress={() => { hapticLight(); setThreshold(t); }}
+                onPress={() => { setThreshold(t); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${Math.round(t * 100)} percent`}
@@ -283,7 +284,7 @@ export default function AssumptionsModal() {
                 <Text style={[styles.thresholdText, active && styles.thresholdTextActive]}>
                   {Math.round(t * 100)}%
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>
@@ -305,9 +306,9 @@ export default function AssumptionsModal() {
           this only decides whether the payoff projection assumes your surplus reaches the
           line every month, or that some of it does not.
         </Text>
-        <TouchableOpacity
+        <Touchable
           style={styles.toggleRow}
-          onPress={() => { hapticLight(); setAssumeSweep(v => !v); }}
+          onPress={() => { setAssumeSweep(v => !v); }}
           accessibilityRole="switch"
           accessibilityState={{ checked: assumeSweep }}
           accessibilityLabel="Assume all surplus reaches the line"
@@ -318,7 +319,7 @@ export default function AssumptionsModal() {
           <Text style={styles.toggleLabel}>
             Assume the full surplus reaches the line each month
           </Text>
-        </TouchableOpacity>
+        </Touchable>
       </Card>
 
       {/* ── Rate stress ───────────────────────────────────────────────────
@@ -336,10 +337,10 @@ export default function AssumptionsModal() {
           {RATE_STRESS_STEPS_BPS.map(bps => {
             const active = f.forwardRateDeltaBps === bps;
             return (
-              <TouchableOpacity
+              <Touchable
                 key={bps}
                 style={[styles.stressChip, active && styles.stressChipActive]}
-                onPress={() => { hapticLight(); updateProfile({ forward_rate_delta_bps: bps }); }}
+                onPress={() => { updateProfile({ forward_rate_delta_bps: bps }); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={bps === 0 ? 'Today’s rate' : `Plus ${bps / 100} percent`}
@@ -347,7 +348,7 @@ export default function AssumptionsModal() {
                 <Text style={[styles.stressText, active && styles.stressTextActive]}>
                   {bps === 0 ? 'today' : `+${bps / 100}%`}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>

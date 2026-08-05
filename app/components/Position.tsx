@@ -33,7 +33,8 @@
 // summing its own rows was the whole bug: a second implementation of equity
 // that could drift from the first any time a row was added. This component
 // lays out the arithmetic; it does not own it.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from './ui/primitives';
 import { Typography, Spacing, Radius, Tracking } from '../lib/theme';
@@ -83,14 +84,14 @@ export default function Position({
       </View>
       {netHint ? <Text style={styles.netSub}>{netHint}</Text> : null}
       {onPressNet && (
-        <TouchableOpacity
+        <Touchable
           onPress={onPressNet}
           accessibilityRole="button"
           accessibilityLabel="How your equity is worked out"
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Text style={styles.netHint}>How this is worked out</Text>
-        </TouchableOpacity>
+        </Touchable>
       )}
 
       {/* Outside the figure above, and said so. Not an asset row: savings are
@@ -160,10 +161,9 @@ function Group({ title, total, rows, negative }: {
         // row that opens an editor is a tap the user did not mean to make.
         if (!r.onPress) return <View key={r.key}>{body}</View>;
         return (
-          <TouchableOpacity
+          <Touchable
             key={r.key}
             onPress={r.onPress}
-            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={
               r.amount === null
@@ -172,7 +172,7 @@ function Group({ title, total, rows, negative }: {
             }
           >
             {body}
-          </TouchableOpacity>
+          </Touchable>
         );
       })}
     </View>

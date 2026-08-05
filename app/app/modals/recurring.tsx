@@ -14,7 +14,7 @@
 // A $15 subscription is beneath deciding about. The same subscription is $180 a
 // year, which for a strategy about redirecting surplus onto principal is a real
 // number. Per-charge is what the bank shows; per-year is what changes anything.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';

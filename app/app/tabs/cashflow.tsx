@@ -28,8 +28,9 @@
 // bars live in components/ rather than here: six surfaces render a transaction,
 // and they have to render it identically or the app looks assembled from parts.
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
+  View, Text, StyleSheet, ScrollView, RefreshControl,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -413,9 +414,9 @@ export default function CashFlowScreen() {
 
         <View style={styles.content}>
         {!f.loading && f.error && (
-          <TouchableOpacity
+          <Touchable
             style={styles.staleBanner}
-            onPress={() => { hapticLight(); onRefresh(); }}
+            onPress={() => { onRefresh(); }}
             accessibilityRole="button"
             accessibilityLabel="Balances may be out of date. Tap to retry."
           >
@@ -424,7 +425,7 @@ export default function CashFlowScreen() {
               Couldn&apos;t reach your balances — HELOC interest below may be out of date.
             </Text>
             <Text style={styles.staleAction}>Retry</Text>
-          </TouchableOpacity>
+          </Touchable>
         )}
 
         {/* ── Period toggle ────────────────────────────────────────────────
@@ -518,16 +519,16 @@ export default function CashFlowScreen() {
             nothing to break down, and a ring invented from one typed expense
             total would be a picture of a measurement that never happened. */}
         <Card style={styles.ringCard}>
-          <TouchableOpacity
+          <Touchable
             style={styles.ringHead}
-            onPress={() => { hapticLight(); router.push('/modals/breakdown' as never); }}
+            onPress={() => { router.push('/modals/breakdown' as never); }}
             accessibilityRole="button"
             accessibilityLabel="Breakdown"
             accessibilityHint="Opens the full breakdown by category and merchant"
           >
             <Text style={common.eyebrow}>BREAKDOWN</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
+          </Touchable>
 
           <View style={styles.rangeRow}>
             <Text style={styles.rangeLabel}>{range.rangeLabel}</Text>
@@ -567,19 +568,19 @@ export default function CashFlowScreen() {
               </Text>
 
               {!f.hasLinkedAccounts ? (
-                <TouchableOpacity
+                <Touchable
                   style={styles.emptyBtn}
-                  onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+                  onPress={() => { router.push('/modals/link-account' as never); }}
                   accessibilityRole="button"
                   accessibilityLabel="Link an account"
                 >
                   <Text style={styles.emptyBtnText}>Link an account</Text>
-                </TouchableOpacity>
+                </Touchable>
               ) : widerWithData ? (
-                <TouchableOpacity
+                <Touchable
+                  haptic="selection"
                   style={styles.emptyBtn}
                   onPress={() => {
-                    hapticSelection();
                     setPeriod(widerWithData.id);
                     setSelectedArc(null);
                   }}
@@ -589,7 +590,7 @@ export default function CashFlowScreen() {
                   <Text style={styles.emptyBtnText}>
                     Show the {widerWithData.label.toLowerCase()}
                   </Text>
-                </TouchableOpacity>
+                </Touchable>
               ) : null}
             </View>
           ) : (
@@ -613,14 +614,13 @@ export default function CashFlowScreen() {
             {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => {
               const isSelected = selectedCat?.id === c.id;
               return (
-              <TouchableOpacity
+              <Touchable
                 key={c.id}
                 // Marked, never dimmed-out. The ring is where selection changes
                 // what you are looking at; down here it only says WHICH row the
                 // arc belongs to, so the other rows stay fully legible.
                 style={[styles.catCard, isSelected && styles.catCardSelected]}
-                onPress={() => { hapticLight(); openCategoryById(c.id); }}
-                activeOpacity={0.85}
+                onPress={() => { openCategoryById(c.id); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={
@@ -650,7 +650,7 @@ export default function CashFlowScreen() {
 
                 <Text style={styles.catAmount}>${fmt(c.amount)}</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-              </TouchableOpacity>
+              </Touchable>
               );
             })}
 
@@ -658,9 +658,9 @@ export default function CashFlowScreen() {
                 "See more", because four more rows and forty more rows are
                 different decisions and only the number distinguishes them. */}
             {summary.categories.length > COLLAPSED_CATS && (
-              <TouchableOpacity
+              <Touchable
                 style={styles.seeMore}
-                onPress={() => { hapticLight(); setCatsExpanded(e => !e); }}
+                onPress={() => { setCatsExpanded(e => !e); }}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: catsExpanded }}
                 accessibilityLabel={
@@ -679,7 +679,7 @@ export default function CashFlowScreen() {
                   size={15}
                   color={colors.mint700}
                 />
-              </TouchableOpacity>
+              </Touchable>
             )}
 
             {summary.untaggedCount > 0 && (
@@ -762,10 +762,9 @@ export default function CashFlowScreen() {
                 carries the same destination — a card someone may have already
                 scrolled past by the time they have finished reading this one. */}
             {totalCeiling === null && (
-              <TouchableOpacity
+              <Touchable
                 style={styles.beginRow}
-                onPress={() => { hapticLight(); router.push('/modals/budget' as never); }}
-                activeOpacity={0.85}
+                onPress={() => { router.push('/modals/budget' as never); }}
                 accessibilityRole="button"
                 accessibilityLabel="Start a budget — control your spend"
               >
@@ -777,7 +776,7 @@ export default function CashFlowScreen() {
                   <Text style={styles.beginGoText}>Begin</Text>
                   <Ionicons name="arrow-forward" size={15} color={colors.onAccent} />
                 </View>
-              </TouchableOpacity>
+              </Touchable>
             )}
           </Card>
         )}
@@ -785,16 +784,16 @@ export default function CashFlowScreen() {
         {/* ── The next two weeks ─────────────────────────────────────────── */}
         {upcoming.length > 0 && (
           <Card>
-            <TouchableOpacity
+            <Touchable
               style={styles.linkHead}
-              onPress={() => { hapticLight(); router.push('/modals/recurring' as never); }}
+              onPress={() => { router.push('/modals/recurring' as never); }}
               accessibilityRole="button"
               accessibilityLabel="Next 14 days"
               accessibilityHint="Opens everything that repeats, in and out"
             >
               <Text style={styles.cardTitleInline}>Next 14 days</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-            </TouchableOpacity>
+            </Touchable>
             <UpcomingMoney items={upcoming} />
           </Card>
         )}
@@ -804,9 +803,9 @@ export default function CashFlowScreen() {
             runs on. It earns its place by showing how steady that number is. */}
         {f.derivedCashflow?.usable && f.derivedCashflow.months.length > 0 && (
           <Card>
-            <TouchableOpacity
+            <Touchable
               style={styles.linkHead}
-              onPress={() => { hapticLight(); router.push('/modals/reports' as never); }}
+              onPress={() => { router.push('/modals/reports' as never); }}
               accessibilityRole="button"
               accessibilityLabel={
                 `Surplus by month, ${f.derivedCashflow.coverageMonths} months from your accounts`
@@ -820,7 +819,7 @@ export default function CashFlowScreen() {
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-            </TouchableOpacity>
+            </Touchable>
             <SurplusChart months={f.derivedCashflow.months} />
             <Text style={styles.chartNote}>
               Income minus spending, before your mortgage payment. Transfers between your own
@@ -855,13 +854,13 @@ export default function CashFlowScreen() {
               <Text style={styles.emptyBody}>
                 Couldn&apos;t load your history: {historyError}
               </Text>
-              <TouchableOpacity
+              <Touchable
                 style={styles.emptyBtn}
                 onPress={refreshHistory}
                 accessibilityLabel="Try loading history again"
               >
                 <Text style={styles.emptyBtnText}>Try again</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : historyLoading ? (
             <SkeletonGroup label="Loading your cycle history">
@@ -883,13 +882,13 @@ export default function CashFlowScreen() {
                 lump sums off it onto your principal — and this fills in with your real
                 history rather than a projection.
               </Text>
-              <TouchableOpacity
+              <Touchable
                 style={styles.emptyBtn}
-                onPress={() => { hapticLight(); router.push('/modals/move-money' as never); }}
+                onPress={() => { router.push('/modals/move-money' as never); }}
                 accessibilityLabel="Plan a move"
               >
                 <Text style={styles.emptyBtnText}>Plan a move</Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           ) : (
             <>
@@ -945,9 +944,9 @@ export default function CashFlowScreen() {
           )}
         </Card>
 
-        <TouchableOpacity
+        <Touchable
           style={styles.editRow}
-          onPress={() => { hapticLight(); router.push('/modals/assumptions' as never); }}
+          onPress={() => { router.push('/modals/assumptions' as never); }}
           accessibilityRole="button"
           accessibilityLabel="Edit your income and expense figures"
         >
@@ -957,7 +956,7 @@ export default function CashFlowScreen() {
               : 'Figures you entered'}
           </Text>
           <Text style={styles.editRowAction}>Edit</Text>
-        </TouchableOpacity>
+        </Touchable>
         </View>
       </ScrollView>
 
@@ -1033,11 +1032,10 @@ function PeriodToggle({ value, onChange }: {
       {PERIODS.map(p => {
         const active = p.id === value;
         return (
-          <TouchableOpacity
+          <Touchable
             key={p.id}
             style={[styles.pill, active && styles.pillActive]}
             onPress={() => onChange(p.id)}
-            activeOpacity={0.8}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={`Show this ${p.label.toLowerCase()}`}
@@ -1045,7 +1043,7 @@ function PeriodToggle({ value, onChange }: {
             <Text style={[styles.pillText, active && styles.pillTextActive]}>
               {p.label}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
         );
       })}
     </View>
@@ -1083,12 +1081,13 @@ function SummaryRow({ icon, label, value, hint, total, barPct, onPress, action }
   const { colors } = useTheme();
   const styles = useStyles();
   const negative = value < 0;
-  const Row = onPress ? TouchableOpacity : View;
+  // See the note in heloc-score's FactorRow — only the rows that lead somewhere
+  // become pressable.
+  const Row = onPress ? Touchable : View;
   return (
     <Row
       style={styles.sumRow}
       onPress={onPress}
-      activeOpacity={0.75}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={onPress
         ? `${label}, ${negative ? 'minus ' : ''}$${fmt(Math.abs(value))}. ${action ?? ''}`

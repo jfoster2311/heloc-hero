@@ -26,7 +26,8 @@
 // would imply a per-account pull that does not exist. It is one call for every
 // connection, which is also the cheaper shape: Plaid bills per call.
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Alert, ActivityIndicator } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -210,7 +211,7 @@ export default function AccountDetailsModal() {
 
         {/* One call refreshes every connection, so the label does not promise a
             per-account pull. See the note at the top of this file. */}
-        <TouchableOpacity
+        <Touchable
           style={[styles.syncBtn, syncing && styles.syncBtnBusy]}
           onPress={handleSync}
           disabled={syncing}
@@ -224,7 +225,7 @@ export default function AccountDetailsModal() {
           <Text style={styles.syncText}>
             {syncing ? 'Syncing…' : 'Sync all balances now'}
           </Text>
-        </TouchableOpacity>
+        </Touchable>
       </Card>
 
       {/* ── What the bank actually returned ───────────────────────────────

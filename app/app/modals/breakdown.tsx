@@ -11,7 +11,8 @@
 // everything. It deliberately has no ceilings, no comparison to a target and
 // no over/under state: there is nothing to cap on money coming in, and every
 // mark that implies otherwise would be inventing a judgement.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useCallback } from 'react';
 import ModalScreen, { Segmented } from '../../components/ui/ModalScreen';
@@ -168,10 +169,11 @@ export default function BreakdownScreen() {
           {PERIODS.map(p => {
             const active = p.id === period;
             return (
-              <TouchableOpacity
+              <Touchable
+                haptic="selection"
                 key={p.id}
                 style={[styles.periodPill, active && styles.periodPillActive]}
-                onPress={() => { hapticSelection(); setPeriod(p.id); setExpanded(false); }}
+                onPress={() => { setPeriod(p.id); setExpanded(false); }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`Show this ${p.label.toLowerCase()}`}
@@ -179,7 +181,7 @@ export default function BreakdownScreen() {
                 <Text style={[styles.periodText, active && styles.periodTextActive]}>
                   {p.label}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>
@@ -221,10 +223,11 @@ export default function BreakdownScreen() {
                 {(['category', 'merchant'] as Pivot[]).map(p => {
                   const active = p === pivot;
                   return (
-                    <TouchableOpacity
+                    <Touchable
+                      haptic="selection"
                       key={p}
                       style={[styles.pivotChip, active && styles.pivotChipActive]}
-                      onPress={() => { hapticSelection(); setPivot(p); setExpanded(false); }}
+                      onPress={() => { setPivot(p); setExpanded(false); }}
                       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
@@ -233,7 +236,7 @@ export default function BreakdownScreen() {
                       <Text style={[styles.pivotText, active && styles.pivotTextActive]}>
                         {p === 'category' ? 'Category' : 'Merchant'}
                       </Text>
-                    </TouchableOpacity>
+                    </Touchable>
                   );
                 })}
               </View>
@@ -249,18 +252,16 @@ export default function BreakdownScreen() {
             ) : (
               <View style={styles.list}>
                 {visible.map(c => (
-                  <TouchableOpacity
+                  <Touchable
                     key={c.id}
                     style={styles.row}
                     onPress={() => {
                       // Income has no category sheet — there is no ceiling to
                       // set and no history worth charting per source yet.
                       if (side !== 'spending') return;
-                      hapticLight();
                       openById(c.id as SpendCategory);
                     }}
                     disabled={side !== 'spending'}
-                    activeOpacity={0.85}
                     accessibilityRole={side === 'spending' ? 'button' : undefined}
                     accessibilityLabel={
                       `${c.label}, $${fmt(c.amount)}, ${c.pct.toFixed(0)} percent`
@@ -285,7 +286,7 @@ export default function BreakdownScreen() {
                     {side === 'spending' && (
                       <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
                     )}
-                  </TouchableOpacity>
+                  </Touchable>
                 ))}
               </View>
             )}
@@ -332,10 +333,10 @@ export default function BreakdownScreen() {
                 </Text>
                 <View style={styles.chips}>
                   {frequent.slice(0, 8).map(m => (
-                    <TouchableOpacity
+                    <Touchable
                       key={m.key}
                       style={styles.chip}
-                      onPress={() => { hapticLight(); setOpenMerchant(m.key); }}
+                      onPress={() => { setOpenMerchant(m.key); }}
                       accessibilityRole="button"
                       accessibilityLabel={
                         `${m.name}, ${m.count} times, $${fmt(m.amount)} total`
@@ -344,7 +345,7 @@ export default function BreakdownScreen() {
                       <Text style={styles.chipCount}>{m.count}×</Text>
                       <Text style={styles.chipName} numberOfLines={1}>{m.name}</Text>
                       <Text style={styles.chipAmount}>${fmt(m.amount)}</Text>
-                    </TouchableOpacity>
+                    </Touchable>
                   ))}
                 </View>
               </View>
@@ -426,7 +427,7 @@ function SeeMore({ expanded, hidden, onToggle }: {
   const styles = useStyles();
   if (hidden <= 0) return null;
   return (
-    <TouchableOpacity
+    <Touchable
       style={styles.seeMore}
       onPress={onToggle}
       accessibilityRole="button"
@@ -441,7 +442,7 @@ function SeeMore({ expanded, hidden, onToggle }: {
         size={15}
         color={colors.mint700}
       />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -455,11 +456,10 @@ function MerchantList({ merchants, total, onOpen }: {
   return (
     <View style={styles.list}>
       {merchants.map(m => (
-        <TouchableOpacity
+        <Touchable
           key={m.key}
           style={styles.row}
-          onPress={() => { hapticLight(); onOpen(m.key); }}
-          activeOpacity={0.85}
+          onPress={() => { onOpen(m.key); }}
           accessibilityRole="button"
           accessibilityLabel={`${m.name}, $${fmt(m.amount)}, ${m.count} charges`}
         >
@@ -477,7 +477,7 @@ function MerchantList({ merchants, total, onOpen }: {
           </View>
           <Text style={styles.rowAmount}>${fmt(m.amount)}</Text>
           <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
-        </TouchableOpacity>
+        </Touchable>
       ))}
     </View>
   );

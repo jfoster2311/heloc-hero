@@ -11,7 +11,8 @@
 // So the props here are STATE, not styling. A caller says the row is hidden; it
 // does not say the row is 40% opacity. That keeps the decision about what hidden
 // looks like in one file, which is the only way it stays consistent.
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Touchable } from './press';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -141,16 +142,15 @@ export default function TransactionRow({
   }
 
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.row, hidden && styles.rowHidden]}
       onPress={onPress}
-      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint="Opens the details for this transaction"
     >
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

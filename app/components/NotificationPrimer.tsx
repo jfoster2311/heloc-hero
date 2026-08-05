@@ -15,7 +15,8 @@
 //      figures. HELOC Hero has no payment rail: nothing "runs", nothing moves
 //      money, and the copy must not imply otherwise.
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, Modal } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { permissionStatus, requestPermission } from '../lib/notify';
@@ -114,23 +115,23 @@ export default function NotificationPrimer({ eligible, userId }: Props) {
             make every transfer at your bank — HELOC Hero never moves money.
           </Text>
 
-          <TouchableOpacity
+          <Touchable
             style={styles.primaryBtn}
             onPress={handleEnable}
             accessibilityRole="button"
             accessibilityLabel="Turn on reminders"
           >
             <Text style={styles.primaryBtnText}>Turn on reminders</Text>
-          </TouchableOpacity>
+          </Touchable>
 
-          <TouchableOpacity
+          <Touchable
             style={styles.secondaryBtn}
             onPress={handleDismiss}
             accessibilityRole="button"
             accessibilityLabel="Not now"
           >
             <Text style={styles.secondaryBtnText}>Not now</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </View>
     </Modal>

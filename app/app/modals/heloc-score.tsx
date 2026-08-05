@@ -15,7 +15,8 @@
 // The credit factor is self-reported, from a range the user picks. We never pull
 // it and the copy never implies we do; the screen points them at where they can
 // get it free instead.
-import { View, Text, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, Linking, ActivityIndicator } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import ModalScreen from '../../components/ui/ModalScreen';
@@ -154,11 +155,12 @@ export default function HelocScoreScreen() {
                 {CREDIT_RANGES.map(r => {
                   const active = profile?.credit_score === r.value;
                   return (
-                    <TouchableOpacity
+                    <Touchable
+                      haptic="selection"
                       key={r.value}
                       style={[styles.range, active && styles.rangeActive]}
                       disabled={saving}
-                      onPress={() => { hapticSelection(); saveCredit(r.value); }}
+                      onPress={() => { saveCredit(r.value); }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       accessibilityLabel={`${r.label}, ${r.range}`}
@@ -170,16 +172,16 @@ export default function HelocScoreScreen() {
                       {active && (
                         <Ionicons name="checkmark-circle" size={20} color={colors.accentInk} />
                       )}
-                    </TouchableOpacity>
+                    </Touchable>
                   );
                 })}
               </View>
 
               {error && <Text style={styles.error}>{error}</Text>}
 
-              <TouchableOpacity
+              <Touchable
                 style={styles.link}
-                onPress={() => { hapticLight(); Linking.openURL(FREE_CREDIT_REPORT_URL); }}
+                onPress={() => { Linking.openURL(FREE_CREDIT_REPORT_URL); }}
                 accessibilityRole="link"
                 accessibilityLabel="Get your credit report free at annualcreditreport.com"
               >
@@ -188,7 +190,7 @@ export default function HelocScoreScreen() {
                   Don&apos;t know it? Get it free at annualcreditreport.com — the official
                   site, no card needed. Your bank or card issuer likely shows a score too.
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           )}
         </>
@@ -210,14 +212,15 @@ function FactorRow({ factor, onPress }: {
   onPress?: () => void;
 }) {
   const styles = useStyles();
-  const Row = onPress ? TouchableOpacity : View;
+  // A press response only belongs on the rows that actually go somewhere; the
+  // rest are read-only and must not appear pressable.
+  const Row = onPress ? Touchable : View;
   const pct = factor.max > 0 ? (factor.points / factor.max) * 100 : 0;
 
   return (
     <Row
       style={styles.factor}
       onPress={onPress}
-      activeOpacity={0.8}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={
         factor.applicable

@@ -16,7 +16,8 @@
 // most flattering possible misreading on the one screen meant to tell someone
 // the truth about their trend. The date range is printed so the omission is
 // visible rather than silent.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -26,7 +27,7 @@ import ReportDetailSheet from '../../components/sheets/ReportDetailSheet';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCategoryOverrides } from '../../hooks/useCategoryOverrides';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 import {
   buildReportSeries, buildCategorySeries, buildChangeRows,
   type ReportMonth,
@@ -234,10 +235,10 @@ function SpreadChart({ months, onSelect }: {
   return (
     <View style={styles.chart}>
       {months.map(m => (
-        <TouchableOpacity
+        <Touchable
           key={m.key}
           style={styles.col}
-          onPress={() => { hapticLight(); onSelect(m); }}
+          onPress={() => { onSelect(m); }}
           accessibilityRole="button"
           accessibilityLabel={
             `${m.label}: $${fmt(m.income)} in, $${fmt(m.spend)} out, ` +
@@ -264,7 +265,7 @@ function SpreadChart({ months, onSelect }: {
             />
           </View>
           <Text style={styles.colLabel}>{m.label}</Text>
-        </TouchableOpacity>
+        </Touchable>
       ))}
     </View>
   );
@@ -281,10 +282,10 @@ function GroupedChart({ months, onSelect }: {
   return (
     <View style={styles.chart}>
       {months.map(m => (
-        <TouchableOpacity
+        <Touchable
           key={m.key}
           style={styles.col}
-          onPress={() => { hapticLight(); onSelect(m); }}
+          onPress={() => { onSelect(m); }}
           accessibilityRole="button"
           accessibilityLabel={
             `${m.label}: $${fmt(m.income)} in, $${fmt(m.spend)} out`
@@ -301,7 +302,7 @@ function GroupedChart({ months, onSelect }: {
             </View>
           </View>
           <Text style={styles.colLabel}>{m.label}</Text>
-        </TouchableOpacity>
+        </Touchable>
       ))}
     </View>
   );
@@ -370,7 +371,7 @@ function ModeButton({ icon, label, active, onPress }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.modeBtn, active && styles.modeBtnActive]}
       onPress={onPress}
       accessibilityRole="tab"
@@ -378,7 +379,7 @@ function ModeButton({ icon, label, active, onPress }: {
       accessibilityLabel={label}
     >
       <Ionicons name={icon} size={17} color={active ? colors.white : colors.textSecondary} />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

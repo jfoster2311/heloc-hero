@@ -12,7 +12,8 @@
 // a payoff date, someone tightening a grocery budget would watch their mortgage
 // payoff jump forward by two years, which is a lie the arithmetic would tell
 // with total confidence. The closing note on this screen says so out loud.
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Alert } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState, useCallback } from 'react';
@@ -245,16 +246,16 @@ export default function BudgetScreen() {
             </Text>
 
             {!f.hasLinkedAccounts ? (
-              <TouchableOpacity
+              <Touchable
                 style={styles.stateBtn}
-                onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+                onPress={() => { router.push('/modals/link-account' as never); }}
                 accessibilityRole="button"
                 accessibilityLabel="Link an account"
               >
                 <Text style={styles.stateBtnText}>Link an account</Text>
-              </TouchableOpacity>
+              </Touchable>
             ) : (
-              <TouchableOpacity
+              <Touchable
                 style={[styles.stateBtn, checking && styles.stateBtnBusy]}
                 onPress={checkForTransactions}
                 disabled={checking}
@@ -265,7 +266,7 @@ export default function BudgetScreen() {
                 <Text style={styles.stateBtnText}>
                   {checking ? 'Checking…' : 'Check for new transactions'}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
 
             {checkedEmpty && !checking && (
@@ -348,11 +349,10 @@ export default function BudgetScreen() {
               {rows.map(r => {
                 const status = budgetStatus(r.amount, r.ceiling);
                 return (
-                  <TouchableOpacity
+                  <Touchable
                     key={r.meta.id}
                     style={styles.row}
-                    onPress={() => { hapticLight(); openById(r.meta.id); }}
-                    activeOpacity={0.85}
+                    onPress={() => { openById(r.meta.id); }}
                     accessibilityRole="button"
                     accessibilityLabel={
                       measured
@@ -406,7 +406,7 @@ export default function BudgetScreen() {
                     </View>
 
                     <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
-                  </TouchableOpacity>
+                  </Touchable>
                 );
               })}
             </View>
@@ -448,22 +448,22 @@ export default function BudgetScreen() {
                       <Ionicons name={c.icon} size={17} color={colors.mint700} />
                     </View>
                     <Text style={styles.manageLabel} numberOfLines={1}>{c.label}</Text>
-                    <TouchableOpacity
+                    <Touchable
                       style={styles.manageBtn}
-                      onPress={() => { hapticLight(); setEditing(c.id); }}
+                      onPress={() => { setEditing(c.id); }}
                       accessibilityRole="button"
                       accessibilityLabel={`Rename ${c.label}`}
                     >
                       <Text style={styles.manageBtnText}>Rename</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Touchable>
+                    <Touchable
                       style={styles.manageBtn}
-                      onPress={() => { hapticLight(); confirmDelete(c.id, c.label); }}
+                      onPress={() => { confirmDelete(c.id, c.label); }}
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${c.label}`}
                     >
                       <Ionicons name="trash-outline" size={17} color={colors.textSecondary} />
-                    </TouchableOpacity>
+                    </Touchable>
                   </View>
                 )
               ))}
@@ -479,15 +479,15 @@ export default function BudgetScreen() {
                   }}
                 />
               ) : (
-                <TouchableOpacity
+                <Touchable
                   style={styles.addBtn}
-                  onPress={() => { hapticLight(); setCreating(true); }}
+                  onPress={() => { setCreating(true); }}
                   accessibilityRole="button"
                   accessibilityLabel="Add a category"
                 >
                   <Ionicons name="add" size={17} color={colors.mint700} />
                   <Text style={styles.addBtnText}>Add a category</Text>
-                </TouchableOpacity>
+                </Touchable>
               )}
 
               {f.categories.error && !creating && editing === null && (

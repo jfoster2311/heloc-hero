@@ -19,8 +19,9 @@
 //    unmounting the screen, so any hitch left a button spinning forever.
 import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, Link } from 'expo-router';
@@ -102,7 +103,7 @@ export default function LoginScreen() {
       <AuroraBackground style={styles.header} intensity={0.75}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerBar}>
-            <TouchableOpacity
+            <Touchable
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/onboarding/welcome'))}
               style={styles.back}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -110,7 +111,7 @@ export default function LoginScreen() {
               accessibilityLabel="Go back"
             >
               <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
-            </TouchableOpacity>
+            </Touchable>
           </View>
           <View style={styles.headerBody}>
             <Logo size={34} variant="inline" />
@@ -178,8 +179,8 @@ export default function LoginScreen() {
             invalid={problem?.field === 'password'}
             accessibilityLabel="Password"
             accessory={
-              <TouchableOpacity
-                onPress={() => { hapticLight(); setShowPassword(v => !v); }}
+              <Touchable
+                onPress={() => { setShowPassword(v => !v); }}
                 style={styles.eye}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
@@ -190,25 +191,24 @@ export default function LoginScreen() {
                   size={20}
                   color={colors.textMuted}
                 />
-              </TouchableOpacity>
+              </Touchable>
             }
           />
 
           <Link href="/auth/forgot-password" asChild>
-            <TouchableOpacity
+            <Touchable
               style={styles.forgot}
               accessibilityRole="link"
               accessibilityLabel="Forgot your password"
             >
               <Text style={styles.forgotText}>Forgot password?</Text>
-            </TouchableOpacity>
+            </Touchable>
           </Link>
 
-          <TouchableOpacity
+          <Touchable
             style={[styles.submit, !canSubmit && styles.submitDisabled]}
             onPress={handleSignIn}
             disabled={!canSubmit}
-            activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel="Sign in"
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
@@ -216,18 +216,18 @@ export default function LoginScreen() {
             {loading
               ? <ActivityIndicator color={colors.onAccent} />
               : <Text style={styles.submitText}>Sign in</Text>}
-          </TouchableOpacity>
+          </Touchable>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>New to HELOC Hero? </Text>
             <Link href="/auth/signup" asChild>
-              <TouchableOpacity
+              <Touchable
                 style={styles.footerBtn}
                 accessibilityRole="link"
                 accessibilityLabel="Create an account"
               >
                 <Text style={styles.footerLink}>Create an account</Text>
-              </TouchableOpacity>
+              </Touchable>
             </Link>
           </View>
         </ScrollView>

@@ -19,8 +19,9 @@
 // still catches a typo for everyone typing by hand.
 import { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Linking,
+  View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, Link } from 'expo-router';
@@ -206,21 +207,20 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity
+              <Touchable
                 style={styles.confirmPrimary}
-                onPress={() => { hapticLight(); router.replace('/auth/login'); }}
-                activeOpacity={0.88}
+                onPress={() => { router.replace('/auth/login'); }}
                 accessibilityRole="button"
                 accessibilityLabel="Go to sign in"
               >
                 <Text style={styles.confirmPrimaryText}>Go to sign in</Text>
-              </TouchableOpacity>
+              </Touchable>
 
               {/* The way out of the one state that could otherwise end the
                   flow: the account exists but cannot be used, signing up again
                   answers "you already have an account", and a password reset
                   does not confirm an address. */}
-              <TouchableOpacity
+              <Touchable
                 style={[styles.confirmSecondary, resending && styles.confirmSecondaryBusy]}
                 onPress={handleResend}
                 disabled={resending}
@@ -231,7 +231,7 @@ export default function SignupScreen() {
                 {resending
                   ? <ActivityIndicator size="small" color={OnDark.primary} />
                   : <Text style={styles.confirmSecondaryText}>Send it again</Text>}
-              </TouchableOpacity>
+              </Touchable>
 
               <Text style={styles.confirmHint} accessibilityLiveRegion="polite">
                 {resendNote ?? 'No email after a minute? Check your spam folder.'}
@@ -251,7 +251,7 @@ export default function SignupScreen() {
       <AuroraBackground style={styles.header} intensity={0.75}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerBar}>
-            <TouchableOpacity
+            <Touchable
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/onboarding/welcome'))}
               style={styles.back}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -259,7 +259,7 @@ export default function SignupScreen() {
               accessibilityLabel="Go back"
             >
               <Ionicons name="chevron-back" size={24} color={OnDark.primary} />
-            </TouchableOpacity>
+            </Touchable>
           </View>
           <View style={styles.headerBody}>
             <Logo size={34} variant="inline" />
@@ -295,9 +295,9 @@ export default function SignupScreen() {
                     that resolves this failure, silently. */}
                 {problem.kind === 'account_exists' && (
                   <Link href="/auth/login" asChild>
-                    <TouchableOpacity accessibilityRole="link" style={styles.problemAction}>
+                    <Touchable accessibilityRole="link" style={styles.problemAction}>
                       <Text style={styles.problemActionText}>Sign in instead →</Text>
-                    </TouchableOpacity>
+                    </Touchable>
                   </Link>
                 )}
               </View>
@@ -360,8 +360,8 @@ export default function SignupScreen() {
               : undefined}
             accessibilityLabel="Password"
             accessory={
-              <TouchableOpacity
-                onPress={() => { hapticLight(); setShowPassword(v => !v); }}
+              <Touchable
+                onPress={() => { setShowPassword(v => !v); }}
                 style={styles.eye}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
@@ -372,7 +372,7 @@ export default function SignupScreen() {
                   size={20}
                   color={colors.textMuted}
                 />
-              </TouchableOpacity>
+              </Touchable>
             }
           />
 
@@ -395,11 +395,10 @@ export default function SignupScreen() {
             accessibilityLabel="Confirm password"
           />
 
-          <TouchableOpacity
+          <Touchable
             style={[styles.submit, !canSubmit && styles.submitDisabled]}
             onPress={handleSignUp}
             disabled={!canSubmit}
-            activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel="Create account"
             accessibilityState={{ disabled: !canSubmit, busy: loading }}
@@ -407,7 +406,7 @@ export default function SignupScreen() {
             {loading
               ? <ActivityIndicator color={colors.onAccent} />
               : <Text style={styles.submitText}>Create account</Text>}
-          </TouchableOpacity>
+          </Touchable>
 
           <Text style={styles.terms}>
             By signing up you agree to our{' '}
@@ -425,13 +424,13 @@ export default function SignupScreen() {
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
             <Link href="/auth/login" asChild>
-              <TouchableOpacity
+              <Touchable
                 style={styles.footerBtn}
                 accessibilityRole="link"
                 accessibilityLabel="Sign in"
               >
                 <Text style={styles.footerLink}>Sign in</Text>
-              </TouchableOpacity>
+              </Touchable>
             </Link>
           </View>
         </ScrollView>

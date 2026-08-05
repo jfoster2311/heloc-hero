@@ -1,5 +1,6 @@
 // app/modals/link-account.tsx
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, ScrollView } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -183,14 +184,14 @@ export default function LinkAccountModal() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Text style={styles.title}>Link an Account</Text>
-          <TouchableOpacity
-            onPress={() => { hapticLight(); router.back(); }}
+          <Touchable
+            onPress={() => { router.back(); }}
             style={styles.closeBtn}
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
             <Ionicons name="close" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
+          </Touchable>
         </View>
         <View style={styles.gateContainer}>
           <Ionicons name="lock-closed-outline" size={48} color={colors.mint400} />
@@ -198,12 +199,12 @@ export default function LinkAccountModal() {
           <Text style={styles.gateBody}>
             Link bank accounts with Plaid and see live balances with a Pro subscription.
           </Text>
-          <TouchableOpacity
+          <Touchable
             style={styles.gateBtn}
             onPress={() => { router.back(); router.push('/modals/upgrade'); }}
           >
             <Text style={styles.gateBtnText}>View Pro Plans</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       </SafeAreaView>
     );
@@ -214,14 +215,14 @@ export default function LinkAccountModal() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Link an Account</Text>
-        <TouchableOpacity
-          onPress={() => { hapticLight(); router.back(); }}
+        <Touchable
+          onPress={() => { router.back(); }}
           style={styles.closeBtn}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -238,7 +239,7 @@ export default function LinkAccountModal() {
         {/* Account type selection */}
         <View style={styles.typeList}>
           {ACCOUNT_TYPES.map(item => (
-            <TouchableOpacity
+            <Touchable
               key={item.type}
               style={[
                 styles.typeItem,
@@ -263,7 +264,7 @@ export default function LinkAccountModal() {
               {selectedType === item.type && (
                 <Ionicons name="checkmark-circle" size={20} color={colors.accentInk} />
               )}
-            </TouchableOpacity>
+            </Touchable>
           ))}
         </View>
 
@@ -277,7 +278,7 @@ export default function LinkAccountModal() {
 
         {/* Sandbox quick-link for dev testing */}
         {__DEV__ && (
-          <TouchableOpacity
+          <Touchable
             style={[
               styles.sandboxBtn,
               (!selectedType || loading) && styles.connectBtnDisabled,
@@ -287,13 +288,13 @@ export default function LinkAccountModal() {
           >
             <Ionicons name="flask-outline" size={16} color={colors.accentInk} />
             <Text style={styles.sandboxBtnText}>Sandbox Quick-Link (dev only)</Text>
-          </TouchableOpacity>
+          </Touchable>
         )}
       </ScrollView>
 
       {/* Connect button */}
       <View style={styles.footer}>
-        <TouchableOpacity
+        <Touchable
           style={[
             styles.connectBtn,
             (!selectedType || loading) && styles.connectBtnDisabled,
@@ -309,7 +310,7 @@ export default function LinkAccountModal() {
               <Text style={styles.connectBtnText}>Connect with Plaid</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Touchable>
       </View>
     </SafeAreaView>
   );

@@ -7,9 +7,10 @@
 // none of the user's numbers yet.
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet,
   Dimensions, Animated, AccessibilityInfo,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -153,28 +154,26 @@ export default function WelcomeScreen() {
 
         {/* ── CTAs ─────────────────────────────────────────────────────── */}
         <Animated.View style={[s.ctas, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-          <TouchableOpacity
+          <Touchable
             style={s.primary}
             onPress={startProjection}
-            activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel="Get my projection"
           >
             <Text style={s.primaryText}>Get my projection</Text>
             <Ionicons name="arrow-forward" size={17} color={Aurora.deepest} />
-          </TouchableOpacity>
+          </Touchable>
 
           <Text style={s.freeNote}>Free to start. No card required.</Text>
 
-          <TouchableOpacity
+          <Touchable
             style={s.secondary}
             onPress={() => router.push('/auth/login' as never)}
-            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Sign in to an existing account"
           >
             <Text style={s.secondaryText}>I already have an account</Text>
-          </TouchableOpacity>
+          </Touchable>
         </Animated.View>
 
       </SafeAreaView>

@@ -8,11 +8,12 @@
 // make before they can finish the thing they were actually doing, which was
 // filing one transaction. The budget for it is set where budgets are set.
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { Touchable } from './press';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 import { CUSTOM_CATEGORY_ICONS } from '../../lib/spending';
 
 export interface NewCategoryFormProps {
@@ -47,14 +48,14 @@ export default function NewCategoryForm({
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={styles.title}>{title ?? 'New category'}</Text>
-        <TouchableOpacity
-          onPress={() => { hapticLight(); onCancel(); }}
+        <Touchable
+          onPress={() => { onCancel(); }}
           style={styles.cancel}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >
           <Ionicons name="close" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <TextInput
@@ -73,10 +74,11 @@ export default function NewCategoryForm({
         {CUSTOM_CATEGORY_ICONS.map(g => {
           const active = g === icon;
           return (
-            <TouchableOpacity
+            <Touchable
+              haptic="selection"
               key={g}
               style={[styles.iconBtn, active && styles.iconBtnActive]}
-              onPress={() => { hapticSelection(); setIcon(g); }}
+              onPress={() => { setIcon(g); }}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`Icon: ${g.replace('-outline', '').replace(/-/g, ' ')}`}
@@ -86,24 +88,24 @@ export default function NewCategoryForm({
                 size={19}
                 color={active ? colors.white : colors.textSecondary}
               />
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity
+      <Touchable
         style={[styles.create, !valid && styles.createDisabled]}
         disabled={!valid || saving}
-        onPress={async () => { hapticLight(); await onCreate(label.trim(), icon); }}
+        onPress={async () => { await onCreate(label.trim(), icon); }}
         accessibilityRole="button"
         accessibilityLabel="Create this category"
       >
         {saving
           ? <ActivityIndicator size="small" color={colors.onAccent} />
           : <Text style={styles.createText}>{submitLabel ?? 'Create'}</Text>}
-      </TouchableOpacity>
+      </Touchable>
     </View>
   );
 }

@@ -24,8 +24,9 @@
 // store is still being asked, nothing stands in for the price at all: a
 // placeholder shown as though it were settled is the failure worth avoiding.
 import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Linking, Alert,
+  View, Text, ScrollView, ActivityIndicator, Linking, Alert,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -187,14 +188,14 @@ export default function UpgradeModal() {
           topBar={
             <View style={styles.heroTop}>
               <Text style={styles.heroTitle}>HELOC Hero Pro</Text>
-              <TouchableOpacity
-                onPress={() => { hapticLight(); router.back(); }}
+              <Touchable
+                onPress={() => { router.back(); }}
                 style={styles.closeBtn}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
                 <Ionicons name="close" size={22} color={OnDark.secondary} />
-              </TouchableOpacity>
+              </Touchable>
             </View>
           }
         >
@@ -281,9 +282,9 @@ export default function UpgradeModal() {
             returns null, so the paywall sat on US list pricing with a dead
             button and no way to try again. */}
         {offerStatus === 'failed' && (
-          <TouchableOpacity
+          <Touchable
             style={styles.retryBanner}
-            onPress={() => { hapticLight(); loadOfferings(); }}
+            onPress={() => { loadOfferings(); }}
             accessibilityRole="button"
             accessibilityLabel="Could not reach the App Store. Tap to try again."
           >
@@ -293,7 +294,7 @@ export default function UpgradeModal() {
               US list pricing, not your final price.
             </Text>
             <Text style={styles.retryAction}>Retry</Text>
-          </TouchableOpacity>
+          </Touchable>
         )}
 
         {error ? (
@@ -317,7 +318,7 @@ export default function UpgradeModal() {
           </Text>
         </View>
 
-        <TouchableOpacity
+        <Touchable
           style={[styles.cta, !canPurchase && styles.ctaDisabled]}
           onPress={handlePurchase}
           disabled={!canPurchase || purchasing}
@@ -331,7 +332,7 @@ export default function UpgradeModal() {
                 {isPro ? 'Pro is active' : hasTrial ? 'Start free trial' : 'Subscribe'}
               </Text>
             )}
-        </TouchableOpacity>
+        </Touchable>
 
         {!rcAvailable && (
           <Text style={styles.unavailableNote}>
@@ -341,7 +342,7 @@ export default function UpgradeModal() {
         )}
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity
+          <Touchable
             style={styles.actionBtn}
             onPress={handleRestore}
             disabled={restoring || !rcAvailable}
@@ -350,15 +351,15 @@ export default function UpgradeModal() {
             {restoring
               ? <ActivityIndicator size="small" color={colors.accentInk} />
               : <Text style={styles.actionBtnText}>Restore purchases</Text>}
-          </TouchableOpacity>
+          </Touchable>
 
-          <TouchableOpacity
+          <Touchable
             style={styles.actionBtn}
             onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
             accessibilityLabel="Manage subscription in App Store"
           >
             <Text style={styles.actionBtnText}>Manage subscription</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         {/* ── Free tier, stated plainly rather than as a downgrade ────────── */}
@@ -415,7 +416,7 @@ function PeriodBtn({ label, badge, active, onPress }: {
 }) {
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.periodBtn, active && styles.periodBtnActive]}
       onPress={onPress}
       accessibilityRole="button"
@@ -424,7 +425,7 @@ function PeriodBtn({ label, badge, active, onPress }: {
     >
       <Text style={[styles.periodText, active && styles.periodTextActive]}>{label}</Text>
       {badge && <Text style={[styles.periodBadge, active && styles.periodBadgeActive]}>{badge}</Text>}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

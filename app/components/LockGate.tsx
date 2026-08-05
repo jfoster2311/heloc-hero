@@ -1,6 +1,7 @@
 // components/LockGate.tsx — wraps the app; shows lock overlay after 15 min background
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import { View, Text, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { hapticLight } from '../lib/haptics';
@@ -61,9 +62,9 @@ export default function LockGate({ children }: Props) {
         <Ionicons name="lock-closed" size={48} color={colors.accentInk} />
         <Text style={styles.title}>HELOC Hero</Text>
         <Text style={styles.subtitle}>The app has been locked for your security.</Text>
-        <TouchableOpacity
+        <Touchable
           style={styles.unlockBtn}
-          onPress={() => { hapticLight(); handleUnlock(); }}
+          onPress={() => { handleUnlock(); }}
           disabled={authenticating}
           accessibilityRole="button"
           accessibilityState={{ disabled: authenticating, busy: authenticating }}
@@ -73,7 +74,7 @@ export default function LockGate({ children }: Props) {
           <Text style={styles.unlockText}>
             {authenticating ? 'Authenticating…' : 'Unlock'}
           </Text>
-        </TouchableOpacity>
+        </Touchable>
       </View>
     </LinearGradient>
   );

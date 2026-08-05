@@ -15,8 +15,9 @@
 // difference explicit and in one place.
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, Switch, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, TextInput, Switch, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import DetailSheet, { SheetSection, SheetRow } from '../ui/DetailSheet';
 import TransactionRow from '../ui/TransactionRow';
@@ -126,7 +127,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
       onDismiss={() => setDraft('')}
       footer={
         dirty ? (
-          <TouchableOpacity
+          <Touchable
             style={styles.save}
             onPress={async () => {
               hapticSuccess();
@@ -139,7 +140,7 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
             {saving
               ? <ActivityIndicator size="small" color={colors.onAccent} />
               : <Text style={styles.saveText}>Save budget</Text>}
-          </TouchableOpacity>
+          </Touchable>
         ) : undefined
       }
     >
@@ -179,14 +180,14 @@ export default function CategoryDetailSheet(props: CategoryDetailSheetProps) {
               accessibilityLabel={`Monthly budget for ${target.label}`}
             />
             {ceiling !== null && (
-              <TouchableOpacity
-                onPress={() => { hapticLight(); onClearCeiling(); }}
+              <Touchable
+                onPress={() => { onClearCeiling(); }}
                 style={styles.clear}
                 accessibilityRole="button"
                 accessibilityLabel="Remove this budget"
               >
                 <Text style={styles.clearText}>Remove</Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
           </View>
 

@@ -20,8 +20,9 @@
 // bank, and is labelled as exactly that.
 import { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, InputAccessoryView, Keyboard,
+  View, Text, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, InputAccessoryView, Keyboard,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -37,7 +38,7 @@ import SuccessReveal from '../../components/ui/SuccessReveal';
 import { BUFFER } from '../../lib/config';
 import { resolveHelocRate, deriveCreditLimit } from '../../lib/helocTerms';
 import { formatMonths } from '../../lib/projections';
-import { hapticLight, hapticSuccess } from '../../lib/haptics';
+import { hapticSuccess } from '../../lib/haptics';
 import { Typography, Spacing, Radius, Shadows } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
@@ -194,13 +195,13 @@ export default function MoveMoneyModal() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Move recorded</Text>
-          <TouchableOpacity
-            onPress={() => { hapticLight(); router.back(); }}
+          <Touchable
+            onPress={() => { router.back(); }}
             style={styles.closeBtn}
             accessibilityLabel="Close"
           >
             <Ionicons name="close" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -278,14 +279,14 @@ export default function MoveMoneyModal() {
             will update once it arrives.
           </Text>
 
-          <TouchableOpacity
+          <Touchable
             style={[styles.choice, styles.choicePrimary]}
-            onPress={() => { hapticLight(); router.back(); }}
+            onPress={() => { router.back(); }}
             accessibilityRole="button"
             accessibilityLabel="Done"
           >
             <Text style={styles.choicePrimaryText}>Done</Text>
-          </TouchableOpacity>
+          </Touchable>
         </ScrollView>
       </SafeAreaView>
     );
@@ -295,13 +296,13 @@ export default function MoveMoneyModal() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Move money to your mortgage?</Text>
-        <TouchableOpacity
-          onPress={() => { hapticLight(); router.back(); }}
+        <Touchable
+          onPress={() => { router.back(); }}
           style={styles.closeBtn}
           accessibilityLabel="Close"
         >
           <Ionicons name="close" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <KeyboardAvoidingView
@@ -340,9 +341,8 @@ export default function MoveMoneyModal() {
               />
             </View>
             {suggested > 0 && amount !== suggested && (
-              <TouchableOpacity
+              <Touchable
                 onPress={() => {
-                  hapticLight();
                   setAmountEdited(true);
                   setDraft(null);
                   setAmount(suggested);
@@ -354,7 +354,7 @@ export default function MoveMoneyModal() {
                   Use ${suggested.toLocaleString()} — the most that stays under{' '}
                   {Math.round(CAUTION_UTILIZATION * 100)}% utilization
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
           </View>
 
@@ -402,8 +402,8 @@ export default function MoveMoneyModal() {
             {/* The HELOC rate drives every cost figure below. If we're guessing
                 it, say so where the guess is being used. */}
             {helocRateAssumed && (
-              <TouchableOpacity
-                onPress={() => { hapticLight(); router.push('/modals/heloc-terms' as never); }}
+              <Touchable
+                onPress={() => { router.push('/modals/heloc-terms' as never); }}
                 style={styles.rateWarnBtn}
                 accessibilityLabel="Add your HELOC rate"
               >
@@ -411,7 +411,7 @@ export default function MoveMoneyModal() {
                   Interest below assumes an 8.5% APR. No bank shares HELOC rates —
                   add yours for accurate costs.
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
             </>
             )}
@@ -501,24 +501,24 @@ export default function MoveMoneyModal() {
 
           {/* ── Two real choices, equal weight ────────────────────────────── */}
           <View style={styles.actions}>
-            <TouchableOpacity
+            <Touchable
               style={[styles.choice, styles.choiceSecondary]}
-              onPress={() => { hapticLight(); router.back(); }}
+              onPress={() => { router.back(); }}
               accessibilityLabel="Not now"
             >
               <Text style={styles.choiceSecondaryText}>Not now</Text>
-            </TouchableOpacity>
+            </Touchable>
 
-            <TouchableOpacity
+            <Touchable
               style={[styles.choice, styles.choicePrimary, !canLog && styles.choiceDisabled]}
-              onPress={() => { hapticLight(); handleLogMove(); }}
+              onPress={() => { handleLogMove(); }}
               disabled={!canLog || logging}
               accessibilityLabel={`Record a ${amount} dollar transfer`}
             >
               {logging
                 ? <ActivityIndicator color={colors.mint700} />
                 : <Text style={styles.choicePrimaryText}>I moved ${fmt(amount)}</Text>}
-            </TouchableOpacity>
+            </Touchable>
           </View>
 
           <Text style={styles.footnote}>
@@ -538,14 +538,14 @@ export default function MoveMoneyModal() {
                   ? `Puts you at ${fmtPct(analysis.utilAfter)} utilization`
                   : 'Enter the amount you moved'}
             </Text>
-            <TouchableOpacity
+            <Touchable
               style={styles.keypadDone}
-              onPress={() => { hapticLight(); Keyboard.dismiss(); }}
+              onPress={() => { Keyboard.dismiss(); }}
               accessibilityRole="button"
               accessibilityLabel="Done editing amount"
             >
               <Text style={styles.keypadDoneText}>Done</Text>
-            </TouchableOpacity>
+            </Touchable>
           </View>
         </InputAccessoryView>
       )}

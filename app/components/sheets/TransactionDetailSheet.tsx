@@ -17,14 +17,15 @@
 // that the user did not get to choose the inputs.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, ActivityIndicator,
+  View, Text, StyleSheet, TextInput, Switch, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import DetailSheet, { SheetSection, SheetRow } from '../ui/DetailSheet';
 import NewCategoryForm from '../ui/NewCategoryForm';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
-import { hapticLight, hapticSelection } from '../../lib/haptics';
+import { hapticSelection } from '../../lib/haptics';
 import type { SpendCategory, CategorizedTxn, CategoryMeta } from '../../lib/spending';
 import type { TransactionMeta } from '../../hooks/useTransactionMeta';
 
@@ -118,9 +119,9 @@ export default function TransactionDetailSheet({
             <Text style={styles.catPillText}>Money in</Text>
           </View>
         ) : (
-          <TouchableOpacity
+          <Touchable
             style={styles.catPill}
-            onPress={() => { hapticLight(); setPickerOpen(o => !o); }}
+            onPress={() => { setPickerOpen(o => !o); }}
             accessibilityRole="button"
             accessibilityLabel={`Category: ${cat.label}. Tap to change.`}
           >
@@ -131,7 +132,7 @@ export default function TransactionDetailSheet({
               size={14}
               color={colors.mint700}
             />
-          </TouchableOpacity>
+          </Touchable>
         )}
       </View>
 
@@ -157,12 +158,12 @@ export default function TransactionDetailSheet({
             {categories.map(c => {
               const active = c.id === row.category;
               return (
-                <TouchableOpacity
+                <Touchable
                   key={c.id}
                   style={[styles.pickerChip, active && styles.pickerChipActive]}
                   disabled={active}
+                  haptic="selection"
                   onPress={async () => {
-                    hapticSelection();
                     setPickerOpen(false);
                     await onRecategorize(t.transaction_id, c.id);
                   }}
@@ -178,14 +179,14 @@ export default function TransactionDetailSheet({
                   <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
                     {c.label}
                   </Text>
-                </TouchableOpacity>
+                </Touchable>
               );
             })}
 
             {onCreateCategory && (
-              <TouchableOpacity
+              <Touchable
                 style={[styles.pickerChip, styles.pickerChipNew]}
-                onPress={() => { hapticLight(); setCreating(true); }}
+                onPress={() => { setCreating(true); }}
                 accessibilityRole="button"
                 accessibilityLabel="Create a new category"
               >
@@ -193,7 +194,7 @@ export default function TransactionDetailSheet({
                 <Text style={[styles.pickerChipText, styles.pickerChipTextActive]}>
                   New category
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             )}
           </View>
         )
@@ -231,9 +232,9 @@ export default function TransactionDetailSheet({
               accessibilityLabel="Note for this transaction"
             />
           ) : (
-            <TouchableOpacity
+            <Touchable
               style={styles.noteValueTap}
-              onPress={() => { hapticLight(); setEditingNote(true); }}
+              onPress={() => { setEditingNote(true); }}
               accessibilityRole="button"
               accessibilityLabel={meta.note ? `Note: ${meta.note}. Tap to edit.` : 'Add a note'}
             >
@@ -243,7 +244,7 @@ export default function TransactionDetailSheet({
               >
                 {meta.note || 'Add a note'}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           )}
         </View>
 

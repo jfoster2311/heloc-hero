@@ -1,6 +1,7 @@
 // app/onboarding/heloc-info.tsx
 import { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
@@ -93,10 +94,11 @@ export default function HelocInfoStep() {
           { value: 'no_heloc',  icon: 'home-outline',       label: "No, I don't have one" },
           { value: 'not_sure',  icon: 'help-circle-outline', label: 'Not sure' },
         ] as { value: HelocStatus; icon: string; label: string }[]).map(opt => (
-          <TouchableOpacity
+          <Touchable
+            haptic="selection"
             key={opt.value}
             style={[styles.toggleBtn, helocStatus === opt.value && styles.toggleBtnActive]}
-            onPress={() => { hapticSelection(); setHelocStatus(opt.value); }}
+            onPress={() => { setHelocStatus(opt.value); }}
             accessibilityRole="radio"
             accessibilityState={{ selected: helocStatus === opt.value }}
             accessibilityLabel={opt.label}
@@ -109,7 +111,7 @@ export default function HelocInfoStep() {
             <Text style={[styles.toggleText, helocStatus === opt.value && styles.toggleTextActive]}>
               {opt.label}
             </Text>
-          </TouchableOpacity>
+          </Touchable>
         ))}
       </View>
 

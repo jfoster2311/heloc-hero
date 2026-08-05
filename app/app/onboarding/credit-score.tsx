@@ -4,7 +4,8 @@
 // someone picking "Very good" at onboarding and re-picking it later on the score
 // screen would watch their score move without changing their answer.
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, Linking } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import OnboardingStep from '../../components/ui/OnboardingStep';
@@ -56,10 +57,11 @@ export default function CreditScoreStep() {
         {RANGES.map(r => {
           const active = selected === r.value;
           return (
-            <TouchableOpacity
+            <Touchable
+              haptic="selection"
               key={r.value}
               style={[styles.rangeItem, active && styles.rangeItemActive]}
-              onPress={() => { hapticSelection(); setSelected(r.value); }}
+              onPress={() => { setSelected(r.value); }}
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${r.label}, ${r.range}`}
@@ -71,7 +73,7 @@ export default function CreditScoreStep() {
               {active && (
                 <Ionicons name="checkmark-circle" size={22} color={colors.accentInk} />
               )}
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
       </View>
@@ -79,7 +81,7 @@ export default function CreditScoreStep() {
       {/* Where to actually get it, and an honest statement that we do not.
           "Check Credit Karma" pointed at a commercial product; this is the
           statutory free-report site. */}
-      <TouchableOpacity
+      <Touchable
         style={styles.hint}
         onPress={() => Linking.openURL(FREE_CREDIT_REPORT_URL)}
         accessibilityRole="link"
@@ -90,7 +92,7 @@ export default function CreditScoreStep() {
           report free at annualcreditreport.com. We never pull your credit — this is your
           estimate, and it only feeds your HELOC Hero score.
         </Text>
-      </TouchableOpacity>
+      </Touchable>
     </OnboardingStep>
   );
 }

@@ -4,7 +4,8 @@
 // buildWatchItems (lib/watchItems.ts). This used to live privately inside the
 // dashboard, which meant a second copy would drift the moment either screen was
 // touched. One row, one look, both places.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from './press';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -31,9 +32,9 @@ export default function WatchRow({ item, last, onPress }: {
   );
   if (!onPress) return body;
   return (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={item.title}>
+    <Touchable onPress={onPress} accessibilityRole="button" accessibilityLabel={item.title}>
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

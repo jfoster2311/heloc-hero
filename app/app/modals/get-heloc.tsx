@@ -1,5 +1,6 @@
 // app/modals/get-heloc.tsx — HELOC guide for users who don't have one yet
-import { View, Text, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import { View, Text, ScrollView, Linking, Alert } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,14 +40,14 @@ export default function GetHelocModal() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Open a HELOC</Text>
-        <TouchableOpacity
-          onPress={() => { hapticLight(); router.back(); }}
+        <Touchable
+          onPress={() => { router.back(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
           <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        </Touchable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -126,7 +127,7 @@ export default function GetHelocModal() {
                 <Text style={styles.lenderDisclosure}>{lender.disclosure}</Text>
               )}
               {lender.applyUrl && (
-                <TouchableOpacity
+                <Touchable
                   style={styles.applyBtn}
                   onPress={() => openLender(lender.name, lender.applyUrl!)}
                   accessibilityRole="button"
@@ -134,7 +135,7 @@ export default function GetHelocModal() {
                   accessibilityHint="Opens their website outside HELOC Hero"
                 >
                   <Text style={styles.applyBtnText}>View →</Text>
-                </TouchableOpacity>
+                </Touchable>
               )}
             </View>
           ))

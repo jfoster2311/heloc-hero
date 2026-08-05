@@ -140,8 +140,13 @@ export function usePressScale({
 }
 
 export interface TouchableProps {
-  children: React.ReactNode;
-  onPress: () => void;
+  /** Optional: a bare overlay target — the reveal's tap-to-skip — has none. */
+  children?: React.ReactNode;
+  /**
+   * Optional because of `<Link asChild>`, which clones this element and injects
+   * its own handler. Those call sites genuinely have no onPress to give.
+   */
+  onPress?: () => void;
   onLongPress?: () => void;
   /**
    * The control's box — exactly as it would be on a TouchableOpacity.
@@ -161,6 +166,12 @@ export interface TouchableProps {
   accessibilityHint?: string;
   accessibilityState?: React.ComponentProps<typeof Pressable>['accessibilityState'];
   hitSlop?: React.ComponentProps<typeof Pressable>['hitSlop'];
+  /**
+   * For the rare control that should be invisible to assistive tech — the
+   * full-bleed skip target on the reveal, which duplicates a labelled button.
+   */
+  accessible?: boolean;
+  importantForAccessibility?: React.ComponentProps<typeof Pressable>['importantForAccessibility'];
   testID?: string;
 }
 
@@ -189,7 +200,7 @@ export function Touchable({
   children, onPress, onLongPress, style,
   scale = PressScale.control, haptic = 'light', disabled,
   accessibilityRole = 'button', accessibilityLabel, accessibilityHint,
-  accessibilityState, hitSlop, testID,
+  accessibilityState, hitSlop, accessible, importantForAccessibility, testID,
 }: TouchableProps) {
   const { animatedStyle, handlers } = usePressScale({ scale, haptic, disabled });
 
@@ -201,6 +212,8 @@ export function Touchable({
       disabled={disabled}
       hitSlop={hitSlop}
       testID={testID}
+      accessible={accessible}
+      importantForAccessibility={importantForAccessibility}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}

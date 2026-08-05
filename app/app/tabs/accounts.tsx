@@ -15,9 +15,10 @@
 // The detail lives one tap down, in the modal that owns it, not on this page.
 import { useState, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView,
   RefreshControl, Share, ActivityIndicator,
 } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -228,9 +229,9 @@ export default function AccountsScreen() {
             <View style={styles.topBar}>
               <Text style={styles.topTitle}>Accounts</Text>
               {canLink && (
-                <TouchableOpacity
+                <Touchable
                   style={styles.addBtn}
-                  onPress={() => { hapticLight(); router.push('/modals/link-account'); }}
+                  onPress={() => { router.push('/modals/link-account'); }}
                   // Same trade the horizon pills below make: a 36pt pill is the
                   // right weight for a hero action and 44 would read as a
                   // toolbar button, so slop buys the HIG target back without
@@ -241,7 +242,7 @@ export default function AccountsScreen() {
                 >
                   <Ionicons name="add" size={16} color={OnDark.primary} />
                   <Text style={styles.addBtnText}>Link</Text>
-                </TouchableOpacity>
+                </Touchable>
               )}
             </View>
           }
@@ -292,10 +293,10 @@ export default function AccountsScreen() {
                 {horizons.map(h => {
                   const active = activeHorizon === h.months;
                   return (
-                    <TouchableOpacity
+                    <Touchable
                       key={h.label}
                       style={[styles.horizonPill, active && styles.horizonPillActive]}
-                      onPress={() => { hapticLight(); setHorizon(h.months); }}
+                      onPress={() => { setHorizon(h.months); }}
                       // The pill reads better at 32pt on the hero than at 44,
                       // and iOS ships its own segmented control at that height.
                       // Slop buys back the HIG target without the bulk.
@@ -307,7 +308,7 @@ export default function AccountsScreen() {
                       <Text style={[styles.horizonText, active && styles.horizonTextActive]}>
                         {h.label}
                       </Text>
-                    </TouchableOpacity>
+                    </Touchable>
                   );
                 })}
               </View>
@@ -406,14 +407,14 @@ export default function AccountsScreen() {
                       : 'This is a connection problem on our side of the glass, not a change ' +
                         'to your accounts. Nothing has been disconnected.'}
                   </Text>
-                  <TouchableOpacity
+                  <Touchable
                     style={styles.errorRetry}
-                    onPress={() => { hapticLight(); f.refresh(); }}
+                    onPress={() => { f.refresh(); }}
                     accessibilityRole="button"
                     accessibilityLabel="Try loading accounts again"
                   >
                     <Text style={styles.errorRetryText}>Try again</Text>
-                  </TouchableOpacity>
+                  </Touchable>
                 </View>
               </View>
             </Card>
@@ -576,9 +577,9 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.setupRow, !last && styles.setupRowBorder]}
-      onPress={() => { hapticLight(); onPress(); }}
+      onPress={() => { onPress(); }}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
     >
@@ -592,7 +593,7 @@ function SetupRow({ icon, label, value, valueMuted, flag, chip, onPress, last }:
       </View>
       {chip ? <Chip label={chip.label} tone={chip.tone} icon={chip.icon} /> : null}
       <Ionicons name="chevron-forward" size={16} color={colors.gray400} />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 
@@ -619,10 +620,9 @@ function ConnectionCard({ account, onRefresh, syncing, onManage }: {
           used to sit in the action row below; they are mutations, so they moved
           to the modal, leaving the tab reading and Refresh — which changes
           nothing — where it was. */}
-      <TouchableOpacity
+      <Touchable
         style={styles.connHead}
-        onPress={() => { hapticLight(); onManage(); }}
-        activeOpacity={0.7}
+        onPress={() => { onManage(); }}
         accessibilityRole="button"
         accessibilityLabel={`Manage ${account.institution_name ?? typeLabel(account.account_type)}`}
         accessibilityHint="Opens balances, sync and disconnect for this connection"
@@ -640,7 +640,7 @@ function ConnectionCard({ account, onRefresh, syncing, onManage }: {
         </View>
         <Chip label={health.label} tone={health.tone} />
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-      </TouchableOpacity>
+      </Touchable>
 
       {account.accounts.map(a => (
         <View key={a.account_id} style={styles.subAccount}>
@@ -699,9 +699,9 @@ function ConnAction({ label, icon, busy, onPress }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.connAction, busy && styles.connActionBusy]}
-      onPress={() => { hapticLight(); onPress(); }}
+      onPress={() => { onPress(); }}
       disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -711,7 +711,7 @@ function ConnAction({ label, icon, busy, onPress }: {
         ? <ActivityIndicator size="small" color={colors.textSecondary} />
         : <Ionicons name={icon} size={15} color={colors.textSecondary} />}
       <Text style={styles.connActionText}>{label}</Text>
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

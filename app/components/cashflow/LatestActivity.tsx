@@ -6,7 +6,8 @@
 // destinations from one card, which is why the rows carry their own chevrons and
 // the header carries one too — a card where only some of the surface is tappable
 // teaches people to stop trying.
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Touchable } from '../ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../ui/primitives';
 import TransactionRow from '../ui/TransactionRow';
@@ -37,9 +38,9 @@ export default function LatestActivity({
 
   return (
     <Card>
-      <TouchableOpacity
+      <Touchable
         style={styles.head}
-        onPress={() => { hapticLight(); onOpenAll(); }}
+        onPress={() => { onOpenAll(); }}
         accessibilityRole="button"
         accessibilityLabel={`Latest activity. ${rows.length} transactions.`}
         accessibilityHint="Opens the full list"
@@ -49,7 +50,7 @@ export default function LatestActivity({
           <Text style={styles.count}>{rows.length}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </View>
-      </TouchableOpacity>
+      </Touchable>
 
       {preview.length === 0 ? (
         <Text style={styles.empty}>
@@ -83,16 +84,16 @@ export default function LatestActivity({
       )}
 
       {rows.length > preview.length && (
-        <TouchableOpacity
+        <Touchable
           style={styles.more}
-          onPress={() => { hapticLight(); onOpenAll(); }}
+          onPress={() => { onOpenAll(); }}
           accessibilityRole="button"
           accessibilityLabel={`See all ${rows.length} transactions`}
         >
           <Text style={styles.moreText}>
             See all {rows.length}
           </Text>
-        </TouchableOpacity>
+        </Touchable>
       )}
     </Card>
   );

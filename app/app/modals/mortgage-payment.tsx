@@ -15,14 +15,15 @@
 // because the cost of a wrong confirmation is asymmetric: excluding an ordinary
 // expense overstates surplus, and an overstated surplus oversizes a draw taken
 // against the user's house. A pre-ticked box is an answer the user did not give.
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import ModalScreen from '../../components/ui/ModalScreen';
 import { useAuth } from '../../hooks/useAuth';
 import { useFinancials } from '../../hooks/useFinancials';
-import { hapticLight, hapticSelection, hapticSuccess } from '../../lib/haptics';
+import { hapticSelection, hapticSuccess } from '../../lib/haptics';
 import { supabase } from '../../lib/supabase';
 import {
   detectMortgagePayments, checkPaymentAmount, type PaymentCandidate,
@@ -97,14 +98,14 @@ export default function MortgagePaymentScreen() {
             Link an account and we&apos;ll look through your transactions for the payment.
             Until then your payoff plan runs on the figure you entered.
           </Text>
-          <TouchableOpacity
+          <Touchable
             style={styles.stateBtn}
-            onPress={() => { hapticLight(); router.push('/modals/link-account' as never); }}
+            onPress={() => { router.push('/modals/link-account' as never); }}
             accessibilityRole="button"
             accessibilityLabel="Link an account"
           >
             <Text style={styles.stateBtnText}>Link an account</Text>
-          </TouchableOpacity>
+          </Touchable>
         </View>
       ) : candidates.length === 0 ? (
         <View style={styles.stateBlock}>
@@ -132,7 +133,7 @@ export default function MortgagePaymentScreen() {
                   {check.difference > 0 ? ' less' : ' more'} than you are actually paying.
                   Escrow changes do this. Updating it here keeps your payoff date honest.
                 </Text>
-                <TouchableOpacity
+                <Touchable
                   style={styles.checkBtn}
                   onPress={() => adoptAmount(check.observed)}
                   disabled={savingAmount}
@@ -142,7 +143,7 @@ export default function MortgagePaymentScreen() {
                   {savingAmount
                     ? <ActivityIndicator size="small" color={colors.mint700} />
                     : <Text style={styles.checkBtnText}>Use ${fmt(check.observed)}</Text>}
-                </TouchableOpacity>
+                </Touchable>
                 {amountError && <Text style={styles.error}>{amountError}</Text>}
               </View>
             </View>
@@ -194,11 +195,10 @@ function CandidateRow({ candidate, busy, onToggle }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.row, candidate.confirmed && styles.rowConfirmed]}
       onPress={onToggle}
       disabled={busy}
-      activeOpacity={0.85}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: candidate.confirmed }}
       accessibilityLabel={
@@ -228,7 +228,7 @@ function CandidateRow({ candidate, busy, onToggle }: {
           </View>
         ))}
       </View>
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

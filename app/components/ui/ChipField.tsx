@@ -2,7 +2,8 @@
 // SliderField and AmountCardField — the two controls either side of this one on
 // the same forms — both buzz on selection. This one did not, so moving between
 // them felt like the screen intermittently stopped responding.
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
+import { Touchable } from './press';
 import { hapticSelection } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -28,10 +29,11 @@ export default function ChipField<T extends string | number>({ label, options, v
         {options.map(opt => {
           const active = opt.value === value;
           return (
-            <TouchableOpacity
+            <Touchable
+              haptic="selection"
               key={String(opt.value)}
               style={[styles.chip, active && styles.chipActive]}
-              onPress={() => { hapticSelection(); onChange(opt.value); }}
+              onPress={() => { onChange(opt.value); }}
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${label}: ${opt.label}`}
@@ -39,7 +41,7 @@ export default function ChipField<T extends string | number>({ label, options, v
               <Text style={[styles.chipText, active && styles.chipTextActive]}>
                 {opt.label}
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
       </View>

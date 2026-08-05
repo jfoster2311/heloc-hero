@@ -9,7 +9,8 @@
 // It exists as its own file because three sheets need the same header, the same
 // close target and the same sticky footer, and a fourth is coming.
 import { ReactNode, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal } from 'react-native';
+import { Touchable } from './press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../lib/haptics';
@@ -54,14 +55,14 @@ export default function DetailSheet({
           <Text style={styles.headerTitle} numberOfLines={1}>
             {title.toUpperCase()}
           </Text>
-          <TouchableOpacity
-            onPress={() => { hapticLight(); close(); }}
+          <Touchable
+            onPress={() => { close(); }}
             style={styles.close}
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
             <Ionicons name="close" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
+          </Touchable>
         </View>
 
         <ScrollView
@@ -129,15 +130,14 @@ export function SheetRow({ label, value, placeholder, onPress, last, children }:
     return <View style={[styles.row, last && styles.rowLast]}>{body}</View>;
   }
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.row, last && styles.rowLast]}
       onPress={onPress}
-      activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${hasValue ? value : 'not set'}`}
     >
       {body}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

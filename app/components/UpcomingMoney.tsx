@@ -17,7 +17,8 @@
 // Nothing here is invented to fill the calendar. A user with no linked
 // transactions and no servicer date sees an empty state, not a plausible week.
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Touchable } from './ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, Radius } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
@@ -178,7 +179,7 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
           const allExpected = onDay.length > 0 && onDay.every(it => it.expected);
 
           return (
-            <TouchableOpacity
+            <Touchable
               key={k}
               style={[
                 styles.cell,
@@ -187,7 +188,6 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
               ]}
               onPress={() => pickDay(d)}
               disabled={onDay.length === 0}
-              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected, disabled: onDay.length === 0 }}
               accessibilityLabel={dayLabel(d, onDay, dayNet, allExpected)}
@@ -221,7 +221,7 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
               )}
 
               {allExpected && <View style={styles.expectedTick} />}
-            </TouchableOpacity>
+            </Touchable>
           );
         })}
       </View>
@@ -235,9 +235,9 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
       ) : (
         <>
           {selected && (
-            <TouchableOpacity
+            <Touchable
               style={styles.filterNote}
-              onPress={() => { hapticLight(); setSelected(null); }}
+              onPress={() => { setSelected(null); }}
               // The only way out of a day filter, at 32pt of inline text. Slop
               // rather than height: growing the row would push the list down
               // every time a day is selected, so the control would move the
@@ -250,7 +250,7 @@ export default function UpcomingMoney({ items }: { items: UpcomingItem[] }) {
               <Text style={styles.filterNoteText}>
                 {formatWhen(fromKey(selected), now)} only · show all
               </Text>
-            </TouchableOpacity>
+            </Touchable>
           )}
 
           {shown.length === 0 ? (
@@ -305,7 +305,7 @@ function PagerButton({ icon, label, disabled, onPress }: {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
-    <TouchableOpacity
+    <Touchable
       style={[styles.pagerBtn, disabled && styles.pagerBtnOff]}
       onPress={onPress}
       disabled={disabled}
@@ -319,7 +319,7 @@ function PagerButton({ icon, label, disabled, onPress }: {
         size={15}
         color={disabled ? colors.gray300 : colors.textSecondary}
       />
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

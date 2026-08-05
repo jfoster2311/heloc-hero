@@ -10,7 +10,8 @@
 // call with the same classification, and the count of what was held out is
 // stated rather than hidden. Collapsed by default because the list is the
 // reason someone opened this screen, not the total they already saw.
-import { View, Text, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, TextInput } from 'react-native';
+import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -161,14 +162,14 @@ export default function ActivityScreen() {
             accessibilityLabel="Search transactions"
           />
           {query.length > 0 && (
-            <TouchableOpacity
-              onPress={() => { hapticLight(); setQuery(''); }}
+            <Touchable
+              onPress={() => { setQuery(''); }}
               style={styles.searchClear}
               accessibilityRole="button"
               accessibilityLabel="Clear search"
             >
               <Ionicons name="close-circle" size={17} color={colors.textMuted} />
-            </TouchableOpacity>
+            </Touchable>
           )}
         </View>
 
@@ -177,10 +178,11 @@ export default function ActivityScreen() {
           {SORTS.map(s => {
             const active = s.id === sort;
             return (
-              <TouchableOpacity
+              <Touchable
+                haptic="selection"
                 key={s.id}
                 style={[styles.sortPill, active && styles.sortPillActive]}
-                onPress={() => { hapticSelection(); setSort(s.id); }}
+                onPress={() => { setSort(s.id); }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`Sort by ${s.label.toLowerCase()}`}
@@ -188,16 +190,16 @@ export default function ActivityScreen() {
                 <Text style={[styles.sortText, active && styles.sortTextActive]}>
                   {s.label}
                 </Text>
-              </TouchableOpacity>
+              </Touchable>
             );
           })}
         </View>
 
         {/* ── Summary ───────────────────────────────────────────────────── */}
         <View style={styles.summaryCard}>
-          <TouchableOpacity
+          <Touchable
             style={styles.summaryHead}
-            onPress={() => { hapticLight(); setSummaryOpen(o => !o); }}
+            onPress={() => { setSummaryOpen(o => !o); }}
             accessibilityRole="button"
             accessibilityState={{ expanded: summaryOpen }}
             accessibilityLabel="Summary for this period"
@@ -208,7 +210,7 @@ export default function ActivityScreen() {
               size={16}
               color={colors.textMuted}
             />
-          </TouchableOpacity>
+          </Touchable>
 
           {summaryOpen && (
             <View style={styles.summaryBody}>
