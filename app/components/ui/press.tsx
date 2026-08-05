@@ -155,6 +155,9 @@ function fire(h: PressHaptic) {
  *
  * For the places that already have their own Touchable and only want the feel —
  * or that need the animated style on a node other than the pressable itself.
+ *
+ * Returns `fireHaptic` separately rather than firing it from `onPressIn`. See
+ * the note on that split below; call it from `onPress`, not from press-in.
  */
 export function usePressScale({
   scale = PressScale.control,
@@ -170,7 +173,6 @@ export function usePressScale({
 
   function onPressIn() {
     if (disabled) return;
-    fire(haptic);
     Animated.timing(v, {
       toValue: 1,
       duration: 90,
@@ -202,7 +204,39 @@ export function usePressScale({
     }),
   };
 
-  return { animatedStyle, handlers: { onPressIn, onPressOut } };
+  /**
+   * The buzz — for `onPress`, NOT for press-in.
+   *
+   * This fired from `onPressIn` first, on the reasoning that iOS puts impact
+   * feedback on touch-down and so anything later feels behind the finger. Half
+   * of that is right and it is the visual half: the SCALE still lands on
+   * touch-down, which is what actually makes a control feel instant.
+   *
+   * The haptic does not belong there, for two reasons.
+   *
+   * The one that matters: press-in is not yet a tap. Every card, row and tile in
+   * this app lives inside a ScrollView, and a touch that lands and then becomes
+   * a drag fires press-in and then cancels. iOS's `delaysContentTouches` hides
+   * most of that — start moving quickly and the child never sees the touch — but
+   * not the common case of resting a thumb on a card for a moment before
+   * scrolling. That buzzed. In a finance app a haptic asserts SOMETHING
+   * HAPPENED, and firing it for a scroll that touched a card on the way past is
+   * the app claiming an action the user did not take.
+   *
+   * The one that settles it: this is also what the platform does. UISwitch fires
+   * when it toggles, UISegmentedControl when the selection changes — on the
+   * state change, not on contact. `UIImpactFeedbackGenerator` is documented as
+   * being for when the impact OCCURS. For a button, that is the action.
+   *
+   * The cost is about 100ms of lateness on a real tap, against the visual which
+   * is still immediate. That trade is the right way round.
+   */
+  function fireHaptic() {
+    if (disabled) return;
+    fire(haptic);
+  }
+
+  return { animatedStyle, handlers: { onPressIn, onPressOut }, fireHaptic };
 }
 
 export interface TouchableProps {
@@ -268,12 +302,19 @@ export function Touchable({
   accessibilityRole = 'button', accessibilityLabel, accessibilityHint,
   accessibilityState, hitSlop, accessible, importantForAccessibility, testID,
 }: TouchableProps) {
-  const { animatedStyle, handlers } = usePressScale({ scale, haptic, disabled });
+  const { animatedStyle, handlers, fireHaptic } = usePressScale({ scale, haptic, disabled });
+
+  // The buzz rides the confirmed tap; the scale already landed on touch-down.
+  // See fireHaptic for why the two are split. Fires BEFORE the caller's handler
+  // so feedback is not queued behind whatever navigation it kicks off.
+  const press = disabled
+    ? undefined
+    : () => { fireHaptic(); onPress?.(); };
 
   return (
     <AnimatedPressable
       style={[style, animatedStyle]}
-      onPress={disabled ? undefined : onPress}
+      onPress={press}
       onLongPress={disabled ? undefined : onLongPress}
       disabled={disabled}
       hitSlop={hitSlop}
