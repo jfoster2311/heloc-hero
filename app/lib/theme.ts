@@ -144,6 +144,56 @@ export const Colors = {
   // black — the smallest move that clears AA on all three light surfaces.
   // Labels and hints only; never a lone value.
   textMuted:     '#5C7667',
+
+  // ── Machined Silver ────────────────────────────────────────────────────────
+  //
+  // A second SURFACE family, not a second palette. The greens above still carry
+  // every meaning in the app; these describe only the material a card is milled
+  // from. Nothing here is ever an accent and nothing here ever encodes a value.
+  //
+  // Cooler than the green-tinted neutrals beside them, which is the intent — it
+  // reads as brushed aluminium rather than paper. Every ink was RE-MEASURED
+  // against these rather than inherited from the white-card numbers:
+  //             canvas / near / far
+  //   textPrimary  14.12 / 14.77 / 13.49      textSecondary 6.81 / 7.13 / 6.51
+  //   textMuted     4.73 /  4.95 /  4.52      accentInk     4.77 / 5.00 / 4.56
+  // All clear AA. `textMuted` on `machinedFar` at 4.52 is the tightest pairing
+  // in the app: treat it as a floor and re-measure before darkening `machinedFar`.
+  //
+  // `mint600` measures 2.51/2.62/2.39 here, and the neon green a designer will
+  // reach for (#22C55E) is worse at 2.18/2.28/2.08. NEITHER may be ink on these
+  // surfaces however good it looks — that is what `accentInk` is for, and it is
+  // why `neon` below is restricted to the dark hero.
+  machinedCanvas: '#F8FAFC',
+  machinedNear:   '#FFFFFF',
+  machinedFar:    '#F1F5F9',
+  /** The milled edge. 1.18:1 — decorative, exempt like every other card border. */
+  machinedEdge:   '#E2E8F0',
+
+  /**
+   * The glass hero, and the ONLY surface `neon` is permitted on.
+   *
+   * White measures 7.13:1 here and `neon` 4.09:1. That 4.09 is AA for LARGE
+   * text only (>=24pt, or >=18.66pt bold) — which the 48pt balance is and an
+   * 11pt tracked label is not. So the big figure may be neon; its caption must
+   * be `OnDark`. Getting that backwards is the easiest way to fail this screen.
+   */
+  heroTint: '#166534',
+  /** 4.09:1 on `heroTint`, 5.23:1 on `textPrimary`-deep green. Large text and strokes. */
+  neon: '#4ADE80',
+
+  /**
+   * The one non-green in the app, and deliberately so.
+   *
+   * CLAUDE.md bans blue outright; this is a recorded exception, agreed because
+   * the Sentinel feed needs exactly one signal that says "administrative task,
+   * not money". Its power comes from scarcity: the moment a second blue appears
+   * anywhere, this stops working and the ban should simply be reinstated.
+   *
+   * Never text. As a dot it is a UI indicator under WCAG 1.4.11, needing 3:1 —
+   * it measures 3.52 / 3.68 / 3.36 on canvas / near / far.
+   */
+  sentinel: '#3B82F6',
 };
 
 /** Text and hairlines for anything sitting on the aurora. */
@@ -177,6 +227,20 @@ export const Typography = {
   // fintech screens set a balance at this scale and nothing else near it.
   display:   56,
   displaySm: 40,
+
+  /**
+   * Monospaced digits, for any number that CHANGES in place.
+   *
+   * In a proportional face '1' is narrower than '8', so a ticking figure
+   * re-flows on every update and the whole line jitters sideways — which reads
+   * as the app being unsure of itself, precisely where it must not. This pins
+   * every digit to one advance width so only the glyphs change.
+   *
+   * Spread into a text style: `{ ...Typography.tabular }`. Belongs on the
+   * interest ticker, the net-debt figure and every rolling counter. Harmless
+   * but pointless on static prose, where proportional digits look better.
+   */
+  tabular: { fontVariant: ['tabular-nums'] as const },
 
   // Font weights (string literals for StyleSheet)
   regular:   '400' as const,
@@ -259,11 +323,47 @@ export const Shadows = {
     shadowRadius: 14,
     elevation: 5,
   },
+  /**
+   * The machined card's shadow: diffuse, green, and barely there.
+   *
+   * Deliberately NOT `card` above. A black drop shadow under a silver surface
+   * greys it and kills the metal; a wide, very faint green one reads as light
+   * bouncing off something active underneath. The opacity is low enough (0.04)
+   * that it does almost nothing on its own — the 40pt radius is what carries it,
+   * so do not "fix" this by raising the opacity, which just reintroduces a
+   * visible grey halo.
+   *
+   * `elevation` stays small on purpose: Android's elevation draws a hard black
+   * shadow that ignores shadowColor entirely, so matching the iOS radius there
+   * would produce exactly the harsh edge this token exists to avoid.
+   */
+  ambient: {
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.04,
+    shadowRadius: 40,
+    elevation: 3,
+  },
 };
 
 export const Gradients = {
   primary: ['#12B76A', '#0F3D22'] as const,
   hero:    ['#0C2A18', '#081A0F'] as const,
+  /**
+   * The milled face of a machined card.
+   *
+   * Drawn top-left to bottom-right — `start={{x:0,y:0}} end={{x:1,y:1}}` — so
+   * the light appears to come from one fixed direction across the whole screen.
+   * Per-card angles would read as several light sources and the metal illusion
+   * collapses immediately.
+   *
+   * The two stops are only 4% apart in luminance. That is the entire trick: a
+   * stronger gradient stops looking like brushed aluminium and starts looking
+   * like a coloured panel.
+   */
+  machined: ['#FFFFFF', '#F1F5F9'] as const,
+  /** Same face on dark, where the raised surface is the LIGHTER of the two. */
+  machinedDark: ['#18241D', '#101A14'] as const,
 };
 
 /**
@@ -547,6 +647,34 @@ export const DarkColors: typeof Colors = {
   // placeholder colour, drawn on `gray50`, where '#738E7E' measured 4.47:1 and
   // missed AA by a hair. One step lighter clears it on all three.
   textMuted:     '#748F7F',
+
+  // ── Machined Silver, dark ──────────────────────────────────────────────────
+  //
+  // Graphite rather than silver, and near/far swap direction like everything
+  // else in this palette: on dark, the RAISED surface is the lighter one, since
+  // a shadow has nothing left to darken (see the note below).
+  //
+  // Measured against near / far / canvas:
+  //   textPrimary 14.29 / 15.85 / 17.33     textSecondary 7.97 / 8.84 / 9.67
+  //   textMuted    4.57 /  5.07 /  5.54     accentInk     7.95 / 8.82 / 9.64
+  // All clear AA with more headroom than the light side, because the light
+  // machined surfaces sit so close to white.
+  machinedCanvas: '#050F09',
+  machinedNear:   '#18241D',
+  machinedFar:    '#101A14',
+  /** 1.39:1 against the card — decorative, exempt, and doing the edge work. */
+  machinedEdge:   '#2C3D33',
+
+  /** Deeper on dark so the glass still separates from a near-black page. */
+  heroTint: '#14532D',
+  /** 9.21:1 on `machinedNear`. Unrestricted here, unlike the light palette. */
+  neon: '#4ADE80',
+
+  /**
+   * Lifted from the light `#3B82F6`, exactly as `mint600` is lifted on dark.
+   * 6.31 / 7.00 / 7.66 as a UI indicator, against a 3:1 requirement.
+   */
+  sentinel: '#60A5FA',
 };
 
 /**
@@ -598,6 +726,22 @@ export const DarkShadows: typeof Shadows = {
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 5,
+  },
+  /**
+   * The same ambient glow, carried differently.
+   *
+   * On dark, the light theme's 0.04 green is invisible — there is nothing to
+   * tint. The separation comes from `machinedNear` being lighter than the page
+   * plus the `machinedEdge` hairline, exactly as the note above describes for
+   * every other shadow here. This is raised enough to do real work only where a
+   * machined card overlaps another dark surface.
+   */
+  ambient: {
+    shadowColor: '#25D07E',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 40,
+    elevation: 3,
   },
 };
 
