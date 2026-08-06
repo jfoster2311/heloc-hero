@@ -58,6 +58,7 @@ import NextStrike from '../../components/NextStrike';
 import NetDebt from '../../components/NetDebt';
 import MonolithHero from '../../components/dashboard/MonolithHero';
 import SweepSlider from '../../components/dashboard/SweepSlider';
+import TwinEngines from '../../components/dashboard/TwinEngines';
 import { computeEquitySeries } from '../../lib/projections';
 import { computeStrike, computeNetDebt } from '../../lib/strike';
 import { calcRemainingBalance } from '../../lib/projections';
@@ -66,6 +67,7 @@ import { useIsPro } from '../../hooks/useIsPro';
 import { useFinancials } from '../../hooks/useFinancials';
 import { useCycleHistory } from '../../hooks/useCycleHistory';
 import { useCycleReminders } from '../../hooks/useCycleReminders';
+import { useInterestToday } from '../../hooks/useInterestToday';
 import { useBudgets } from '../../hooks/useBudgets';
 import { computeHelocScore } from '../../lib/helocScore';
 import { buildChecklist } from '../../lib/onboardingChecklist';
@@ -283,6 +285,15 @@ export default function DashboardScreen() {
     // Below a dollar there is nothing worth a gesture.
     return cap >= 1 ? Math.floor(cap) : null;
   }, [sweep.state, sweep.committed, f.hasCashAccount, f.liquidCash]);
+
+  // The Cash Shield's figure. Same hook the Interest card's ticker uses, so the
+  // two report one number rather than two computations of it.
+  const shield = useInterestToday(
+    totalDumped,
+    f.mortgage.rate.value ?? 0.065,
+    f.helocDrawn,
+    f.helocRate,
+  );
 
   // A projection, never an observation — see lib/payday.ts. Drives a label only.
   const paydayExpected = useMemo(
@@ -651,6 +662,21 @@ export default function DashboardScreen() {
               the linked accounts. Before it lands the line looks undrawn, so
               nothing looks committed and the whole surplus reads as free — the
               flattering direction, on a number the user might go and spend. */}
+          {/* The two figures that move between dumps. Above the slider because
+              they are the reason to act; the slider is the acting. Hidden until
+              a move has been logged — a shield reading $0.00 with "interest not
+              paid" under it is an empty promise, not an empty state. */}
+          {!f.loading && totalDumped > 0 && (
+            <View style={styles.enginesBlock}>
+              <TwinEngines
+                shieldToday={shield.soFarToday}
+                shieldPerDay={shield.netPerDay}
+                shieldCostUnknown={shield.costUnknown}
+                strike={strike}
+              />
+            </View>
+          )}
+
           {/* The one-gesture path, above the card that explains it. The card
               below is the reasoning and stays exactly as it was; this is the
               decision, and it only appears when there is a real amount and the
@@ -1225,6 +1251,7 @@ const useStyles = createThemedStyles(t => ({
     paddingTop: Spacing[3],
   },
   boardBlock: { marginBottom: Spacing[5], gap: Spacing[3] },
+  enginesBlock: { marginBottom: Spacing[4] },
   boardNote: { fontSize: Typography.xs, color: t.colors.textSecondary },
   boardDisclaimer: { fontSize: Typography.xs, color: t.colors.textMuted },
 

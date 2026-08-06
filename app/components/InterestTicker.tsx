@@ -19,12 +19,10 @@
 // about every three minutes, so a 60fps counter would be rendering invented
 // decimal places to look busy. It refreshes on a slow interval and on every
 // foreground, which is when someone is actually reading it.
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, AppState } from 'react-native';
+import { View, Text } from 'react-native';
+import { useInterestToday } from '../hooks/useInterestToday';
 import { Typography, Spacing, Tracking } from '../lib/theme';
 import { createThemedStyles, useTheme } from '../lib/themeContext';
-
-const REFRESH_MS = 15_000;
 
 interface Props {
   /** Sum of every logged principal move. No moves, no ticker. */
@@ -45,50 +43,19 @@ interface Props {
   helocRate: number;
 }
 
-/** Fraction of the local day elapsed, 0 at midnight and 1 at the next. */
-function dayElapsed(now: Date): number {
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-  return (now.getTime() - midnight.getTime()) / 86_400_000;
-}
-
 export default function InterestTicker({
   totalMoved, mortgageRate, helocDrawn, helocRate,
 }: Props) {
   const styles = useStyles();
-  const [now, setNow] = useState(() => new Date());
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    function start() {
-      stop();
-      setNow(new Date());
-      timer.current = setInterval(() => setNow(new Date()), REFRESH_MS);
-    }
-    function stop() {
-      if (timer.current) clearInterval(timer.current);
-      timer.current = null;
-    }
-
-    start();
-    // Background timers are throttled to nothing by iOS, so the value would be
-    // stale on return. Recompute on foreground rather than trusting the clock.
-    const sub = AppState.addEventListener('change', s => {
-      if (s === 'active') start(); else stop();
-    });
-
-    return () => { stop(); sub.remove(); };
-  }, []);
+  // The clock and the arithmetic moved to hooks/useInterestToday so the Cash
+  // Shield engine on the dashboard reports the same figure as this ticker.
+  // Two copies of it would eventually disagree on one screen.
+  const {
+    soFarToday, netPerDay, avoidedPerDay, costPerDay,
+    costUnknown: unknownCost, negative,
+  } = useInterestToday(totalMoved, mortgageRate, helocDrawn, helocRate);
 
   if (totalMoved <= 0) return null;
-
-  const avoidedPerDay = (totalMoved * mortgageRate) / 365;
-  const unknownCost = helocDrawn === null;
-  const costPerDay = unknownCost ? 0 : (helocDrawn * helocRate) / 365;
-  const netPerDay = avoidedPerDay - costPerDay;
-  const soFarToday = netPerDay * dayElapsed(now);
-
-  const negative = netPerDay < 0;
 
   return (
     <View style={styles.wrap}>
