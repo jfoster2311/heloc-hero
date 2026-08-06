@@ -369,11 +369,18 @@ export async function currentPushToken(projectId?: string): Promise<string | nul
 // closed. It is evaluated when the app is in the foreground and balances
 // refresh, so it reaches someone who opens the app and no one else.
 //
-// plaid-webhook covers the closed-app case by pushing the same alert, but that
-// is not a reason to change the copy yet: it reaches only a Pro user, on a real
-// build, who has granted permission, once the function is actually deployed.
-// Until every one of those holds for the people reading it, copy here stays
-// "when you open the app" and never "we'll alert you".
+// plaid-webhook covers the closed-app case by pushing the same alert. That is
+// deployed and was verified end to end on a device on 2026-08-06, so copy may
+// now name the server trigger — "when your bank reports a change" — alongside
+// the local one.
+//
+// What it still may NOT claim is speed. The push rides on Plaid refreshing a
+// linked item, which happens a few times a day, and the server re-reads a
+// balance at most once every 12h to keep the per-call billing sane. "We'll tell
+// you the moment your balance crosses" would be a promise the pipe cannot keep.
+// It also reaches only a Pro user, on a real build, who granted permission and
+// linked an account — which is why the local "when you open the app" path stays
+// in the copy rather than being replaced by it.
 
 /**
  * Whether a crossing may fire, and when one last did.

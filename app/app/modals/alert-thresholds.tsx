@@ -158,7 +158,14 @@ export default function AlertThresholdsModal() {
           onChangeText={setFloor}
           keyboardType="numeric"
           placeholder={String(DEFAULT_FLOOR)}
-          hint={`Checked when you open the app. Needs sweep reminders switched on. ` +
+          // "When your bank reports a change" rather than "the moment it
+          // happens": the alert rides on Plaid's refresh of a linked account,
+          // which lands a few times a day, and the server re-reads a balance at
+          // most once every 12h. Naming the trigger is honest; naming a speed
+          // would not be. Still says "when you open the app" too, because that
+          // path is what covers a user with no linked account.
+          hint={`Checked when your bank reports a change, and when you open the app. ` +
+                `Needs sweep reminders switched on. ` +
                 `You'll hear about a crossing once, not until you spend it.`}
           error={floor.trim() !== '' && floorNum === null ? 'Enter a dollar amount' : undefined}
           accessibilityLabel="Minimum spare cash before an alert"
