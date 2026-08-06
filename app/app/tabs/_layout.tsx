@@ -11,6 +11,7 @@
 // clear it — see TAB_BAR_CLEARANCE, which those screens import rather than
 // each inventing their own bottom padding.
 import { useEffect, useRef } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Tabs } from 'expo-router';
 import { View, StyleSheet, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -30,7 +31,18 @@ export default function TabsLayout() {
   const { colors, mode, shadows } = useTheme();
 
   return (
-    <>
+    // Scoped to the tabs rather than wrapping the whole app at the root.
+    //
+    // gesture-handler only needs this ABOVE the gestures it serves, and the only
+    // gesture in the app is the dashboard's sweep slider. At the root it also sat
+    // above the auth screens, where it broke text entry: the sign-in keyboard
+    // would not stay up long enough to type into. Those screens need no gestures
+    // at all, so the cheapest correct fix is to stop routing their touches
+    // through the native handler.
+    //
+    // `flex: 1` is not optional — without it the subtree collapses to zero
+    // height and the tabs render blank.
+    <GestureHandlerRootView style={{ flex: 1 }}>
       {/* Every tab opens on the aurora, so the clock and battery have to be
           light. Modals re-declare it as dark when they slide over the top. */}
       <StatusBar style="light" />
@@ -138,7 +150,7 @@ export default function TabsLayout() {
         }}
       />
       </Tabs>
-    </>
+    </GestureHandlerRootView>
   );
 }
 

@@ -11,7 +11,6 @@ import {
 } from '../lib/notify';
 import LockGate from '../components/LockGate';
 import BootSplash from '../components/ui/BootSplash';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useThemePreference } from '../lib/themeContext';
 
 /**
@@ -21,16 +20,9 @@ import { ThemeProvider, useThemePreference } from '../lib/themeContext';
  */
 export default function RootLayout() {
   return (
-    // Required by react-native-gesture-handler, and it must be the OUTERMOST
-    // view — gestures inside it are dispatched natively, and anything mounted
-    // above it never sees them. A pan handler nested outside this simply never
-    // fires, with no error to explain why. `flex: 1` is not optional; without
-    // it the tree collapses to zero height and the app renders blank.
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <RootLayoutInner />
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <RootLayoutInner />
+    </ThemeProvider>
   );
 }
 
