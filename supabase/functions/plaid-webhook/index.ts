@@ -15,6 +15,18 @@ import {
 /** Mirrors lib/config.ts CASH_ALERT_MIN_GAP_DAYS. */
 const CASH_ALERT_MIN_GAP_DAYS = 5;
 
+/**
+ * How stale a cash balance may be before a transactions webhook re-reads it.
+ *
+ * Plaid bills /accounts/balance/get per call, and SYNC_UPDATES_AVAILABLE can
+ * arrive several times a day per item — so refreshing on every one would turn a
+ * per-call charge into a standing subscription. 12h is the auto-refresh cadence
+ * CLAUDE.md sets for the app, and the cost argument is the same on the server.
+ * The tradeoff is bounded and deliberate: a crossing is noticed within 12h
+ * rather than within minutes.
+ */
+const BALANCE_REFRESH_MIN_GAP_MS = 12 * 60 * 60 * 1000;
+
 interface PlaidAccount {
   account_id: string;
   name: string;
@@ -127,9 +139,25 @@ Deno.serve(async (req: Request) => {
           access_token,
           transactions_cursor: item?.transactions_cursor ?? null,
         });
-        return new Response(JSON.stringify({ received: true, transactions: result }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+
+        // The cash alert has to be evaluated HERE, not only below.
+        //
+        // Plaid has no BALANCE webhook type. For a checking or savings item,
+        // TRANSACTIONS is the only webhook that ever arrives — and every real
+        // transactions code is in `syncCodes`, so this branch returns before
+        // reaching the balance refresh further down. That left the alert on a
+        // path nothing could take: it gated on isCashAccountType, and a cash
+        // account could never get there. HOLDINGS and LIABILITIES do reach it,
+        // but those are investment and credit/loan items, never cash.
+        const refreshed = isCashAccountType(account_type)
+          ? await refreshBalances(supabase, plaidClient, user_id, account_type, access_token)
+          : false;
+        if (refreshed) await maybeAlertCashThreshold(supabase, user_id);
+
+        return new Response(
+          JSON.stringify({ received: true, transactions: result, balances_refreshed: refreshed }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
     }
 
@@ -196,6 +224,58 @@ async function handleItemEvent(supabase: any, userId: string, code: string) {
     .from("notifications")
     .insert({ user_id: userId, title: msg.title, body: msg.body, type: "item_status", data: { webhook_code: code } })
     .catch(() => {});
+}
+
+/**
+ * Re-reads this item's balances into linked_accounts, at most once per 12h.
+ *
+ * Returns whether it actually refreshed, and the caller only evaluates the
+ * alert when it did: re-deciding against a balance we did not re-read would
+ * just replay the previous decision at the cost of two more queries.
+ *
+ * Never throws. The transactions sync that precedes it has already succeeded
+ * and been written; losing that to a balance-endpoint hiccup would be a bad
+ * trade, and Plaid would retry the whole sync on a non-2xx.
+ */
+// deno-lint-ignore no-explicit-any
+async function refreshBalances(
+  supabase: any,
+  plaid: PlaidClient,
+  userId: string,
+  accountType: string,
+  accessToken: string,
+): Promise<boolean> {
+  try {
+    const { data: linked } = await supabase
+      .from("linked_accounts")
+      .select("accounts_updated_at")
+      .eq("user_id", userId)
+      .eq("account_type", accountType)
+      .maybeSingle();
+
+    const last = linked?.accounts_updated_at
+      ? new Date(linked.accounts_updated_at).getTime()
+      : 0;
+    const age = Date.now() - last;
+    // An unparseable or missing timestamp yields NaN and falls through to a
+    // refresh. That is the right way to fail: the cost is one balance call,
+    // where the other direction silently withholds the alert forever.
+    if (Number.isFinite(age) && age < BALANCE_REFRESH_MIN_GAP_MS) return false;
+
+    const balanceRes = await plaid.getAccountBalances(accessToken);
+    const accounts: PlaidAccount[] = balanceRes.accounts ?? [];
+
+    await supabase
+      .from("linked_accounts")
+      .update({ accounts, accounts_updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("account_type", accountType);
+
+    return true;
+  } catch (err) {
+    console.warn("refreshBalances:", err);
+    return false;
+  }
 }
 
 /**

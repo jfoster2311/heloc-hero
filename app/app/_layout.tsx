@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { initPurchases, identifyPurchaser } from '../lib/purchases';
 import { DEV_AUTH_BYPASS } from '../lib/devFlags';
 import { loadDevProMode } from '../lib/devPro';
+import { configureNotificationHandler } from '../lib/notify';
 import LockGate from '../components/LockGate';
 import BootSplash from '../components/ui/BootSplash';
 import { ThemeProvider, useThemePreference } from '../lib/themeContext';
@@ -32,6 +33,14 @@ function RootLayoutInner() {
   // Restore the DEV Pro override before gated screens first render. No-op in production.
   useEffect(() => {
     loadDevProMode();
+  }, []);
+
+  // Before anything can be delivered. iOS shows nothing for a notification that
+  // arrives while the app is open unless a handler says to, and the cash-threshold
+  // prompt is always delivered while the app is open — it is evaluated on a
+  // foreground balance refresh. Cheap, guarded, and a no-op in Expo Go.
+  useEffect(() => {
+    configureNotificationHandler();
   }, []);
 
   // Init RevenueCat on session load and when auth state changes

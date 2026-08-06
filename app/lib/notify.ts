@@ -36,6 +36,43 @@ export function notificationsAvailable(): boolean {
   return !!loadModule();
 }
 
+/**
+ * Tells iOS to show a notification that arrives while the app is OPEN.
+ *
+ * Without this, iOS silently suppresses foreground notifications — and that is
+ * not an edge case here, it is the main path: the cash-threshold prompt is
+ * evaluated on foreground balance refresh and delivered with a null trigger,
+ * so it arrives while the user is looking at the app every single time. Missing
+ * this handler made that alert fire correctly and display nothing.
+ *
+ * Must be called once during startup, before anything can be delivered.
+ *
+ * `shouldShowAlert` is deprecated in expo-notifications 0.32 — banner and list
+ * are the replacements and are separately required, so a notification can show
+ * as a banner without being kept in Notification Centre or vice versa. Both are
+ * on: this prompt is worth glancing at AND worth finding again later.
+ */
+export function configureNotificationHandler(): void {
+  const mod = loadModule();
+  if (!mod) return;
+  try {
+    mod.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        // The app never sets, decrements or clears a badge count. Turning this
+        // on would leave a dot on the icon that nothing in the product knows
+        // how to remove.
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // Expo Go, or a runtime without the native module. Nothing to degrade:
+    // scheduling is already a no-op there.
+  }
+}
+
 /** Identifiers so a reschedule replaces its predecessor rather than stacking. */
 export const REMINDER_IDS = {
   dumpReady:     'heloc-hero.dump-ready',
