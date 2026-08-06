@@ -346,6 +346,17 @@ export async function registerPushToken(projectId?: string): Promise<string | nu
   }
 }
 
+/**
+ * The Expo token for THIS device, without registering anything new.
+ *
+ * Exists for sign-out, which has to know which row to remove. Deleting every
+ * row for the user would be wrong: a phone signing out must not silence that
+ * person's other devices.
+ */
+export async function currentPushToken(projectId?: string): Promise<string | null> {
+  return registerPushToken(projectId);
+}
+
 // ─── Cash threshold ───────────────────────────────────────────────────────────
 //
 // The other prompts in this file are scheduled against a DATE — the 1st of the

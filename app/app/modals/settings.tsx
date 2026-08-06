@@ -23,9 +23,10 @@ import { supabase, invokeFunction } from '../../lib/supabase';
 import { DEFAULT_AUTOMATION_SETTINGS } from '../../lib/automation';
 import { isPaidTier } from '../../lib/pricing';
 import {
-  permissionStatus, requestPermission,
+  permissionStatus, requestPermission, currentPushToken,
   type PermissionStatus,
 } from '../../lib/notify';
+import Constants from 'expo-constants';
 import {
   isLockEnabled, setLockEnabled, deviceSupportsLock, lockModuleAvailable,
 } from '../../lib/appLock';
@@ -273,6 +274,22 @@ export default function SettingsModal() {
         text: 'Sign Out',
         style: 'destructive',
         onPress: async () => {
+          // Before signOut, because it needs the session: RLS scopes the delete
+          // to rows this user owns. Without it the row survives and the server
+          // keeps pushing this person's cash alerts — which quote a dollar
+          // figure — to a handset they have just signed out of. Scoped to THIS
+          // device's token so their other devices keep working.
+          //
+          // Best effort. A failure here must never block someone leaving; the
+          // worst case is a stale row, and the next person to register this
+          // token claims it away via register_push_token.
+          try {
+            const projectId =
+              Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+            const token = await currentPushToken(projectId);
+            if (token) await supabase.from('push_tokens').delete().eq('token', token);
+          } catch { /* leaving is more important than tidying up */ }
+
           const { error } = await supabase.auth.signOut();
           // Navigating regardless would be theatre: app/_layout.tsx routes on
           // the session, so a sign-out that failed leaves it intact and the
