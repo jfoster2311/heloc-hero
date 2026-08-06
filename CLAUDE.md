@@ -62,7 +62,8 @@ If a feature is not built, hide the control or label it truthfully — never fak
 - Supabase keys in app.json -> extra.
 - Native-module changes need a fresh EAS build: cd app && eas build --platform ios --profile development
 - TypeScript clean before commit: cd app && npx tsc --noEmit (exit 0)
-- Edge Functions deploy via Supabase dashboard (in-Codespace CLI hangs).
+- Edge Functions: the CLI is not installed here and the dashboard is not the only option — the Management API works from Codespace, with a token at `~/.supabase/access-token`. Deploy is a multipart POST to `/v1/projects/<ref>/functions/deploy?slug=<slug>` (a `metadata` part plus one `file` part per file, each `filename=` carrying its path in the bundle); delete is `DELETE /v1/projects/<ref>/functions/<slug>`. Re-send `verify_jwt` on every deploy — it is per-deploy, and the plaid-* webhooks must stay `false`.
+- Deployed does NOT track the repo, in either direction: deleting a function from git leaves it running (three orphaned Stripe functions survived that way until 2026-08-06, one of them a live unauthenticated endpoint spending the Stripe secret key). After changing a function, deploy it AND re-probe the endpoint.
 
 ## Copy tone
 Calm, confident, plain-English, premium. Lead with the user's number/benefit, label projections as estimates, never hype or guarantee.
