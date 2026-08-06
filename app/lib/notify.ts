@@ -346,6 +346,61 @@ export async function registerPushToken(projectId?: string): Promise<string | nu
   }
 }
 
+// ─── Taps ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Subscribes to taps on our notifications. Returns null where there is no
+ * native module, so the caller needs no separate availability check.
+ */
+export function addNotificationResponseListener(
+  onResponse: (data: Record<string, unknown>) => void,
+): { remove: () => void } | null {
+  const mod = loadModule();
+  if (!mod) return null;
+  try {
+    return mod.addNotificationResponseReceivedListener((res: unknown) => {
+      onResponse(responseData(res));
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True once the launch response has been read, so it is acted on ONCE.
+ *
+ * Module scope, not component state: this is a property of the app process, and
+ * a remount must not re-navigate. Without it, every mount of the root layout
+ * would replay whatever notification last launched the app — sending someone
+ * back to the dashboard mid-task, long after they dealt with it.
+ */
+let launchResponseRead = false;
+
+/**
+ * The tap that LAUNCHED the app, if this start came from one.
+ *
+ * A cold start delivers the response before any listener can attach — and this
+ * alert's whole point is reaching someone whose app is closed, so that is the
+ * common path here, not the rare one. Returns null on every call after the
+ * first.
+ */
+export async function readLaunchNotification(): Promise<Record<string, unknown> | null> {
+  const mod = loadModule();
+  if (!mod || launchResponseRead) return null;
+  launchResponseRead = true;
+  try {
+    const res = await mod.getLastNotificationResponseAsync();
+    return res ? responseData(res) : null;
+  } catch {
+    return null;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function responseData(res: any): Record<string, unknown> {
+  return (res?.notification?.request?.content?.data ?? {}) as Record<string, unknown>;
+}
+
 /**
  * The Expo token for THIS device, without registering anything new.
  *
@@ -478,6 +533,10 @@ export async function notifyCashThreshold(
           : `You have about $${round(spare)} above what you asked to keep. Open HELOC ` +
             'Hero to see what is worth moving to your line.',
         sound: true,
+        // Matches the payload plaid-webhook sends, so a tap routes the same way
+        // whichever side produced the prompt. The user cannot tell them apart
+        // and should not have to.
+        data: { type: 'cash_threshold', spare },
       },
       trigger: null,
     });

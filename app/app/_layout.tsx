@@ -6,7 +6,9 @@ import { useAuth } from '../hooks/useAuth';
 import { initPurchases, identifyPurchaser } from '../lib/purchases';
 import { DEV_AUTH_BYPASS } from '../lib/devFlags';
 import { loadDevProMode } from '../lib/devPro';
-import { configureNotificationHandler } from '../lib/notify';
+import {
+  configureNotificationHandler, addNotificationResponseListener, readLaunchNotification,
+} from '../lib/notify';
 import LockGate from '../components/LockGate';
 import BootSplash from '../components/ui/BootSplash';
 import { ThemeProvider, useThemePreference } from '../lib/themeContext';
@@ -42,6 +44,33 @@ function RootLayoutInner() {
   useEffect(() => {
     configureNotificationHandler();
   }, []);
+
+  // Where a tapped notification lands.
+  //
+  // The cash alert's body says "open HELOC Hero to see what is worth moving",
+  // and without this it opened on whichever screen the user last had — which
+  // makes the sentence a small lie. It routes to the dashboard rather than
+  // straight into /modals/move-money because the copy promises to SHOW the
+  // figure, and the Safe to Sweep card is where that number lives.
+  //
+  // Held until the session resolves: navigating before then races the auth
+  // guard below, which would bounce the user straight back out again.
+  useEffect(() => {
+    if (loading || !profile) return;
+    let cancelled = false;
+
+    const route = (data: Record<string, unknown>) => {
+      if (cancelled) return;
+      if (data?.type === 'cash_threshold') router.push('/tabs/dashboard' as never);
+    };
+
+    // The cold-start case, which for this alert is the NORMAL one: the push
+    // exists precisely to reach someone whose app is closed.
+    readLaunchNotification().then((data) => { if (data) route(data); });
+    const sub = addNotificationResponseListener(route);
+
+    return () => { cancelled = true; sub?.remove(); };
+  }, [loading, profile?.id]);
 
   // Init RevenueCat on session load and when auth state changes
   useEffect(() => {
