@@ -28,6 +28,31 @@ export type WatchKind =
   | 'prepayment_penalty'
   | 'cashflow_gap';
 
+/**
+ * Kinds the user clears by doing a small piece of housekeeping, rather than by
+ * their finances changing.
+ *
+ * This is the ONLY thing in the app allowed to render the blue sentinel dot,
+ * and the list is deliberately short. The dot works by being the one non-green
+ * mark on the screen — CLAUDE.md otherwise bans blue outright, and the carve-out
+ * was granted on the basis of scarcity. Widen this and the dot stops meaning
+ * "two seconds of admin" and starts meaning "something is on this row", at
+ * which point it is decoration and the ban should be reinstated.
+ *
+ * `rate_change` and `escrow_change` are deliberately NOT here. They read like
+ * housekeeping but nothing the user does clears them — they are the loan
+ * telling them something, not a task.
+ */
+const ADMINISTRATIVE: ReadonlySet<WatchKind> = new Set<WatchKind>([
+  'stale_connection',
+  'terms_stale',
+]);
+
+/** True when this item is housekeeping the user can clear themselves. */
+export function isAdministrative(kind: WatchKind): boolean {
+  return ADMINISTRATIVE.has(kind);
+}
+
 export interface WatchItem {
   kind: WatchKind;
   title: string;

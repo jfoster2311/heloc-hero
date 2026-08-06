@@ -16,6 +16,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import DebtCurve from './DebtCurve';
+import RollingNumber from './RollingNumber';
 import { Typography, Spacing, Radius, Tracking, OnDark } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { NetDebt } from '../../lib/strike';
@@ -107,13 +108,18 @@ export default function MonolithHero({
         </Text>
 
         {hasFigure ? (
-          <Text
+          // Rolls rather than swapping. A logged sweep is the one moment this
+          // product has to show progress, and a figure that simply changes does
+          // not register as movement — the user has to SEE it fall.
+          <RollingNumber
+            value={total}
+            prefix="$"
             style={styles.figure}
-            // Read as one amount rather than digit-by-digit.
-            accessibilityLabel={`${partial ? 'Mortgage balance' : 'Unified net debt'} ${Math.round(total).toLocaleString('en-US')} dollars`}
-          >
-            ${Math.round(total).toLocaleString('en-US')}
-          </Text>
+            accessibilityLabel={
+              `${partial ? 'Mortgage balance' : 'Unified net debt'} ` +
+              `${Math.round(total).toLocaleString('en-US')} dollars`
+            }
+          />
         ) : (
           <Text style={styles.figureEmpty}>Add your mortgage</Text>
         )}
