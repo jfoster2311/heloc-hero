@@ -32,7 +32,8 @@
           "faceIDPermission": "Allows HELOC Hero to unlock the app with Face ID after it has been in the background."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "scheme": "heloc-hero",
     "experiments": {

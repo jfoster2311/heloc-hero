@@ -5,16 +5,20 @@
 // user's alert preferences and (re)schedules the on-device reminders whenever
 // the cycle maths changes.
 //
-// Reminders are local, not push. There is no delivery pipeline deployed, so
-// nothing here or in the UI claims a server-sent alert.
+// The date-based reminders are local, scheduled on the device. The cash-level
+// alert is the one that also has a server sender (plaid-webhook), because it is
+// the one that cannot be predicted from a calendar. This hook registers the
+// push token that sender delivers to, and shares its arm state so a single
+// crossing produces a single prompt from whichever side sees it first.
 import { useState, useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import {
   syncCycleReminders, scheduleTermsReview, cancelTermsReview,
   notificationsAvailable, hasPermission,
-  evaluateCashThreshold, notifyCashThreshold, readArmState, writeArmState,
+  evaluateCashThreshold, notifyCashThreshold, registerPushToken,
 } from '../lib/notify';
+import Constants from 'expo-constants';
 import { computeSweepAmount, DEFAULT_AUTOMATION_SETTINGS } from '../lib/automation';
 import { TERMS_REVIEW_DAYS, CASH_ALERT_MIN_GAP_DAYS } from '../lib/config';
 import type { AutomationSettings } from '../lib/types';
@@ -127,16 +131,56 @@ export function useCycleReminders(
     sweepOn, dumpOn, loading, granted,
   ]);
 
+  // Push token — the only part of this hook that talks to a server.
+  //
+  // Registered once permission is actually granted, because asking Expo for a
+  // token before that throws on iOS. Re-run whenever `granted` flips, which
+  // covers the user leaving for iOS Settings and coming back: that is the path
+  // where a token would otherwise never be obtained until a cold start.
+  //
+  // Tokens rotate (reinstall, restore from backup) and handsets change hands,
+  // so registration goes through the register_push_token RPC rather than a
+  // direct upsert. A plain upsert on `token` cannot do the handover: the row
+  // still belongs to the previous user and RLS rejects the update (42501), so
+  // the write failed silently, the new user got no alerts, and the previous
+  // user's — which quote a dollar figure — kept arriving on the new user's
+  // phone. The RPC claims the token for the caller instead.
+  useEffect(() => {
+    let cancelled = false;
+    if (!userId || !cycle.enabled || !granted) return;
+
+    (async () => {
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+      const token = await registerPushToken(projectId);
+      // Null in Expo Go, on a simulator, or if permission was revoked between
+      // the check above and here. Local reminders still work; nothing to say.
+      if (!token || cancelled) return;
+
+      const { error } = await supabase.rpc('register_push_token', {
+        p_token: token,
+        p_platform: Platform.OS,
+      });
+      // Not surfaced: the failure mode is "no push", and every date-based
+      // reminder still works. Logged so it is not invisible while debugging a
+      // device that never receives one.
+      if (error) console.warn('push token registration:', error.message);
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId, cycle.enabled, granted]);
+
   // Cash threshold — a LEVEL, not a date.
   //
   // The two reminders above are booked against a calendar. This one watches the
   // balance and fires the moment it clears what the user asked to keep, because
   // that is when a sweep becomes worth making.
   //
-  // It runs on foreground refresh, which is the honest bound of a local-only
-  // notification: nothing can read a bank balance while the app is closed, and
-  // there is no push pipeline here to do it server-side. So this reaches a user
-  // who opens the app — the monthly sweepDue reminder is what brings them in.
+  // It runs on foreground refresh, which is the bound of a local notification:
+  // nothing on the phone can read a bank balance while the app is closed. So
+  // this reaches a user who opens the app. plaid-webhook sends the same alert
+  // from the server for the case where they do not — the two share arm state
+  // below so that a crossing seen by both still produces one prompt.
   //
   // Rides on `safe_sweep_enabled`: it is the same question that switch already
   // asks ("tell me when surplus is ready to move"), just answered by the
@@ -160,17 +204,48 @@ export function useCycleReminders(
     const spare = computeSweepAmount(cycle.cashBalance, buffer, bills);
 
     (async () => {
-      const prev = await readArmState(userId);
+      // Read fresh rather than off the `settings` snapshot: that was loaded on
+      // mount, and the webhook sender may have fired since. A stale "armed"
+      // here is exactly the double-prompt this state exists to prevent.
+      const { data: armRow } = await supabase
+        .from('automation_settings')
+        .select('cash_alert_armed, cash_alert_last_fired_at')
+        .eq('user_id', userId)
+        .maybeSingle();
       if (cancelled) return;
+
+      // Absent or malformed reads default to ARMED. The failure modes are not
+      // symmetric: defaulting to disarmed silently kills the feature with no
+      // way for the user to notice, while the worst case here is one extra
+      // prompt that minGapDays still bounds.
+      const prev = {
+        armed: armRow?.cash_alert_armed !== false,
+        lastFiredAt: armRow?.cash_alert_last_fired_at ?? null,
+      };
 
       const { fire, next } = evaluateCashThreshold(spare, floor, prev, CASH_ALERT_MIN_GAP_DAYS);
 
       // Persist only on an actual change, so a balance sitting quietly above or
-      // below the line does not rewrite storage on every refresh.
-      if (next.armed !== prev.armed || next.lastFiredAt !== prev.lastFiredAt) {
-        await writeArmState(userId, next);
-      }
-      if (!fire || cancelled) return;
+      // below the line does not rewrite the row on every refresh.
+      if (next.armed === prev.armed && next.lastFiredAt === prev.lastFiredAt) return;
+
+      // Compare-and-swap on `armed`. The webhook can be disarming this same row
+      // at this same moment — a Plaid refresh is what moved the balance the app
+      // is reacting to, so the two racing is the normal case, not the exotic
+      // one. Claiming the transition in the WHERE clause makes the winner the
+      // only sender: whoever updates zero rows lost, and stays quiet.
+      const { data: claimed } = await supabase
+        .from('automation_settings')
+        .update({
+          cash_alert_armed: next.armed,
+          cash_alert_last_fired_at: next.lastFiredAt,
+        })
+        .eq('user_id', userId)
+        .eq('cash_alert_armed', prev.armed)
+        .select('user_id');
+
+      if (cancelled || !fire) return;
+      if (!claimed || claimed.length === 0) return;
 
       await notifyCashThreshold(spare, cycle.sweepAmount);
     })();

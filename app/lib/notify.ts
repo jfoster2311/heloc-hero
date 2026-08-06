@@ -4,15 +4,18 @@
 // it is worth acting; they make the transfer at their bank and record it. So
 // notifications are the product, not a growth add-on.
 //
-// These are LOCAL notifications (expo-notifications, scheduled on-device).
-// Remote push would need a token pipeline and a deployed sender; neither
-// exists, so nothing here claims to be a push alert. Local scheduling is
-// enough for this job: every prompt is predictable from the cycle maths, not
-// from a server event.
+// Almost everything here is a LOCAL notification (expo-notifications, scheduled
+// on-device), because almost every prompt is predictable from the cycle maths
+// rather than from a server event: the 1st of the month does not need a server
+// to announce it.
+//
+// The one exception is `registerPushToken` below. A balance crossing is NOT
+// predictable from a date, and nothing on the phone can read a bank balance
+// while the app is closed, so that alert needs a sender — plaid-webhook, which
+// pushes via the token registered here.
 //
 // The native module is absent in Expo Go, so every call is guarded and every
 // entry point degrades to a no-op rather than throwing.
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { computeStrike } from './strike';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,6 +274,41 @@ export async function syncCycleReminders(
   return scheduled;
 }
 
+// ─── Push registration ────────────────────────────────────────────────────────
+//
+// Everything above this line is scheduled ON the device and needs no server.
+// This is the one piece that does: an Expo push token, so plaid-webhook can
+// reach the user when a balance moves while the app is closed — the one case
+// local scheduling cannot cover, because nothing on the phone can read a bank
+// balance while nothing is running.
+
+/**
+ * Registers this device for push, returning the token or null.
+ *
+ * Null is an ordinary outcome, not a failure to report: Expo Go has no push
+ * entitlement, a simulator cannot register, and permission may be denied. Each
+ * of those leaves the local reminders working exactly as before, so nothing
+ * user-facing should treat a null here as an error.
+ */
+export async function registerPushToken(projectId?: string): Promise<string | null> {
+  const mod = loadModule();
+  if (!mod) return null;
+  // Asking Expo for a token before permission is granted throws on iOS.
+  if (!(await hasPermission())) return null;
+
+  try {
+    // projectId is required in SDK 49+ when the app is not built from a
+    // classic Expo account context. Passing it explicitly avoids the
+    // "No projectId found" throw that otherwise only appears in a real build.
+    const res = await mod.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    const token = res?.data;
+    return typeof token === 'string' && token.length > 0 ? token : null;
+  } catch {
+    // Simulators and Expo Go land here. Local reminders are unaffected.
+    return null;
+  }
+}
+
 // ─── Cash threshold ───────────────────────────────────────────────────────────
 //
 // The other prompts in this file are scheduled against a DATE — the 1st of the
@@ -278,12 +316,16 @@ export async function syncCycleReminders(
 // cash account rises past what the user asked to keep, because that is the
 // moment a sweep becomes worth making and it does not fall on a calendar.
 //
-// The honest limitation, which the UI must not overstate: a local notification
-// cannot observe a bank balance while the app is closed. There is no push
-// pipeline here — no token store, no deployed sender — so this is evaluated
-// when the app is in the foreground and balances refresh. It reaches someone
-// who opens the app; it does not reach someone who does not. Any copy
-// describing it has to say "when you open the app", never "we'll alert you".
+// The honest limitation, which the UI must not overstate: this path is LOCAL,
+// and a local notification cannot observe a bank balance while the app is
+// closed. It is evaluated when the app is in the foreground and balances
+// refresh, so it reaches someone who opens the app and no one else.
+//
+// plaid-webhook covers the closed-app case by pushing the same alert, but that
+// is not a reason to change the copy yet: it reaches only a Pro user, on a real
+// build, who has granted permission, once the function is actually deployed.
+// Until every one of those holds for the people reading it, copy here stays
+// "when you open the app" and never "we'll alert you".
 
 /**
  * Whether a crossing may fire, and when one last did.
@@ -338,42 +380,17 @@ export function evaluateCashThreshold(
   return { fire: true, next: { armed: false, lastFiredAt: now.toISOString() } };
 }
 
-/**
- * Arm state lives on the device, not in `automation_settings`.
- *
- * It describes what THIS install has already said to the user, which is what
- * "don't tell them twice" is actually about. Putting it in Postgres would make
- * a second device's refresh swallow the prompt on the first, and would write a
- * row on every balance refresh for a value no server reads.
- */
-const ARM_KEY_PREFIX = 'heloc-hero.cash-threshold-arm.';
-
-export async function readArmState(userId: string): Promise<ThresholdArmState> {
-  try {
-    const raw = await AsyncStorage.getItem(ARM_KEY_PREFIX + userId);
-    if (!raw) return INITIAL_ARM_STATE;
-    const parsed = JSON.parse(raw) as Partial<ThresholdArmState>;
-    return {
-      // Default to ARMED on a malformed read. The failure modes are not
-      // symmetric: defaulting to disarmed silently kills the feature with no
-      // way for the user to notice, while the worst case here is one extra
-      // prompt that minGapDays still bounds.
-      armed: parsed.armed !== false,
-      lastFiredAt: typeof parsed.lastFiredAt === 'string' ? parsed.lastFiredAt : null,
-    };
-  } catch {
-    return INITIAL_ARM_STATE;
-  }
-}
-
-export async function writeArmState(userId: string, state: ThresholdArmState): Promise<void> {
-  try {
-    await AsyncStorage.setItem(ARM_KEY_PREFIX + userId, JSON.stringify(state));
-  } catch {
-    // A failed write means at worst a repeated prompt, bounded by minGapDays.
-    // Not worth surfacing to someone who was looking at their balance.
-  }
-}
+// Arm state used to live on the device (AsyncStorage, keyed by user). It moved
+// into `automation_settings` when plaid-webhook gained the ability to send this
+// same alert, and the two are the same crossing seen from two places: the
+// server notices it on a Plaid refresh, the app notices it on a foreground
+// refresh. Two stores meant two prompts for one event — the server pushing, and
+// then the app firing again locally because nothing had told it the user had
+// already been informed.
+//
+// One row per user is the correct grain for "has this person been told", so the
+// reader/writer now live at the call site in hooks/useCycleReminders.ts, where
+// the Supabase client is. See _shared/cashAlert.ts for the sender's half.
 
 /**
  * Presents a prompt immediately rather than booking one for later.
