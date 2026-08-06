@@ -24,6 +24,7 @@ import {
   resolveMortgage, deriveBaseline, parseDate,
   type ResolvedMortgage, type Baseline, type MortgageLiability,
 } from '../lib/mortgage';
+import { roleBalance, roleBalances } from '../lib/accountRole';
 import { evaluateMove, type SafeToMove, type Blocker } from '../lib/safeToMove';
 import { buildWatchItems, type WatchItem } from '../lib/watchItems';
 import {
@@ -219,7 +220,7 @@ function derive(
   // ── Mortgage ─────────────────────────────────────────────────────────────
   const liability         = firstMortgageLiability(mortgageAccount?.liabilities);
   const previousLiability = firstMortgageLiability(mortgageAccount?.liabilities_prev);
-  const liveMortgage      = firstBalance(mortgageAccount);
+  const liveMortgage      = roleBalance(mortgageAccount, 'mortgage');
 
   const mortgage = resolveMortgage(liability, liveMortgage, {
     balance:              profile?.mortgage_balance ?? null,
@@ -239,7 +240,7 @@ function derive(
   // exists because linking is Pro-gated and cycle tracking is not — without it,
   // a free user could enter a limit and never a balance, and safeToMove, sweep
   // and strike all read the resulting null as an undrawn line.
-  const helocBalances = firstBalances(helocAccount);
+  const helocBalances = roleBalances(helocAccount, 'heloc');
   const enteredBalance = profile?.heloc_balance ?? null;
   const helocDrawn    = helocBalances?.current ?? enteredBalance;
   const helocDrawnSource: 'plaid' | 'user' | 'unknown' =
@@ -273,7 +274,12 @@ function derive(
   const expenses = profile?.monthly_expenses ?? 0;
   const payment  = mortgage.nextPayment.value ?? profile?.monthly_payment ?? 0;
   const surplus  = income - expenses - payment;
-  const liquidCash = firstBalance(cashAccount) ?? 0;
+  // Kept separate from the floored value below. A linked item whose depository
+  // account cannot be identified is UNKNOWN, not empty, and the two must not
+  // collapse: a 0 read as observed would re-arm the threshold alert on no
+  // evidence and fire the moment a real balance appeared.
+  const observedCash = roleBalance(cashAccount, 'cash');
+  const liquidCash = observedCash ?? 0;
   const surplusBasis: 'entered' | 'trailing' =
     profile?.cashflow_source === 'derived' ? 'trailing' : 'entered';
 
@@ -384,7 +390,11 @@ function derive(
     income, expenses, payment, surplus,
     surplusBasis,
     liquidCash,
-    hasCashAccount: cashAccount !== null,
+    // Whether a BALANCE was observed, not merely whether a row exists — which
+    // is what the field has always claimed to mean. Those were the same thing
+    // while every balance was read from accounts[0]; with role matching, a
+    // linked item can be present and still yield nothing identifiable.
+    hasCashAccount: observedCash !== null,
     derivedCashflow,
     transactions,
     transactionMeta,
@@ -408,15 +418,10 @@ function derive(
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function firstBalance(account: LinkedAccount | null): number | null {
-  if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.current;
-}
-function firstBalances(account: LinkedAccount | null) {
-  if (!account || account.accounts.length === 0) return null;
-  const b = account.accounts[0].balances;
-  return { current: b.current, available: b.available, limit: b.limit ?? null };
-}
+// firstBalance/firstBalances used to live here and read `accounts[0]`. A Plaid
+// item is a LOGIN, not an account — one link returned a home equity loan, a
+// savings account and a mortgage together — so index 0 was a coin toss, and on
+// real data it landed on the loan. See lib/accountRole.ts.
 function firstMortgageLiability(
   l: { mortgage?: MortgageLiability[] } | null | undefined,
 ): MortgageLiability | null {

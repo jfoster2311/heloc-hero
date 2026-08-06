@@ -43,6 +43,7 @@ import { hapticSuccess } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
+import { roleBalance, roleBalances } from '../../lib/accountRole';
 
 const AMOUNT_ACCESSORY_ID = 'move-money-amount';
 
@@ -80,14 +81,14 @@ export default function MoveMoneyModal() {
     refresh: refreshAccounts,
   } = useAccounts(profile?.id ?? null);
 
-  const helocBalance = firstBalance(helocAccount);
+  const helocBalance = roleBalance(helocAccount, 'heloc');
   const helocLimit   = deriveCreditLimit(
-    firstBalances(helocAccount),
+    roleBalances(helocAccount, 'heloc'),
     profile?.heloc_credit_limit ?? null,
   ).limit;
   const { rate: helocRate, isAssumed: helocRateAssumed } =
     resolveHelocRate(profile?.heloc_rate);
-  const mortgageBal  = firstBalance(mortgageAccount) ?? profile?.mortgage_balance ?? 0;
+  const mortgageBal  = roleBalance(mortgageAccount, 'mortgage') ?? profile?.mortgage_balance ?? 0;
 
   const income   = profile?.monthly_income   ?? 0;
   const expenses = profile?.monthly_expenses ?? 0;
@@ -142,7 +143,7 @@ export default function MoveMoneyModal() {
   // Liquidity, before and after. Available credit counts because on a HELOC it
   // IS the emergency fund — which is the whole reason drawing it down has a
   // cost worth stating next to the interest saved.
-  const liquidCash    = firstBalance(cashAccount) ?? 0;
+  const liquidCash    = roleBalance(cashAccount, 'cash') ?? 0;
   const bufferBefore  = bufferMonths(liquidCash, Math.max(0, limit - drawn), expenses);
   const bufferAfter   = bufferMonths(liquidCash, analysis.availableAfter, expenses);
 
@@ -616,15 +617,6 @@ function Caution({ text }: { text: string }) {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function firstBalance(account: LinkedAccount | null): number | null {
-  if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.current;
-}
-function firstBalances(account: LinkedAccount | null) {
-  if (!account || account.accounts.length === 0) return null;
-  const b = account.accounts[0].balances;
-  return { current: b.current, available: b.available, limit: b.limit ?? null };
-}
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function fmtPct(v: number) { return `${Math.round(v * 100)}%`; }
 

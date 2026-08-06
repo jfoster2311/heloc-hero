@@ -61,27 +61,47 @@ export function isPaidTier(tier: string | null | undefined): boolean {
   return tier === "pro" || tier === "medium" || tier === "full";
 }
 
+interface PlaidAccountRow {
+  type?: string | null;
+  subtype?: string | null;
+  balances?: { current?: number | null } | null;
+}
+
 interface LinkedAccountRow {
   account_type: string;
-  accounts: Array<{ balances?: { current?: number | null } | null }> | null;
+  accounts: PlaidAccountRow[] | null;
 }
 
 /**
  * The balance the sweep is measured against, or null when there is none.
  *
- * Checking wins over savings, matching hooks/useAccounts.ts `cashAccount`. The
+ * Checking wins over savings, matching hooks/useAccounts.ts `cashAccount`. That
  * fallback is load-bearing: every account linked before the roles were split is
  * stored as 'savings'.
  *
- * Reads `accounts[0]` because the app's `firstBalance` does. That is a known
- * weak spot when an item returns several accounts — but a server that picked
- * differently would quote a figure the app never shows, which is the worse
- * failure. Fix both together or neither.
+ * This used to read `accounts[0]`, mirroring the app — and both were wrong. A
+ * linked row holds an ITEM, and an item is a login: one real link returned a
+ * home equity loan, a savings account and a mortgage together. Index 0 was the
+ * LOAN, so the sweep was measured against a 20,000 debt instead of the 8,000 in
+ * savings, and the alert would have offered to move 16,400 that did not exist.
+ *
+ * Now matched on Plaid's own `type`, mirroring lib/accountRole.ts. Keep the two
+ * in step: a server that picks differently from the app quotes a figure the
+ * Safe to Sweep card contradicts.
  */
 export function resolveCashBalance(rows: LinkedAccountRow[]): number | null {
-  const pick = (type: string) => rows.find((r) => r.account_type === type);
-  const account = pick("checking") ?? pick("savings");
-  const balance = account?.accounts?.[0]?.balances?.current;
+  const pickRow = (type: string) => rows.find((r) => r.account_type === type);
+  const row = pickRow("checking") ?? pickRow("savings");
+  const accounts = row?.accounts;
+  if (!accounts || accounts.length === 0) return null;
+
+  // Single-account items are unambiguous, which keeps every existing link
+  // working even where an institution reports a type this has never seen.
+  // With several and no depository among them there is no safe guess.
+  const account = accounts.find((a) => (a.type ?? "").toLowerCase() === "depository")
+    ?? (accounts.length === 1 ? accounts[0] : null);
+
+  const balance = account?.balances?.current;
   return typeof balance === "number" ? balance : null;
 }
 

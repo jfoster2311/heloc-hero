@@ -24,6 +24,7 @@ import { hapticSuccess } from '../../lib/haptics';
 import { Typography } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
+import { roleBalance } from '../../lib/accountRole';
 
 const DEFAULT_BUFFER = DEFAULT_AUTOMATION_SETTINGS.buffer_target;
 const DEFAULT_BILLS  = DEFAULT_AUTOMATION_SETTINGS.upcoming_bills_estimate;
@@ -75,7 +76,7 @@ export default function AlertThresholdsModal() {
   // Preview against the real balance when one is linked. Without it the numbers
   // are still meaningful — they just cannot be turned into a dollar figure, and
   // inventing a balance to fill the space would be the dishonest option.
-  const savings = firstBalance(cashAccount);
+  const savings = roleBalance(cashAccount, 'cash');
   // Name the role the user actually linked. "Savings" was hardcoded here back
   // when it was the only cash role; saying it to someone who linked checking
   // points them at an account they never connected.
@@ -188,11 +189,6 @@ export default function AlertThresholdsModal() {
       {error ? <Text style={styles.error}>Not saved: {error}</Text> : null}
     </ModalScreen>
   );
-}
-
-function firstBalance(account: LinkedAccount | null | undefined): number | null {
-  if (!account || account.accounts.length === 0) return null;
-  return account.accounts[0].balances.current;
 }
 
 const useStyles = createThemedStyles(t => ({

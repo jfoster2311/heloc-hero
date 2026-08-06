@@ -36,6 +36,7 @@ import { hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount } from '../../lib/types';
+import { roleBalances } from '../../lib/accountRole';
 
 const PAYMENT_OPTIONS = [
   { value: 'interest_only' as HelocPaymentType, label: 'Interest-only' },
@@ -99,7 +100,7 @@ export default function HelocTermsModal() {
   const { helocAccount } = useAccounts(profile?.id ?? null);
 
   const existing = termsFromProfile(profile as unknown as Record<string, unknown>);
-  const balances = firstBalances(helocAccount);
+  const balances = roleBalances(helocAccount, 'heloc');
   const derived  = deriveCreditLimit(balances, existing.creditLimit);
 
   const [rate,        setRate]        = useState(existing.rate   != null ? String(round2(existing.rate * 100)) : '');
@@ -381,11 +382,6 @@ export default function HelocTermsModal() {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function firstBalances(account: LinkedAccount | null) {
-  if (!account || account.accounts.length === 0) return null;
-  const b = account.accounts[0].balances;
-  return { current: b.current, available: b.available, limit: b.limit ?? null };
-}
 function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 function numStr(n: number | null | undefined) { return n != null ? String(n) : ''; }
 function round2(n: number) { return Math.round(n * 100) / 100; }
