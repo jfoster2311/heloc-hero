@@ -240,7 +240,10 @@ export const Typography = {
    * interest ticker, the net-debt figure and every rolling counter. Harmless
    * but pointless on static prose, where proportional digits look better.
    */
-  tabular: { fontVariant: ['tabular-nums'] as const },
+  // Typed as a mutable array of the literal, not `as const`: React Native's
+  // TextStyle wants `FontVariant[]`, and a readonly tuple is not assignable to
+  // it — spreading this into a style would fail to compile at every call site.
+  tabular: { fontVariant: ['tabular-nums'] as Array<'tabular-nums'> },
 
   // Font weights (string literals for StyleSheet)
   regular:   '400' as const,
@@ -257,6 +260,13 @@ export const Tracking = {
   heading:  -0.6,
   eyebrow:   1.4,
   label:     1.0,
+  /**
+   * The monolith caption — wider than `eyebrow`, and only at 11pt uppercase.
+   *
+   * Tracking this open stops being legible below about 11pt and starts looking
+   * like a mistake above about 13pt. It exists for one label on one surface.
+   */
+  monolith:  2.0,
 };
 
 export const Spacing = {

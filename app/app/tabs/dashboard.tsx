@@ -39,13 +39,12 @@
 // thing a user might want, and none is what this screen is for. Ranking is the
 // feature.
 import { useState, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert, useWindowDimensions } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import {
   Card, CardHead, Chip, StatusPill, ActionPair, LinkRow, NavTile,
 } from '../../components/ui/primitives';
@@ -57,6 +56,8 @@ import InterestTicker from '../../components/InterestTicker';
 import GettingStarted from '../../components/GettingStarted';
 import NextStrike from '../../components/NextStrike';
 import NetDebt from '../../components/NetDebt';
+import MonolithHero from '../../components/dashboard/MonolithHero';
+import { computeEquitySeries } from '../../lib/projections';
 import { computeStrike, computeNetDebt } from '../../lib/strike';
 import { calcRemainingBalance } from '../../lib/projections';
 import { useAuth } from '../../hooks/useAuth';
@@ -75,7 +76,7 @@ import { monthsBetween, parseDate } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, Tracking, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 export default function DashboardScreen() {
@@ -88,6 +89,11 @@ export default function DashboardScreen() {
    * reads as the tap having missed.
    */
   const scrollRef = useRef<ScrollView>(null);
+  // Skia needs pixel dimensions up front — a Canvas cannot lay itself out from
+  // flex the way a View does, so the hero's width is measured rather than
+  // inherited. Spacing[4] each side matches `heroWrap`'s padding.
+  const { width: screenW } = useWindowDimensions();
+  const heroWidth = screenW - Spacing[4] * 2;
   useScrollToTop(scrollRef);
 
   const { colors, common } = useTheme();
@@ -207,6 +213,49 @@ export default function DashboardScreen() {
     f.mortgageBalance, f.helocDrawn,
   ]);
 
+  // The hero's falling line.
+  //
+  // Derived from the equity projection rather than modelled separately: that
+  // model holds home value flat, so `debt = homeValue - equity` exactly. Two
+  // models would drift, and the curve would start disagreeing with the payoff
+  // date printed on top of it.
+  //
+  // Forward-only, and the hero says so. There is no stored balance history in
+  // this app, so a line showing where debt HAS been would be invented from the
+  // single point we have.
+  const debtCurve = useMemo<number[]>(() => {
+    if (f.homeValue === null || f.mortgageBalance === null || f.mortgageBalance <= 0) return [];
+    const series = computeEquitySeries(
+      {
+        mortgageBalance: f.mortgageBalance,
+        mortgageRate:    f.mortgage.rate.value ?? 0.065,
+        monthlyPayment:  f.payment,
+        monthlySurplus:  Math.max(0, f.surplus),
+        helocRate:       f.helocRate,
+        helocLimit:      f.helocLimit ?? undefined,
+      },
+      f.homeValue,
+    );
+    // Null when the model cannot run at all — no curve rather than a flat line,
+    // which would read as "your debt never moves".
+    if (!series) return [];
+    const pts = series.accelerated;
+    if (pts.length < 2) return [];
+
+    // ~48 samples is past the point where more of them change the drawn shape
+    // at this width, and the path is rebuilt on every layout.
+    const step = Math.max(1, Math.floor(pts.length / 48));
+    const out: number[] = [];
+    for (let i = 0; i < pts.length; i += step) out.push(f.homeValue - pts[i].equity);
+    // Always end on the true final point; the stride can skip it.
+    const last = f.homeValue - pts[pts.length - 1].equity;
+    if (out[out.length - 1] !== last) out.push(last);
+    return out;
+  }, [
+    f.homeValue, f.mortgageBalance, f.mortgage.rate.value, f.payment,
+    f.surplus, f.helocRate, f.helocLimit,
+  ]);
+
   // The board's first tile is this calendar year, and it is the only tile that
   // can carry logged activity — see the header note in components/FreedomBoard.
   const thisYearDumps = useMemo(() => {
@@ -312,50 +361,46 @@ export default function DashboardScreen() {
           <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={colors.mint600} />
         }
       >
-        {/* ── HERO — the payoff clock ───────────────────────────────────── */}
-        <Hero
-          intensity={0.85}
-          // This hero carries a payoff date, a caption, the board, a progress
-          // line and a disclaimer, so the aurora is deep by the time it reaches
-          // the page. The standard band ends it too abruptly — see fadeHeight.
-          fadeHeight={Spacing[12]}
-          topBar={
-            <View style={styles.topBar}>
-              <Text style={styles.greeting}>
-                {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'HELOC Hero'}
-              </Text>
-              <View style={styles.topBarRight}>
-                {__DEV__ && (
-                  <Touchable style={styles.devBadge} onPress={handleDevTools} accessibilityLabel="DEV tools">
-                    <Text style={styles.devBadgeText}>DEV</Text>
-                  </Touchable>
-                )}
-                <Touchable
-                  style={styles.iconBtn}
-                  onPress={() => { router.push('/modals/settings'); }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Settings"
-                >
-                  <Ionicons name="settings-outline" size={20} color={OnDark.secondary} />
+        {/* ── HERO — the monolith ───────────────────────────────────────────
+            The aurora Hero this replaced led with the payoff DATE. The date is
+            an outcome; the debt is the thing the user acts on, and it is the
+            only figure that moves when they do. So the date keeps its place as
+            the pill inside, and the board moved down to the content below —
+            it is still the one object here no competitor can draw. */}
+        <View style={styles.heroWrap}>
+          <View style={styles.topBar}>
+            <Text style={styles.greeting}>
+              {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]}` : 'HELOC Hero'}
+            </Text>
+            <View style={styles.topBarRight}>
+              {__DEV__ && (
+                <Touchable style={styles.devBadge} onPress={handleDevTools} accessibilityLabel="DEV tools">
+                  <Text style={styles.devBadgeText}>DEV</Text>
                 </Touchable>
-              </View>
+              )}
+              <Touchable
+                style={styles.iconBtn}
+                onPress={() => { router.push('/modals/settings'); }}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+              >
+                <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
+              </Touchable>
             </View>
-          }
-        >
-          <Text style={styles.heroEyebrow}>
-            {f.hasRealData ? 'MORTGAGE-FREE' : 'EXAMPLE · MORTGAGE-FREE'}
-          </Text>
-          <HeroValue>{fmtMonthYear(payoffDate)}</HeroValue>
-          <HeroCaption>
-            {monthsAhead > 0
-              ? `${formatMonths(monthsAhead)} ahead of ${baselineIsReported ? 'your original schedule' : 'your current schedule'}`
-              : 'On your current schedule — no acceleration projected yet'}
-          </HeroCaption>
+          </View>
 
-          {/* The board. This replaced a progress meter with milestone marks —
-              two rows of chrome that said "42%, next stop 50%". The board says
-              the same thing in the product's own terms (years, not percent) and
-              is the one object on this screen no competitor can draw. */}
+          <MonolithHero
+            debt={netDebt}
+            helocBalanceUnknown={f.helocBalanceUnknown}
+            curve={debtCurve}
+            payoffDate={payoffDate}
+            hasRealData={f.hasRealData}
+            width={heroWidth}
+          />
+        </View>
+
+        <View style={styles.content}>
+          {/* The board, and the schedule comparison the old hero carried. */}
           <View style={styles.boardBlock}>
             <FreedomBoard
               originalMonths={f.projection.originalMonths}
@@ -364,23 +409,22 @@ export default function DashboardScreen() {
               payoffLabel={fmtMonthYear(payoffDate)}
               thisYear={thisYearDumps}
             />
-            {pct !== null && (
-              <Text style={styles.progressText}>
-                {f.baseline.percentComplete !== null
-                  ? `${pct.toFixed(0)}% of the original loan retired`
-                  : `You own ${pct.toFixed(0)}% of your home`}
-                {nextMs !== undefined ? ` · next milestone ${nextMs}%` : ''}
-              </Text>
-            )}
+            <Text style={styles.boardNote}>
+              {monthsAhead > 0
+                ? `${formatMonths(monthsAhead)} ahead of ${baselineIsReported ? 'your original schedule' : 'your current schedule'}`
+                : 'On your current schedule — no acceleration projected yet'}
+              {pct !== null
+                ? ` · ${f.baseline.percentComplete !== null
+                    ? `${pct.toFixed(0)}% of the original loan retired`
+                    : `you own ${pct.toFixed(0)}% of your home`}`
+                : ''}
+            </Text>
+            <Text style={styles.boardDisclaimer}>
+              Projected estimate, not a guarantee.
+              {f.helocRateAssumed ? ' Assumes an 8.5% HELOC APR.' : ''}
+            </Text>
           </View>
 
-          <Text style={styles.heroDisclaimer}>
-            Projected estimate, not a guarantee.
-            {f.helocRateAssumed ? ' Assumes an 8.5% HELOC APR.' : ''}
-          </Text>
-        </Hero>
-
-        <View style={styles.content}>
           {/* Manual indicator + a connect affordance that never blocks. Manual
               users are a large early share and the screen has to be complete
               for them, not a nag with a number behind it. */}
@@ -1110,7 +1154,10 @@ const useStyles = createThemedStyles(t => ({
   greeting: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
-    color: OnDark.secondary,
+    // Page ink, not OnDark. This row used to sit on the aurora inside the hero;
+    // it now sits above the monolith on the light canvas, where a translucent
+    // white would be all but invisible.
+    color: t.colors.textSecondary,
   },
   iconBtn: {
     width: 44, height: 44, borderRadius: 22,
@@ -1124,15 +1171,15 @@ const useStyles = createThemedStyles(t => ({
   },
   devBadgeText: { fontSize: 10, fontWeight: Typography.extrabold, color: '#fff', letterSpacing: 1 },
 
-  heroEyebrow: {
-    fontSize: 11,
-    fontWeight: Typography.extrabold,
-    color: OnDark.muted,
-    letterSpacing: Tracking.eyebrow,
+  // The monolith sits on the page rather than on an aurora, so the bar above it
+  // is on a light surface and its ink is page ink, not OnDark.
+  heroWrap: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
   },
-  boardBlock: { marginTop: Spacing[5], gap: Spacing[3] },
-  progressText: { fontSize: Typography.xs, color: OnDark.secondary },
-  heroDisclaimer: { fontSize: Typography.xs, color: OnDark.faint, marginTop: Spacing[3] },
+  boardBlock: { marginBottom: Spacing[5], gap: Spacing[3] },
+  boardNote: { fontSize: Typography.xs, color: t.colors.textSecondary },
+  boardDisclaimer: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   content: {
     paddingHorizontal: Spacing[4],
