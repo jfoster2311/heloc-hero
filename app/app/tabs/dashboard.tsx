@@ -57,6 +57,7 @@ import GettingStarted from '../../components/GettingStarted';
 import NextStrike from '../../components/NextStrike';
 import NetDebt from '../../components/NetDebt';
 import MonolithHero from '../../components/dashboard/MonolithHero';
+import SweepSlider from '../../components/dashboard/SweepSlider';
 import { computeEquitySeries } from '../../lib/projections';
 import { computeStrike, computeNetDebt } from '../../lib/strike';
 import { calcRemainingBalance } from '../../lib/projections';
@@ -71,6 +72,7 @@ import { buildChecklist } from '../../lib/onboardingChecklist';
 import { useOnboardingStore } from '../../lib/onboardingStore';
 import { computeRealized } from '../../lib/realized';
 import { computeSafeToSweep } from '../../lib/sweep';
+import { paydayIsExpected } from '../../lib/payday';
 import { formatMonths } from '../../lib/projections';
 import { monthsBetween, parseDate } from '../../lib/mortgage';
 import { MILESTONES } from '../../lib/config';
@@ -255,6 +257,38 @@ export default function DashboardScreen() {
     f.homeValue, f.mortgageBalance, f.mortgage.rate.value, f.payment,
     f.surplus, f.helocRate, f.helocLimit,
   ]);
+
+  // What the slider offers, or null when it should not appear at all.
+  //
+  // Two independent limits, and the SMALLER wins:
+  //   · what the line is owed this month (`sweep.committed`)
+  //   · what is actually in the cash account
+  // Offering the first without checking the second is how an app tells someone
+  // to move $1,200 they do not have. Where no cash account is linked there is
+  // no second limit to apply, so the committed figure stands on its own — the
+  // user can still see whether it is affordable, which is the state the app was
+  // in before any of this.
+  //
+  // The states excluded below are the ones where the sweep card deliberately
+  // refuses to name a number: no line, an unknown drawn balance, no surplus, a
+  // surplus that does not cover interest, or a structural blocker. A slider
+  // offering an amount there would contradict the card directly under it.
+  const sweepMove = useMemo<number | null>(() => {
+    const refuses: typeof sweep.state[] = [
+      'no_line', 'unknown_balance', 'no_surplus', 'under_water', 'dump_blocked',
+    ];
+    if (refuses.includes(sweep.state)) return null;
+    if (sweep.committed <= 0) return null;
+    const cap = f.hasCashAccount ? Math.min(sweep.committed, f.liquidCash) : sweep.committed;
+    // Below a dollar there is nothing worth a gesture.
+    return cap >= 1 ? Math.floor(cap) : null;
+  }, [sweep.state, sweep.committed, f.hasCashAccount, f.liquidCash]);
+
+  // A projection, never an observation — see lib/payday.ts. Drives a label only.
+  const paydayExpected = useMemo(
+    () => paydayIsExpected(f.derivedCashflow?.recurringIncome),
+    [f.derivedCashflow],
+  );
 
   // The board's first tile is this calendar year, and it is the only tile that
   // can carry logged activity — see the header note in components/FreedomBoard.
@@ -617,6 +651,19 @@ export default function DashboardScreen() {
               the linked accounts. Before it lands the line looks undrawn, so
               nothing looks committed and the whole surplus reads as free — the
               flattering direction, on a number the user might go and spend. */}
+          {/* The one-gesture path, above the card that explains it. The card
+              below is the reasoning and stays exactly as it was; this is the
+              decision, and it only appears when there is a real amount and the
+              cash to cover it. */}
+          {!f.loading && sweepMove !== null && (
+            <SweepSlider
+              amount={sweepMove}
+              apr={f.helocRateAssumed ? null : f.helocRate}
+              paydayExpected={paydayExpected}
+              onConfirm={() => { router.push('/modals/move-money' as never); }}
+            />
+          )}
+
           {f.loading ? (
             <Card>
               <SkeletonGroup label="Working out how much is free to spend">
