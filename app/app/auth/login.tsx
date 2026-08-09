@@ -69,12 +69,28 @@ export default function LoginScreen() {
   const diagId = useRef(Math.random().toString(36).slice(2, 7)).current;
   useEffect(() => {
     console.log(`[kbd] MOUNT ${diagId}`);
-    const show = Keyboard.addListener('keyboardDidShow', () => console.log(`[kbd] shown  ${diagId}`));
-    const hide = Keyboard.addListener('keyboardDidHide', () => console.log(`[kbd] HIDDEN ${diagId}`));
+    // willHide is the one that decides it. It fires when the dismissal is
+    // REQUESTED, so its position relative to `pw FOCUS` separates the two
+    // remaining stories:
+    //
+    //   pw FOCUS then willHide  → something blurred the field after it took
+    //                             focus. That is the responder-release branch,
+    //                             and keyboardShouldPersistTaps is the fix.
+    //   willHide then pw FOCUS  → the keyboard was already going down before
+    //                             this field was involved, and the cause is
+    //                             upstream of the ScrollView entirely.
+    //
+    // Heights come along because a `shown` at a different height is the AutoFill
+    // bar resizing the keyboard, not a fresh presentation.
+    const subs = [
+      Keyboard.addListener('keyboardDidShow', e =>
+        console.log(`[kbd] shown  ${diagId} h=${Math.round(e.endCoordinates.height)}`)),
+      Keyboard.addListener('keyboardWillHide', () => console.log(`[kbd] willHide ${diagId}`)),
+      Keyboard.addListener('keyboardDidHide', () => console.log(`[kbd] HIDDEN ${diagId}`)),
+    ];
     return () => {
       console.log(`[kbd] UNMOUNT ${diagId}`);
-      show.remove();
-      hide.remove();
+      subs.forEach(s => s.remove());
     };
   }, []);
 
@@ -147,7 +163,31 @@ export default function LoginScreen() {
       >
         <ScrollView
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+          // "always", not "handled", and the difference is the whole bug.
+          //
+          // On responder release ScrollView runs, in effect:
+          //
+          //   if (keyboardShouldPersistTaps !== 'always' &&
+          //       focused != null && e.target !== focused) blurTextInput(focused)
+          //
+          // It compares the tap target against the focused input and blurs on a
+          // mismatch. It never asks whether the target is ITSELF a text input, so
+          // moving between two fields takes that branch: email is focused, the
+          // tap lands on password, they differ, email is blurred — while password
+          // is taking focus. The keyboard goes down in the gap.
+          //
+          // That is why the symptom is the PASSWORD field and not the email one.
+          // The branch needs something already focused to blur; tapping email
+          // first finds `focused == null` and does nothing. A bug that only
+          // appears on the second field looks like a bug about passwords, and it
+          // is not — it is a bug about there being a previous field at all.
+          //
+          // The cost of "always" is that tapping the background no longer
+          // dismisses the keyboard. On a two-field credential form that is not a
+          // loss worth having: return chains email → password, `go` submits, and
+          // "always" still lets the Sign in button be tapped with the keyboard up,
+          // which is the job "handled" was here to do.
+          keyboardShouldPersistTaps="always"
           // NO `keyboardDismissMode="on-drag"` here, deliberately.
           //
           // It is right on the long scrolling tabs — you are reading, and the
@@ -169,8 +209,11 @@ export default function LoginScreen() {
           // drag. `on-drag` is the only thing on this screen that dismisses a
           // keyboard, and it is now the only remaining candidate.
           //
-          // `keyboardShouldPersistTaps` above is the one that matters here: it is
-          // what lets the submit button be tapped while the keyboard is up.
+          // Removing it did NOT fix the symptom on device — the keyboard still
+          // dropped on the way into the password field, which is what sent the
+          // hunt to `keyboardShouldPersistTaps` above. It stays off anyway: it is
+          // wrong on a credential form for the reason given, and a second
+          // dismissal path on this screen is a second thing to rule out next time.
           //
           // This is a SECOND cause of the same symptom d39c265 fixed by scoping
           // GestureHandlerRootView to the tabs. That fix was correct and is still
@@ -223,6 +266,11 @@ export default function LoginScreen() {
             textContentType="password"
             autoComplete="current-password"
             placeholder="Your password"
+            // TEMPORARY — the other half of the instrument. The first round only
+            // watched email, so the handoff INTO this field, which is where the
+            // symptom actually lives, was the one transition not being logged.
+            onFocus={() => console.log(`[kbd] pw    FOCUS ${diagId}`)}
+            onBlur={() => console.log(`[kbd] pw    BLUR  ${diagId}`)}
             returnKeyType="go"
             onSubmitEditing={handleSignIn}
             invalid={problem?.field === 'password'}

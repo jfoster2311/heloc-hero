@@ -275,7 +275,12 @@ export default function SignupScreen() {
       >
         <ScrollView
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+          // "always" — see the note in auth/login.tsx. Under "handled",
+          // ScrollView blurs the focused input on any release whose target is a
+          // different node, without checking that the new target is itself a
+          // field, so moving between fields drops the keyboard. This screen has
+          // more fields than sign-in, so it takes that branch more often.
+          keyboardShouldPersistTaps="always"
           // No `keyboardDismissMode="on-drag"` — see the long note in
           // auth/login.tsx. On a credential form it drops the keyboard on the
           // way IN to the field, and the sign-in instrument confirmed the

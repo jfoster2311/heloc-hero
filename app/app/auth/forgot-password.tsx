@@ -96,7 +96,11 @@ export default function ForgotPasswordScreen() {
       >
         <ScrollView
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+          // "always" — see the note in auth/login.tsx. One field here, so the
+          // blur-on-release branch has nothing to bite on today; it is set for
+          // consistency with the other two, and so adding a second field later
+          // does not quietly reintroduce the bug.
+          keyboardShouldPersistTaps="always"
           // No `keyboardDismissMode="on-drag"` — see the long note in
           // auth/login.tsx. On a credential form it drops the keyboard on the
           // way IN to the field, and the sign-in instrument confirmed the
