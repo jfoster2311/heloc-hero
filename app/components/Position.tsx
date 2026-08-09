@@ -50,6 +50,25 @@ export interface PositionRow {
   amount: number | null;
   emptyLabel?: string;
   onPress?: () => void;
+
+  /**
+   * Where this figure came from, which changes what the row OFFERS.
+   *
+   * 'live'   — a linked account is keeping it current. Nothing to do, and the
+   *            row says so rather than inviting an edit that would be
+   *            overwritten by the next sync.
+   * 'manual' — the user typed it, and it goes stale silently. This is the one
+   *            state that earns a button: a figure nobody is maintaining, on a
+   *            screen whose whole job is to be trusted.
+   * undefined — not applicable (a home value has no "sync" concept).
+   *
+   * This lives on the shared row rather than at the call site because the fork
+   * is a rule about figures, not about this screen, and the moment it is
+   * written twice the two copies disagree about what "stale" looks like.
+   */
+  source?: 'live' | 'manual';
+  /** The manual fork's action. Ignored when `source` is 'live'. */
+  action?: { label: string; onPress: () => void };
 }
 
 export default function Position({
@@ -121,7 +140,7 @@ function Group({ title, total, rows, negative }: {
   negative?: boolean;
 }) {
   const styles = useStyles();
-  const { colors } = useTheme();
+  const { colors, semantic } = useTheme();
 
   return (
     <View>
@@ -148,6 +167,15 @@ function Group({ title, total, rows, negative }: {
                   ? (r.emptyLabel ?? 'Add')
                   : `${negative ? '−' : ''}$${fmt(r.amount)}`}
               </Text>
+              {/* A ring, not a filled dot. A filled mint dot at this size is the
+                  mark this app uses for "on track", and the two appearing in one
+                  row would collide — see `Semantic.linkedAccount`. */}
+              {r.source === 'live' && (
+                <View
+                  style={[styles.liveRing, { borderColor: semantic.linkedAccount }]}
+                  accessibilityElementsHidden
+                />
+              )}
               {r.onPress && (
                 <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
               )}
@@ -155,24 +183,51 @@ function Group({ title, total, rows, negative }: {
           </View>
         );
 
+        // ── The manual fork ────────────────────────────────────────────────
+        // A figure the user typed has no one keeping it current, so the row
+        // carries its own way to fix that rather than making them remember
+        // which modal owns it. Rendered UNDER the row rather than inside it:
+        // the row is already a 44pt target that opens the editor, and nesting
+        // a second button inside a button gives VoiceOver two overlapping
+        // controls with no way to tell them apart.
+        const withAction = (node: React.ReactNode) => {
+          if (r.source !== 'manual' || !r.action) return node;
+          return (
+            <View key={r.key}>
+              {node}
+              <Touchable
+                style={styles.updateBtn}
+                onPress={r.action.onPress}
+                accessibilityRole="button"
+                accessibilityLabel={`${r.action.label} for ${r.label}`}
+              >
+                <Ionicons name="create-outline" size={14} color={colors.onAccent} />
+                <Text style={styles.updateBtnText}>{r.action.label}</Text>
+              </Touchable>
+            </View>
+          );
+        };
+
         // A real button when it goes somewhere, a plain row when it does not.
         // `onTouchEnd` on a View would fire without press feedback, without a
         // role, and without cancelling when the finger slides off — which on a
         // row that opens an editor is a tap the user did not mean to make.
-        if (!r.onPress) return <View key={r.key}>{body}</View>;
-        return (
+        if (!r.onPress) return withAction(<View key={r.key}>{body}</View>);
+        return withAction(
           <Touchable
             key={r.key}
             onPress={r.onPress}
             accessibilityRole="button"
             accessibilityLabel={
-              r.amount === null
+              (r.amount === null
                 ? `${r.label}, not set`
-                : `${r.label}, ${negative ? 'minus ' : ''}${fmt(r.amount)} dollars`
+                : `${r.label}, ${negative ? 'minus ' : ''}${fmt(r.amount)} dollars`) +
+              (r.source === 'live' ? ', kept current by a linked account' : '') +
+              (r.source === 'manual' ? ', entered by you' : '')
             }
           >
             {body}
-          </Touchable>
+          </Touchable>,
         );
       })}
     </View>
@@ -234,6 +289,33 @@ const useStyles = createThemedStyles(t => ({
   },
   rowSub: { fontSize: 11, color: t.colors.textMuted, marginTop: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] },
+  liveRing: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    marginLeft: 2,
+  },
+  updateBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 44,
+    paddingHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    // Indented to the row's text column, so it reads as belonging to the row
+    // above rather than to the group.
+    marginLeft: 34 + Spacing[3],
+    borderRadius: Radius.full,
+    backgroundColor: t.colors.mint600,
+  },
+  updateBtnText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.bold,
+    // `onAccent`, never white — white on a mint600 fill is 2.62:1.
+    color: t.colors.onAccent,
+  },
   rowAmount: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,

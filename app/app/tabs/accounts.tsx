@@ -23,13 +23,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import MachinedCard from '../../components/ui/MachinedCard';
 import {
   Card, Chip, DataRow, SectionLabel, SourceNote, EmptyState, LinkRow, Divider,
 } from '../../components/ui/primitives';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import WatchRow from '../../components/ui/WatchRow';
-import EquityCurve from '../../components/EquityCurve';
+import EquityWedge from '../../components/accounts/EquityWedge';
 import Position, { type PositionRow } from '../../components/Position';
 import InstitutionAvatar from '../../components/ui/InstitutionAvatar';
 import { useAuth } from '../../hooks/useAuth';
@@ -39,8 +39,9 @@ import { computeEquitySeries } from '../../lib/projections';
 import { daysSinceVerified } from '../../lib/helocTerms';
 import { HOME_VALUE_SOURCE_LABEL, STALE_SYNC_HOURS } from '../../lib/config';
 import { isPaidTier } from '../../lib/pricing';
-import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
-import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '../../lib/haptics';
+import { usePullTension } from '../../hooks/usePullTension';
+import { Typography, Spacing, Radius, Tracking, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
 import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
@@ -62,10 +63,10 @@ const HORIZONS: { label: string; months: number | null; a11y: string }[] = [
 ];
 
 export default function AccountsScreen() {
-  // This tab opens on the aurora, so the clock stays light. Declared here
-  // rather than inherited: two tabs are now light-topped and set it dark, and
-  // whichever screen was visited last would otherwise win. See the hook.
-  useStatusBarStyle('light');
+  // The aurora hero here was replaced by the machined equity card, so this tab
+  // is light-topped now and the clock has to go dark with it. Declared per
+  // screen rather than inherited — see hooks/useStatusBarStyle.
+  useStatusBarStyle('dark');
 
   /**
    * Re-tapping the active tab scrolls back to the top.
@@ -78,6 +79,12 @@ export default function AccountsScreen() {
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
 
+  // Skia needs a real pixel width; there is no percentage sizing on a canvas.
+  const [chartWidth, setChartWidth] = useState(0);
+  // Ticks a detent every few points of overscroll, so the pull feels like
+  // tension building rather than a drag into silence. See the hook.
+  const pull = usePullTension();
+
   const { colors, common } = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -87,8 +94,17 @@ export default function AccountsScreen() {
   const f = useFinancials();
   const canLink = isPro;
 
-  /** Same contract as the dashboard: the buzz reports what actually happened. */
+  /**
+   * Same contract as the dashboard: the buzz reports what actually happened.
+   *
+   * The medium impact at the START is a different statement from the success
+   * buzz at the end, and both are needed. `usePullTension` ticks while the user
+   * drags; this is the notch where the pull commits and the ticking stops. The
+   * success or error buzz then reports whether the sync got anything, which can
+   * be several seconds later — a single haptic cannot say both.
+   */
   async function handleRefresh() {
+    hapticMedium();
     const ok = await f.refresh();
     if (ok) hapticSuccess();
     else hapticError();
@@ -127,7 +143,7 @@ export default function AccountsScreen() {
   const sinceVerified = daysSinceVerified(profile?.heloc_terms_updated_at);
 
   // ── The projection window ─────────────────────────────────────────────────
-  // Forward only. See the note on `horizonMonths` in EquityCurve — there is no
+  // Forward only. See the note on `horizonMonths` in EquityWedge — there is no
   // stored balance history to look back over, so the options are spans of the
   // projection rather than 1M/6M/1Y of the past.
   const [horizon, setHorizon] = useState<number | null>(null);
@@ -217,6 +233,13 @@ export default function AccountsScreen() {
       amount: f.mortgageBalance,
       emptyLabel: 'Add',
       onPress: () => { hapticLight(); router.push('/modals/mortgage-details' as never); },
+      // Only once there is a figure to describe. "Entered by you" against an em
+      // dash is describing the provenance of nothing.
+      source: f.mortgageBalance === null ? undefined : f.mortgage.isLive ? 'live' : 'manual',
+      action: {
+        label: 'Update balance',
+        onPress: () => { hapticLight(); router.push('/modals/mortgage-details' as never); },
+      },
     },
     {
       key: 'heloc',
@@ -228,6 +251,17 @@ export default function AccountsScreen() {
       amount: f.helocDrawn,
       emptyLabel: 'Add',
       onPress: () => { hapticLight(); router.push('/modals/heloc-terms' as never); },
+      // `helocDrawnSource` is READ, never re-derived. useFinancials is the one
+      // place that decides whether a balance came from Plaid or from the user,
+      // and a screen inferring it from `hasLinkedAccounts` would call a manual
+      // balance "live" for anyone who had linked a checking account.
+      source: f.helocDrawn === null
+        ? undefined
+        : f.helocDrawnSource === 'plaid' ? 'live' : 'manual',
+      action: {
+        label: 'Update balance',
+        onPress: () => { hapticLight(); router.push('/modals/heloc-terms' as never); },
+      },
     },
   ];
 
@@ -240,74 +274,84 @@ export default function AccountsScreen() {
         refreshControl={
           <RefreshControl refreshing={f.refreshing} onRefresh={handleRefresh} tintColor={colors.mint600} />
         }
+        {...pull}
       >
-        {/* ── HERO — the position, summarised ───────────────────────────── */}
-        <Hero
-          intensity={0.7}
-          topBar={
-            <View style={styles.topBar}>
-              <Text style={styles.topTitle}>Accounts</Text>
-              {canLink && (
-                <Touchable
-                  style={styles.addBtn}
-                  onPress={() => { router.push('/modals/link-account'); }}
-                  // Same trade the horizon pills below make: a 36pt pill is the
-                  // right weight for a hero action and 44 would read as a
-                  // toolbar button, so slop buys the HIG target back without
-                  // the bulk.
-                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Link an account"
-                >
-                  <Ionicons name="add" size={16} color={OnDark.primary} />
-                  <Text style={styles.addBtnText}>Link</Text>
-                </Touchable>
+        {/* ── HERO — the position, as a wedge ─────────────────────────────
+            The aurora Hero this replaced stated equity as a number over a
+            single rising line. Right quantity, wrong picture: a line going up
+            says nothing about WHY, and the why is the entire product. This
+            draws the two things equity is the difference between — what the
+            house is worth, what is owed against it — and fills the gap.
+
+            Machined rather than aurora because this tab is the engine room: it
+            is read, compared and checked, and the strategy's one display figure
+            already lives on the Dashboard. Two dark heroes competing for that
+            role is what made them both feel decorative. */}
+        <View style={[styles.topBar, { paddingTop: insets.top + Spacing[3] }]}>
+          <Text style={styles.topTitle}>Accounts</Text>
+          {canLink && (
+            <Touchable
+              style={styles.addBtn}
+              onPress={() => { router.push('/modals/link-account'); }}
+              accessibilityRole="button"
+              accessibilityLabel="Link an account"
+            >
+              <Ionicons name="add" size={16} color={colors.onAccent} />
+              <Text style={styles.addBtnText}>Link</Text>
+            </Touchable>
+          )}
+        </View>
+
+        <View style={styles.heroWrap}>
+          <MachinedCard>
+            <Text style={styles.heroEyebrow}>ESTIMATED HOME EQUITY</Text>
+
+            {f.loading ? (
+              <SkeletonGroup label="Loading your home equity" style={styles.heroSkeleton}>
+                <Skeleton width={190} height={44} radius={Radius.sm} />
+                <Skeleton width={250} height={13} />
+              </SkeletonGroup>
+            ) : (
+              <>
+                <Text style={styles.heroValue}>
+                  {f.equity !== null ? `$${fmt(f.equity)}` : '—'}
+                </Text>
+                <Text style={styles.heroCaption}>
+                  {f.equity !== null && f.combinedLTV !== null
+                    ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value, against ${homeValueBasis}`
+                    // Both figures are COMBINED — the drawn line is part of the
+                    // debt — so an unknown line balance does not blur them, it
+                    // overstates equity by exactly the amount drawn. Different
+                    // missing input, different instruction.
+                    : f.helocBalanceUnknown
+                      ? 'Add your line balance to see equity and combined LTV'
+                      : 'Add your home value to see equity and combined LTV'}
+                </Text>
+              </>
+            )}
+
+            <View
+              style={styles.chartWrap}
+              onLayout={e => setChartWidth(e.nativeEvent.layout.width)}
+            >
+              {equitySeries && f.homeValue !== null && chartWidth > 0 && (
+                <EquityWedge
+                  series={equitySeries}
+                  homeValue={f.homeValue}
+                  hasRealData={f.hasRealData}
+                  horizonMonths={activeHorizon}
+                  width={chartWidth}
+                />
               )}
             </View>
-          }
-        >
-          <Text style={styles.heroEyebrow}>ESTIMATED HOME EQUITY</Text>
 
-          {f.loading ? (
-            <SkeletonGroup label="Loading your home equity" style={styles.heroSkeleton}>
-              <Skeleton onDark width={190} height={40} radius={Radius.sm} />
-              <Skeleton onDark width={250} height={13} />
-            </SkeletonGroup>
-          ) : (
-            <>
-              <HeroValue>
-                {f.equity !== null ? `$${fmt(f.equity)}` : '—'}
-              </HeroValue>
-              <HeroCaption>
-                {f.equity !== null && f.combinedLTV !== null
-                  ? `${Math.round(f.combinedLTV * 100)}% combined loan-to-value, against ${homeValueBasis}`
-                  // Both figures are COMBINED — the drawn line is part of the
-                  // debt — so an unknown line balance does not blur them, it
-                  // overstates equity by exactly the amount drawn. Different
-                  // missing input, different instruction.
-                  : f.helocBalanceUnknown
-                    ? 'Add your line balance to see equity and combined LTV'
-                    : 'Add your home value to see equity and combined LTV'}
-              </HeroCaption>
-            </>
-          )}
+            {/* Spans of the projection ahead, NOT ranges of history. The labels
+                say "1 yr" rather than "1M/6M/1Y" precisely so they cannot be
+                misread as a look back at where equity has been.
 
-          {equitySeries && (
-            <View style={{ marginTop: Spacing[5] }}>
-              <EquityCurve
-                series={equitySeries}
-                payoffDate={f.projection.acceleratedPayoffDate}
-                hasRealData={f.hasRealData}
-                horizonMonths={activeHorizon}
-              />
-
-              {/* Spans of the projection ahead, NOT ranges of history. The
-                  labels say "1 yr" rather than "1M/6M/1Y" precisely so they
-                  cannot be misread as a look back at where equity has been.
-
-                  A lone "All" pill is no control at all, so the row waits until
-                  there is a genuine choice to make. */}
-              {horizons.length > 1 && (
+                A lone "All" pill is no control at all, so the row waits until
+                there is a genuine choice to make. */}
+            {equitySeries && horizons.length > 1 && (
               <View style={styles.horizonRow}>
                 {horizons.map(h => {
                   const active = activeHorizon === h.months;
@@ -316,9 +360,9 @@ export default function AccountsScreen() {
                       key={h.label}
                       style={[styles.horizonPill, active && styles.horizonPillActive]}
                       onPress={() => { setHorizon(h.months); }}
-                      // The pill reads better at 32pt on the hero than at 44,
-                      // and iOS ships its own segmented control at that height.
-                      // Slop buys back the HIG target without the bulk.
+                      // The pill reads better at 32pt than at 44, and iOS ships
+                      // its own segmented control at that height. Slop buys back
+                      // the HIG target without the bulk.
                       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
@@ -331,10 +375,9 @@ export default function AccountsScreen() {
                   );
                 })}
               </View>
-              )}
-            </View>
-          )}
-        </Hero>
+            )}
+          </MachinedCard>
+        </View>
 
         <View style={styles.content}>
           {/* ── YOUR POSITION ──────────────────────────────────────────────
@@ -852,16 +895,23 @@ const useStyles = createThemedStyles(t => ({
     justifyContent: 'center',
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: OnDark.hairline,
+    borderColor: t.colors.machinedEdge,
   },
-  // Sits on the aurora, so the active state is a light fill rather than the
-  // page's mint — the hero is the one surface where OnDark tokens rule.
+  // These moved off the aurora onto the machined card, which is exactly the
+  // trap lib/theme.ts warns about — a token measured on one surface is not
+  // measured on another, and `OnDark.*` composited over silver is white on
+  // near-white. The whole group is re-inked against the card it now sits on.
   horizonPillActive: {
-    backgroundColor: OnDark.fillStrong,
+    backgroundColor: t.colors.mint600,
     borderColor: 'transparent',
   },
-  horizonText: { fontSize: Typography.xs, fontWeight: Typography.medium, color: OnDark.muted },
-  horizonTextActive: { color: OnDark.primary, fontWeight: Typography.semibold },
+  horizonText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium,
+    color: t.colors.textSecondary,
+  },
+  // `onAccent`, never white — white on a mint600 fill is 2.62:1 light.
+  horizonTextActive: { color: t.colors.onAccent, fontWeight: Typography.semibold },
 
   heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
   skeletonConnection: {
@@ -895,21 +945,59 @@ const useStyles = createThemedStyles(t => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing[5],
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
   },
-  topTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: OnDark.primary },
+  topTitle: {
+    fontSize: Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    letterSpacing: Tracking.heading,
+    color: t.colors.textPrimary,
+  },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     minHeight: 36, paddingHorizontal: Spacing[3],
     borderRadius: Radius.full,
-    backgroundColor: OnDark.fillStrong,
-    borderWidth: 1, borderColor: OnDark.hairline,
+    backgroundColor: t.colors.mint600,
   },
-  addBtnText: { color: OnDark.primary, fontSize: Typography.sm, fontWeight: Typography.semibold },
+  addBtnText: {
+    color: t.colors.onAccent,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+  },
+
+  heroWrap: { paddingHorizontal: Spacing[4], marginBottom: Spacing[4] },
   heroEyebrow: {
-    fontSize: 11, fontWeight: Typography.extrabold,
-    color: OnDark.muted, letterSpacing: 1.4,
+    fontSize: 11,
+    fontWeight: Typography.extrabold,
+    color: t.colors.textMuted,
+    letterSpacing: 1.4,
   },
+  /**
+   * The deep-forest figure the brief asked for, in this palette's own ink.
+   *
+   * `textPrimary` IS the deep forest here (#0C2E1A against the brief's
+   * #14532D), and it is the token that has been measured against the machined
+   * surfaces — 14.77:1 on the near stop, 13.49 on the far. Reaching for
+   * `heroTint` because the hex matched the brief would be using a SURFACE
+   * token as ink, which is how the palette drifts.
+   */
+  heroValue: {
+    fontSize: 42,
+    lineHeight: 50,
+    fontWeight: Typography.extrabold,
+    letterSpacing: Tracking.display,
+    color: t.colors.textPrimary,
+    marginTop: Spacing[2],
+    ...Typography.tabular,
+  },
+  heroCaption: {
+    fontSize: Typography.sm,
+    color: t.colors.textSecondary,
+    lineHeight: 20,
+    marginTop: Spacing[1],
+  },
+  chartWrap: { marginTop: Spacing[5] },
 
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
 
