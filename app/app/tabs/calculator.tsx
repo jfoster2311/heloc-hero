@@ -25,7 +25,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
+import ImpactHero from '../../components/calculator/ImpactHero';
+import RateSentinel from '../../components/calculator/RateSentinel';
 import { Card, SectionLabel } from '../../components/ui/primitives';
 import { SectionHead, type ExplainContent } from '../../components/ui/Explain';
 import Slider from '../../components/ui/Slider';
@@ -34,7 +35,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, computeCyclingSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
-import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { CalculatorInputs } from '../../lib/types';
 import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
@@ -351,66 +352,25 @@ export default function CalculatorScreen() {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── The billboard. Everything above the fold is the answer. ────── */}
-          <Hero
-            intensity={0.85}
-            topBar={<Text style={styles.topTitle}>Calculator</Text>}
-          >
-            <Text style={styles.heroEyebrow}>YOUR PROJECTED PAYOFF</Text>
+          {/* ── The billboard. Everything above the fold is the answer. ──────
+              A deep-forest slab rather than the aurora Hero the other screens
+              carry, and the levers below overlap its lower edge. That split is
+              the screen's whole metaphor: the outcome is stated on the dark
+              half, the hardware that changes it sits on the light half, and the
+              controls straddle the join so the two read as one instrument.
 
-            {status === 'ok' && projection ? (
-              clearedOutright ? (
-                <>
-                  <HeroValue>Paid off</HeroValue>
-                  <HeroCaption>
-                    Your one-time injection covers the whole remaining balance, so
-                    there is nothing left to accelerate.
-                  </HeroCaption>
-                </>
-              ) : hasGain ? (
-                <>
-                  <HeroValue>{formatMonths(projection.acceleratedMonths)}</HeroValue>
-                  <HeroCaption>
-                    instead of {formatMonths(projection.originalMonths)} on your current schedule
-                  </HeroCaption>
-                  <View style={styles.heroMetaRow}>
-                    <Text style={styles.heroMeta}>
-                      {formatMonths(projection.monthsSaved)} sooner
-                    </Text>
-                    <Text style={styles.heroMetaDot}>·</Text>
-                    <Text style={styles.heroMeta}>
-                      ~{money(projection.interestSaved)} interest saved
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <HeroValue>{formatMonths(projection.originalMonths)}</HeroValue>
-                  <HeroCaption>
-                    Cycling doesn&apos;t change your payoff at these numbers. Add monthly
-                    surplus below — that&apos;s the fuel the strategy runs on.
-                  </HeroCaption>
-                </>
-              )
-            ) : (
-              <>
-                <HeroValue>—</HeroValue>
-                <HeroCaption>
-                  {status === 'needs-balance'
-                    ? 'Enter your remaining mortgage balance to see a projection.'
-                    : 'That payment doesn’t cover the monthly interest, so the balance would never fall. Check the payment under Advanced.'}
-                </HeroCaption>
-              </>
-            )}
-
-            {/* The assumption is stated where the number is read, not only in
-                a hint further down the page. */}
-            <Text style={styles.heroDisclaimer}>
-              {status === 'ok' && !paymentTouched
-                ? `Assumes ${termYears} years left at the payment we calculated. Change the term below, or enter your actual payment under Advanced.`
-                : 'Projected estimate from the numbers below. Not a guarantee.'}
-            </Text>
-          </Hero>
+              Every figure on it rolls. See ImpactHero — the travel is the
+              reward this screen has to offer, and a value that swaps between
+              frames is never seen moving. */}
+          <ImpactHero
+            status={status}
+            projection={projection}
+            clearedOutright={clearedOutright}
+            hasGain={hasGain}
+            termYears={termYears}
+            paymentTouched={paymentTouched}
+            topInset={insets.top}
+          />
 
           <View style={styles.content}>
           {/* ── Three inputs. Everything else is behind Advanced. ──────────── */}
@@ -482,6 +442,21 @@ export default function CalculatorScreen() {
               a11y="One-time lump sum applied to principal"
               isLast
             />
+
+            {/* ── The rate verdict ─────────────────────────────────────────
+                Hoisted out of the breakdown card further down, which is gated
+                on `interestSaved > 0` — so the user whose numbers make cycling
+                worst of all was the one least likely to be told. It renders
+                nothing when the line is cheaper than the mortgage, because
+                then cycling is doing real work and a caution would be
+                inventing a problem. */}
+            {projection && status === 'ok' && (
+              <RateSentinel
+                helocRate={inputs.helocRate}
+                mortgageRate={inputs.mortgageRate}
+                fromCycling={projection.fromCycling}
+              />
+            )}
 
             {/* The single most misreadable thing on this screen, said plainly.
                 Without it, dragging the injection slider looks like it barely
@@ -1065,6 +1040,9 @@ function LeverRow({
         maxLabel={max > soft ? money(max) : `${money(soft)}+`}
         formatValue={money}
         accessibilityLabel={a11y}
+        // The milled treatment. A variant on the shared control rather than a
+        // second slider — see the note on `machined` in components/ui/Slider.
+        machined
       />
     </View>
   );
@@ -1185,34 +1163,6 @@ function BreakdownRow({ label, value, isLast }: {
 
 const useStyles = createThemedStyles(t => ({
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
-
-  // ── Hero ──────────────────────────────────────────────────────────────────
-  topTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: OnDark.secondary,
-    marginBottom: Spacing[5],
-  },
-  heroEyebrow: {
-    fontSize: 11,
-    fontWeight: Typography.extrabold,
-    color: OnDark.muted,
-    letterSpacing: 1.4,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[2],
-    marginTop: Spacing[2],
-  },
-  heroMeta: { fontSize: Typography.sm, color: OnDark.primary, fontWeight: Typography.semibold },
-  heroMetaDot: { fontSize: Typography.sm, color: OnDark.faint },
-  heroDisclaimer: {
-    fontSize: Typography.xs,
-    color: OnDark.faint,
-    lineHeight: 17,
-    marginTop: Spacing[3],
-  },
 
   sectionTitle: {
     fontSize: Typography.base,

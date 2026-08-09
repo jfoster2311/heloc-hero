@@ -62,11 +62,26 @@ interface Props {
   formatValue?: (v: number) => string;
   accessibilityLabel: string;
   onDark?: boolean;
+  /**
+   * The machined treatment — a thicker milled track and a raised, shadowed thumb.
+   *
+   * A VARIANT rather than a second component, and that is the whole point. The
+   * physics here are hard-won: step quantisation so the readout does not
+   * flicker, a 40ms detent floor so a fast drag ticks rather than rattles, a
+   * heavier haptic at each end of the track, a grab state so the thumb shows it
+   * was caught, `onPanResponderTerminationRequest` so the enclosing ScrollView
+   * cannot steal a horizontal drag, and the VoiceOver adjustable role with
+   * increment/decrement. A second slider built for a nicer track would have to
+   * reproduce every one of those, and would drift from this one the first time
+   * either was touched.
+   */
+  machined?: boolean;
 }
 
 export default function Slider({
   value, onChange, min, max, step,
   minLabel, maxLabel, formatValue, accessibilityLabel, onDark = false,
+  machined = false,
 }: Props) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -216,11 +231,18 @@ export default function Slider({
           if (e.nativeEvent.actionName === 'decrement') emit(clampSnap(value - step));
         }}
       >
-        <View style={[styles.track, onDark && styles.trackOnDark]}>
+        <View
+          style={[
+            styles.track,
+            onDark && styles.trackOnDark,
+            machined && styles.trackMachined,
+          ]}
+        >
           <View
             style={[
               styles.fill,
               onDark && styles.fillOnDark,
+              machined && styles.fillMachined,
               { width: `${pct * 100}%` },
             ]}
           />
@@ -228,6 +250,7 @@ export default function Slider({
         <Animated.View
           style={[
             styles.thumb,
+            machined && styles.thumbMachined,
             { left: thumbLeft },
             { transform: [{ scale: grab.interpolate({ inputRange: [0, 1], outputRange: [1, GRAB_SCALE] }) }] },
           ]}
@@ -235,7 +258,10 @@ export default function Slider({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          <View style={[styles.thumbDot, { backgroundColor: colors.mint600 }]} />
+          {/* The machined thumb is a solid raised disc with no dot in it — a
+              milled cap rather than a marker. The plain thumb keeps its dot,
+              which is what gives an unfilled track a visible thumb at all. */}
+          {!machined && <View style={[styles.thumbDot, { backgroundColor: colors.mint600 }]} />}
         </Animated.View>
       </View>
 
@@ -265,6 +291,47 @@ const useStyles = createThemedStyles(t => ({
   trackOnDark: { backgroundColor: 'rgba(255,255,255,0.16)' },
   fill: { height: '100%', borderRadius: 3, backgroundColor: t.colors.mint600 },
   fillOnDark: { backgroundColor: t.colors.mint400 },
+
+  // ── The machined treatment ───────────────────────────────────────────────
+  // Thicker, so it reads as a milled channel rather than a hairline, and cut
+  // from `machinedEdge` — the same edge every silver card is bounded by, which
+  // is what makes the control look milled from the card it sits on.
+  trackMachined: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: t.colors.machinedEdge,
+  },
+  // `accentInk`, not `mint600`. A filled track has to be distinguishable from
+  // the channel behind it (WCAG 1.4.11, 3:1) and mint600 on machinedEdge
+  // measures 2.13:1 — the same failure `Semantic.underCeiling` had, and it
+  // cannot be fixed by moving the track, because mint600 tops out at 2.62:1
+  // against pure white. accentInk measures 4.05:1 light and 5.71:1 dark.
+  fillMachined: { borderRadius: 5, backgroundColor: t.colors.accentInk },
+  /**
+   * The raised cap.
+   *
+   * ── How this thumb satisfies 1.4.11, since the obvious reading says it does
+   * not ── A white thumb on the pale `machinedEdge` channel measures 1.23:1, and
+   * no fill exists that clears 3:1 against BOTH the pale channel and the dark
+   * emerald fill it straddles. What saves it is that it never has only one
+   * neighbour: anywhere past the minimum the thumb's left edge is against the
+   * `accentInk` fill at 5.0:1, which is the adjacent-colour test passing. At
+   * exactly the minimum there is no fill, and there the `borderField` ring is
+   * what draws the edge — 3.31:1 against the thumb's own face on light, 3.03:1
+   * on dark. `borderField` rather than `machinedEdge` for precisely that case:
+   * a ring the same colour as the channel would be no ring at all.
+   */
+  thumbMachined: {
+    backgroundColor: t.colors.machinedNear,
+    borderColor: t.colors.borderField,
+    // Lifted harder than the plain thumb: on a silver card the flat shadow
+    // disappears, and a thumb that does not stand off the track does not read
+    // as something you can pick up.
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
 
   thumb: {
     position: 'absolute',
