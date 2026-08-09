@@ -20,6 +20,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -56,6 +57,26 @@ export default function LoginScreen() {
   const [problem, setProblem]           = useState<AuthErrorInfo | null>(null);
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+
+  // ── TEMPORARY DIAGNOSTIC — remove once the keyboard bug is localised ──────
+  // One question, answered definitively: is the screen being REMOUNTED (a
+  // bundle reload, e.g. the tunnel dropping) or is the field merely losing
+  // FOCUS while the screen stays put? Those have completely different fixes and
+  // three rounds of reading the code has not separated them.
+  //
+  //   MOUNT abc / UNMOUNT abc / MOUNT xyz   → reload. Transport problem.
+  //   MOUNT abc ... shown ... HIDDEN, id unchanged, no UNMOUNT → blur. App bug.
+  const diagId = useRef(Math.random().toString(36).slice(2, 7)).current;
+  useEffect(() => {
+    console.log(`[kbd] MOUNT ${diagId}`);
+    const show = Keyboard.addListener('keyboardDidShow', () => console.log(`[kbd] shown  ${diagId}`));
+    const hide = Keyboard.addListener('keyboardDidHide', () => console.log(`[kbd] HIDDEN ${diagId}`));
+    return () => {
+      console.log(`[kbd] UNMOUNT ${diagId}`);
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
 
@@ -164,6 +185,8 @@ export default function LoginScreen() {
             label="Email"
             value={email}
             onChangeText={t => { setEmail(t); if (problem) setProblem(null); }}
+            onFocus={() => console.log(`[kbd] email FOCUS ${diagId}`)}
+            onBlur={() => console.log(`[kbd] email BLUR  ${diagId}`)}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
