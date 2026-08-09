@@ -276,7 +276,10 @@ export default function SignupScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          // No `keyboardDismissMode="on-drag"` — see the long note in
+          // auth/login.tsx. On a credential form it drops the keyboard on the
+          // way IN to the field, and the sign-in instrument confirmed the
+          // symptom is a blur rather than a reload.
           showsVerticalScrollIndicator={false}
         >
           {problem && (

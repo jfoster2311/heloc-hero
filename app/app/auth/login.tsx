@@ -148,7 +148,33 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          // NO `keyboardDismissMode="on-drag"` here, deliberately.
+          //
+          // It is right on the long scrolling tabs — you are reading, and the
+          // keyboard is in the way. It is hostile on a credential form: this
+          // content barely overflows, so combined with the KeyboardAvoidingView's
+          // padding shift the smallest vertical travel counts as a drag, and
+          // `on-drag` resigns the responder the moment the scroll view begins
+          // tracking. An ordinary tap into a field carries a few points of
+          // movement, so the keyboard drops on the way IN to the box just aimed
+          // at.
+          //
+          // The instrument commit (0200e5e) settled which kind of bug this is.
+          // Four dismissals, one unchanged instance id, no UNMOUNT between them,
+          // and BLUR every time BEFORE the keyboard hid: the screen is not
+          // reloading, the field is being un-focused while it sits there. Two of
+          // the four were preceded by a second `keyboardDidShow` with no hide in
+          // between — the keyboard frame changing under the finger (the AutoFill
+          // bar), which is the layout shift that turns a resting thumb into a
+          // drag. `on-drag` is the only thing on this screen that dismisses a
+          // keyboard, and it is now the only remaining candidate.
+          //
+          // `keyboardShouldPersistTaps` above is the one that matters here: it is
+          // what lets the submit button be tapped while the keyboard is up.
+          //
+          // This is a SECOND cause of the same symptom d39c265 fixed by scoping
+          // GestureHandlerRootView to the tabs. That fix was correct and is still
+          // in place; it was not the whole story.
           showsVerticalScrollIndicator={false}
         >
           {problem && (
