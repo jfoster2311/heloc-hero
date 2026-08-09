@@ -97,22 +97,7 @@ export default function ForgotPasswordScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          // NO `keyboardDismissMode="on-drag"` here, deliberately.
-          //
-          // It is right on the long scrolling tabs — you are reading, and the
-          // keyboard is in the way. It is actively hostile on a credential
-          // form: this content barely overflows, so combined with the
-          // KeyboardAvoidingView's padding shift the smallest vertical travel
-          // counts as a drag. That includes the few points of movement in an
-          // ordinary tap into a field, so the keyboard dismisses on the way IN
-          // to the box the user just aimed at.
-          //
-          // `keyboardShouldPersistTaps` below is the one that matters here: it
-          // is what lets the submit button be tapped while the keyboard is up.
-          //
-          // This is a SECOND cause of the same symptom d39c265 fixed by scoping
-          // GestureHandlerRootView to the tabs. That fix was correct and is
-          // still in place; it was not the whole story.
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {sent ? (
