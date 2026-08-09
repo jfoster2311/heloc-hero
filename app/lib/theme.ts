@@ -447,8 +447,22 @@ export const Semantic = {
   overCeiling: Colors.gray500,
   /** The track a ceiling bar is drawn in, over-budget or not. */
   ceilingTrack: Colors.gray100,
-  /** On track, and below the ceiling. The one positive mark on a budget row. */
-  underCeiling: Colors.mint600,
+  /**
+   * On track, and below the ceiling. The one positive mark on a budget row.
+   *
+   * `accentInk`, not `mint600`, and it is the same finding as the note on
+   * `accentInk` itself in a second guise. A bar fill has to be distinguishable
+   * from the track it sits in — WCAG 1.4.11, 3:1 — and `mint600` on
+   * `ceilingTrack` measures **2.30:1**. That one cannot be fixed by moving the
+   * track, which is what makes it worth writing down: `mint600` is a mid-tone
+   * and tops out at 2.62:1 against pure WHITE, so no light track exists that it
+   * clears. Darkening the track makes it worse, not better.
+   *
+   * `accentInk` measures 4.39:1 on the same track and is still unmistakably the
+   * app's green. On dark this is a no-op — `accentInk` and `mint600` are the
+   * same value there, and that pairing already measured 7.34:1.
+   */
+  underCeiling: Colors.accentInk,
 
   /**
    * Marks a row as tied to a specific linked account.
@@ -799,7 +813,7 @@ export const DarkCategoryRamp: CategoryRampTokens = {
 export const DarkSemantic: SemanticTokens = {
   overCeiling:   DarkColors.gray500,
   ceilingTrack:  DarkColors.gray100,
-  underCeiling:  DarkColors.mint600,
+  underCeiling:  DarkColors.accentInk,
   linkedAccount: DarkColors.mint600,
   selected:      DarkColors.gray400,
   hiddenOpacity: 0.4,

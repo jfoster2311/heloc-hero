@@ -22,11 +22,32 @@
 //     projections.ts, so a payoff date cannot move because a grocery ceiling did.
 //
 // ── Shape ──────────────────────────────────────────────────────────────────
-// Hub and spoke. Four widgets — spend, activity, budget, breakdown — each a
+// Four zones, top to bottom, narrowing from the verdict to the evidence:
+//
+//   A  Velocity — measured cumulative net against the planned pace. The hero,
+//      and the only place the period control lives.
+//   B  Burn rate — that reduced to one actionable sentence, mid-period.
+//   C  Category sentinel — where it leaked, plus what share of the money has no
+//      label at all and therefore cannot be trusted in the ring above it.
+//   D  Ledger — the rows, grouped by day with a net per day.
+//
+// Everything below D is unchanged and still hub-and-spoke: each widget is a
 // summary that opens the full thing, and every transaction anywhere on the
 // screen opens the SAME detail sheet. That is why the rows, the sheets and the
 // bars live in components/ rather than here: six surfaces render a transaction,
 // and they have to render it identically or the app looks assembled from parts.
+//
+// ── The surface changed, and the palette did not ───────────────────────────
+// The four zones are Machined Silver (components/ui/MachinedCard) rather than
+// the aurora-and-white-card vocabulary of the strategy screens. That is a
+// SURFACE decision, not a second palette: no token here encodes a value, the
+// greens still carry every meaning, and every ink was taken from the set
+// re-measured against these surfaces in lib/theme.ts. The brief this was built
+// from also asked for a red (#DC4A4A) on over-budget categories and on a
+// negative pace; it is not here, for the reason recorded in `Semantic` — this
+// screen shows people numbers about their own household, and severity is
+// carried by saturation plus an explicit word. Remove the colour entirely and
+// every state on this screen is still legible.
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
 } from 'react-native';
@@ -38,12 +59,14 @@ import { useScrollToTop } from '@react-navigation/native';
 import { useCallback, useMemo, useState, useRef } from 'react';
 import UpcomingMoney, { buildUpcoming } from '../../components/UpcomingMoney';
 import { parseDate } from '../../lib/mortgage';
-import Hero, { HeroValue, HeroCaption } from '../../components/ui/Hero';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import { Card } from '../../components/ui/primitives';
-import DonutRing, { buildSegments } from '../../components/ui/DonutRing';
+import { buildSegments } from '../../components/ui/DonutRing';
 import SpendThisMonth from '../../components/SpendThisMonth';
-import LatestActivity from '../../components/cashflow/LatestActivity';
+import VelocityTracker from '../../components/cashflow/VelocityTracker';
+import BurnRate from '../../components/cashflow/BurnRate';
+import CategorySentinel from '../../components/cashflow/CategorySentinel';
+import Ledger from '../../components/cashflow/Ledger';
 import BudgetWidget from '../../components/cashflow/BudgetWidget';
 import DayDetailSheet from '../../components/cashflow/DayDetailSheet';
 import TransactionDetailSheet from '../../components/sheets/TransactionDetailSheet';
@@ -62,19 +85,13 @@ import {
   previousRange, cumulativeSpend, dailyBreakdown, categoryHistory, trailingAverage,
   type PeriodId, type SpendCategory, type CategorizedTxn, type DayCell,
 } from '../../lib/spending';
-import { Typography, Spacing, Radius, OnDark, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { velocitySeries, burnRate, untaggedShare } from '../../lib/velocity';
+import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
+import { Typography, Spacing, Radius, Tracking, CATEGORY_RAMP_MAX, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 
 /** How many months the category trend charts look back over. */
 const TREND_MONTHS = 6;
-/**
- * Category rows shown before "Show more".
- *
- * Six, not four: the ring above folds to four arcs plus a tail, so a list cut
- * to four would hide the very rows the tail is asking about.
- */
-const COLLAPSED_CATS = 6;
-
 export default function CashFlowScreen() {
   /**
    * Re-tapping the active tab scrolls back to the top.
@@ -86,6 +103,10 @@ export default function CashFlowScreen() {
    */
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
+
+  // The tab layout declares a LIGHT status bar for the aurora tabs. This screen
+  // has no aurora, so it says so for itself — see hooks/useStatusBarStyle.
+  useStatusBarStyle('dark');
 
   const { categoryRamp, common, colors } = useTheme();
   const styles = useStyles();
@@ -211,6 +232,45 @@ export default function CashFlowScreen() {
   const monthSummary = useMemo(
     () => summarizePeriod({ ...summarizeArgs, range: monthRange }),
     [f.transactions, f.transactionClassification, overrides.overrides, monthRange, income, expenses],
+  );
+
+  // ── The diagnostic pair ──────────────────────────────────────────────────
+  // Both read the SAME entered figures the hero used to lead with, so the
+  // dotted line on the chart, the ceiling on the burn bar and the plan strip
+  // are three drawings of one number rather than three numbers that can drift.
+  //
+  // `plannedNet` is before the mortgage payment on purpose — see the basis note
+  // at the top of lib/velocity.ts. It is NOT the hero's `surplus`, which is
+  // after the payment and after HELOC interest; using that here would compare a
+  // post-payment plan against a pre-payment measurement, and the chart would
+  // read as a permanent shortfall of exactly one mortgage payment.
+  const velocity = useMemo(
+    () => velocitySeries({
+      transactions: f.transactions,
+      classification: f.transactionClassification,
+      range,
+      plannedNet: hasFigures ? (income - expenses) * range.months : null,
+    }),
+    [f.transactions, f.transactionClassification, range, hasFigures, income, expenses],
+  );
+
+  const burn = useMemo(
+    () => burnRate({
+      series: velocity,
+      monthlyIncome: income,
+      monthlyExpenses: expenses,
+      months: range.months,
+    }),
+    [velocity, income, expenses, range.months],
+  );
+
+  const untagged = useMemo(
+    () => untaggedShare({
+      untaggedCount: summary.untaggedCount,
+      untaggedAmount: summary.untaggedAmount,
+      spend: summary.spend,
+    }),
+    [summary.untaggedCount, summary.untaggedAmount, summary.spend],
   );
 
   const upcoming = useMemo(
@@ -389,41 +449,17 @@ export default function CashFlowScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mint600} />
         }
       >
-        <Hero
-          intensity={0.75}
-          topBar={<Text style={styles.topTitle}>Cash flow</Text>}
-        >
-          <Text style={styles.heroEyebrow}>
-            {surplus >= 0 ? 'AVAILABLE TO CYCLE EACH MONTH' : 'SHORT EACH MONTH'}
-          </Text>
-
-          {/* Committed includes interest on the linked HELOC balance, so while
-              that balance is loading it is missing and the surplus above it
-              reads HIGH — the flattering direction, on the figure the whole
-              strategy is sized from. */}
-          {f.loading ? (
-            <SkeletonGroup label="Working out what you have left each month" style={styles.heroSkeleton}>
-              <Skeleton onDark width={170} height={40} radius={Radius.sm} />
-              <Skeleton onDark width={230} height={13} />
-            </SkeletonGroup>
-          ) : (
-            <>
-              <HeroValue>
-                {hasFigures ? `${surplus < 0 ? '−' : ''}$${fmt(Math.abs(surplus))}` : '—'}
-              </HeroValue>
-              <HeroCaption>
-                {hasFigures
-                  ? `${committedPct.toFixed(0)}% of your income is already committed` +
-                    (surplus < 0
-                      ? ' — there is nothing left to cycle'
-                      : f.helocBalanceUnknown
-                        ? ', before what your line charges — add its balance to include that'
-                        : '')
-                  : 'Add your income and expenses to see what the strategy has to work with'}
-              </HeroCaption>
-            </>
-          )}
-        </Hero>
+        {/* ── The top bar ──────────────────────────────────────────────────
+            No aurora on this tab, and that is the deliberate inversion: the
+            Dashboard is where the strategy is stated, in deep green with one
+            display figure on it. This screen is the instrument that checks it,
+            so it is lit like a bench rather than a stage. `useStatusBarStyle`
+            above is not optional once that decision is made — the tab layout
+            declares a LIGHT status bar for the aurora tabs, and left alone the
+            clock would be white on a near-white canvas. */}
+        <View style={[styles.topBar, { paddingTop: insets.top + Spacing[3] }]}>
+          <Text style={styles.topTitle}>Cash flow</Text>
+        </View>
 
         <View style={styles.content}>
         {!f.loading && f.error && (
@@ -441,14 +477,20 @@ export default function CashFlowScreen() {
           </Touchable>
         )}
 
-        {/* ── Period toggle ────────────────────────────────────────────────
-            Sits above the cards rather than inside one: it governs everything
-            below it, and burying it in the first card would imply it only
-            drives that card's figures. The budget card is the one exception,
-            and it says which month it is reporting on. */}
-        <PeriodToggle
-          value={period}
-          onChange={p => {
+        {/* ── ZONE A · the velocity tracker ────────────────────────────────
+            The hero of the screen, and the period control lives in its header.
+            That reverses an earlier decision to keep the toggle above every
+            card — the reasoning then was that burying it in the first card
+            would imply it only drove that card. It is safe now for the reason
+            that made it unsafe before: this IS the first thing on the screen,
+            with nothing above it for a floating control to belong to, and every
+            card beneath still prints the window it is reporting on. */}
+        <VelocityTracker
+          series={velocity}
+          range={range}
+          period={period}
+          ready={!f.loading}
+          onChangePeriod={p => {
             hapticSelection();
             setPeriod(p);
             // The window changed, so the arc that was selected is describing a
@@ -459,96 +501,80 @@ export default function CashFlowScreen() {
           }}
         />
 
-        {/* ── Spend, as a curve or a grid ────────────────────────────────── */}
-        {!f.loading && spend && spend.cur.days > 0 && (
-          <SpendThisMonth
-            cur={spend.cur}
-            prev={spend.prev}
-            days={spend.days}
-            period={period}
-            // "· nothing measured" earns its place now that this card survives
-            // a quiet window. Its total is measured and reads $0; the summary
-            // card further down falls back to the ENTERED monthly figures and
-            // reads $2,400. Both are correct and they are answering different
-            // questions, but two spend totals on one screen with no explanation
-            // is a screen nobody can trust. This is the explanation, and it sits
-            // on the figure that would otherwise look wrong.
-            rangeLabel={
-              range.rangeLabel +
-              (range.inProgress ? ' · in progress' : '') +
-              (summary.basis === 'live' ? '' : ' · nothing measured')
+        {/* ── The plan the dotted line is drawn from ───────────────────────
+            This is what the aurora hero used to carry, at the altitude it now
+            deserves: the chart above is measured and this is what it is being
+            measured against, so it reads as the caption to that comparison
+            rather than as the screen's headline. Every fact the hero stated is
+            still here, including that an unknown HELOC balance inflates it. */}
+        {!f.loading && (
+          <Touchable
+            style={styles.plan}
+            onPress={() => { router.push('/modals/assumptions' as never); }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              hasFigures
+                ? `Your plan: ${surplus < 0 ? 'minus ' : ''}$${fmt(Math.abs(surplus))} a month ` +
+                  `available to cycle, ${committedPct.toFixed(0)} percent of income committed. Edit.`
+                : 'Add your income and expenses'
             }
-            // The dashed level is the user's total budget once they have set
-            // ceilings, and their own stated spend before that. Both are named
-            // for what they are — calling an unset figure "Budget" would invent
-            // a commitment they never made.
-            reference={
-              totalCeiling !== null && period === 'month'
-                ? { amount: totalCeiling, label: 'Your budget' }
-                : expenses > 0
-                  ? { amount: expenses * range.months, label: 'What you said you spend' }
-                  : null
-            }
-            onSelectDay={setOpenDay}
-          />
+          >
+            <View style={styles.planBody}>
+              <Text style={styles.planTitle}>
+                {hasFigures
+                  ? `Your plan: ${surplus < 0 ? '−' : ''}$${fmt(Math.abs(surplus))} a month ` +
+                    `${surplus < 0 ? 'short' : 'to cycle'}`
+                  : 'No plan on file yet'}
+              </Text>
+              <Text style={styles.planSub}>
+                {hasFigures
+                  ? `${committedPct.toFixed(0)}% of your income is already committed` +
+                    (surplus < 0
+                      ? ' — there is nothing left to cycle'
+                      : f.helocBalanceUnknown
+                        ? ', before what your line charges — add its balance to include that'
+                        : '')
+                  : 'Add your income and expenses to see what the strategy has to work with'}
+              </Text>
+            </View>
+            <Text style={styles.planAction}>{hasFigures ? 'Edit' : 'Add'}</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+          </Touchable>
         )}
 
-        {/* ── Latest activity ───────────────────────────────────────────── */}
-        {!f.loading && !overrides.loading && hasSpendData && (
-          <LatestActivity
-            rows={recent}
-            metaFor={txnMeta.get}
-            categoryFor={f.categories.metaFor}
-            onOpenRow={setOpenTxn}
-            onOpenAll={() => router.push('/modals/activity' as never)}
-          />
-        )}
+        {/* ── ZONE B · burn rate ───────────────────────────────────────────
+            Deliberately not gated on having transactions. With nothing linked
+            it states that it needs figures, which is a different message from
+            not existing — a card that vanishes teaches people the app is
+            broken. See the note in lib/velocity.ts on why it judges SPENDING
+            pace rather than net. */}
+        {!f.loading && <BurnRate burn={burn} period={period} />}
 
-        {/* ── Budget ────────────────────────────────────────────────────── */}
-        {/* Deliberately NOT gated on having transactions. Deciding what you
-            mean to spend is a plan, and a plan does not need a bank connection
-            to be worth writing down — gating it meant the one screen that could
-            have given a free, unlinked user something to do showed them nothing.
-            `spentMeasured` is what keeps that honest: with nothing measured the
-            widget states the ceilings and says so, rather than dressing the
-            user's own entered expense figure up as spending we observed. */}
-        {!f.loading && !budgets.loading && (
-          <BudgetWidget
-            categories={monthSummary.categories}
-            budgets={budgets.budgets}
-            totalCeiling={totalCeiling}
-            totalSpent={monthSummary.spend}
-            spentMeasured={monthSummary.basis === 'live'}
-            monthLabel={monthLabel}
-            categoryFor={f.categories.metaFor}
-            onOpenCategory={openCategoryById}
-            onOpenAll={() => router.push('/modals/budget' as never)}
-            onStartBudget={() => router.push('/modals/budget' as never)}
-          />
-        )}
-
-        {/* ── The breakdown ────────────────────────────────────────────────
+        {/* ── ZONE C · the category sentinel ───────────────────────────────
             Only ever drawn from real transactions. With nothing linked there is
             nothing to break down, and a ring invented from one typed expense
-            total would be a picture of a measurement that never happened. */}
-        <Card style={styles.ringCard}>
-          <Touchable
-            style={styles.ringHead}
-            onPress={() => { router.push('/modals/breakdown' as never); }}
-            accessibilityRole="button"
-            accessibilityLabel="Breakdown"
-            accessibilityHint="Opens the full breakdown by category and merchant"
-          >
-            <Text style={common.eyebrow}>BREAKDOWN</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-          </Touchable>
-
-          <View style={styles.rangeRow}>
-            <Text style={styles.rangeLabel}>{range.rangeLabel}</Text>
-            {range.inProgress && <Text style={styles.rangeNote}>· in progress</Text>}
-          </View>
-
-          {f.loading || overrides.loading ? (
+            total would be a picture of a measurement that never happened — so
+            the `empty` prop below carries three DIFFERENT emptinesses and only
+            one of them is the user's to fix. */}
+        <CategorySentinel
+          categories={summary.categories}
+          segments={ring.segments}
+          colorFor={ring.colorFor}
+          budgets={budgets.budgets}
+          untagged={untagged}
+          rangeLabel={range.rangeLabel}
+          inProgress={range.inProgress}
+          centerLabel={center.label}
+          centerValue={center.value}
+          centerSub={center.sub}
+          selectedKey={selectedSeg?.key ?? null}
+          onSelectArc={handleSelectArc}
+          expanded={catsExpanded}
+          onToggleExpanded={() => { setCatsExpanded(e => !e); }}
+          onOpenCategory={openCategoryById}
+          onOpenAll={() => { router.push('/modals/breakdown' as never); }}
+          onCategorize={() => { hapticLight(); router.push('/modals/activity' as never); }}
+          empty={f.loading || overrides.loading ? (
             <SkeletonGroup label="Loading your spending by category" style={styles.ringSkeleton}>
               <Skeleton width={216} height={216} radius={108} />
               <Skeleton width={150} height={13} />
@@ -606,104 +632,92 @@ export default function CashFlowScreen() {
                 </Touchable>
               ) : null}
             </View>
-          ) : (
-            <DonutRing
-              segments={ring.segments}
-              centerLabel={center.label}
-              centerValue={center.value}
-              centerSub={center.sub}
-              selectedKey={selectedSeg?.key ?? null}
-              onSelect={handleSelectArc}
-            />
-          )}
-        </Card>
+          ) : null}
+        />
 
-        {/* ── Category rows ────────────────────────────────────────────────
-            Each its own surface, so a row is a target rather than a line in a
-            table. The swatch repeats the arc colour and the name repeats the
-            icon: identity survives with the colour removed entirely. */}
-        {!f.loading && !overrides.loading && summary.categories.length > 0 && (
-          <View style={styles.catList}>
-            {(catsExpanded ? summary.categories : summary.categories.slice(0, COLLAPSED_CATS)).map(c => {
-              const isSelected = selectedCat?.id === c.id;
-              return (
-              <Touchable
-                key={c.id}
-                // Marked, never dimmed-out. The ring is where selection changes
-                // what you are looking at; down here it only says WHICH row the
-                // arc belongs to, so the other rows stay fully legible.
-                style={[styles.catCard, isSelected && styles.catCardSelected]}
-                onPress={() => { openCategoryById(c.id); }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
-                accessibilityLabel={
-                  `${c.label}, $${fmt(c.amount)}, ${c.pct.toFixed(0)} percent of spending, ` +
-                  `${c.count} transaction${c.count === 1 ? '' : 's'}`
-                }
-                accessibilityHint="Shows the transactions in this category"
-              >
-                <View style={styles.catIcon}>
-                  <Ionicons name={c.icon} size={18} color={colors.mint700} />
-                  {/* The swatch ties the row to its arc. It is a second cue,
-                      never the only one — the icon and name carry identity. */}
-                  <View
-                    style={[
-                      styles.catSwatch,
-                      { backgroundColor: ring.colorFor[c.id] ?? categoryRamp.neutral },
-                    ]}
-                  />
-                </View>
+        {/* ── ZONE D · the ledger ─────────────────────────────────────────
+            Grouped by day with a net per day, which is the other end of the
+            scrub gesture on the chart above: that says WHEN the line stepped,
+            this says what caused it. */}
+        {!f.loading && !overrides.loading && hasSpendData && (
+          <Ledger
+            rows={recent}
+            metaFor={txnMeta.get}
+            categoryFor={f.categories.metaFor}
+            onOpenRow={setOpenTxn}
+            onOpenAll={() => router.push('/modals/activity' as never)}
+            // The swipe opens the same sheet a tap does. It is a shortcut to
+            // the category picker, never a second way to write a category —
+            // one write path, in TransactionDetailSheet.
+            onCategorize={setOpenTxn}
+          />
+        )}
 
-                <View style={styles.catBody}>
-                  <Text style={styles.catLabel} numberOfLines={1}>{c.label}</Text>
-                  <Text style={styles.catMeta}>
-                    {c.pct.toFixed(0)}% · {c.count} transaction{c.count === 1 ? '' : 's'}
-                  </Text>
-                </View>
+        {/* ── Spend, as a curve or a grid ────────────────────────────────── */}
+        {!f.loading && spend && spend.cur.days > 0 && (
+          <SpendThisMonth
+            cur={spend.cur}
+            prev={spend.prev}
+            days={spend.days}
+            period={period}
+            // "· nothing measured" earns its place now that this card survives
+            // a quiet window. Its total is measured and reads $0; the summary
+            // card further down falls back to the ENTERED monthly figures and
+            // reads $2,400. Both are correct and they are answering different
+            // questions, but two spend totals on one screen with no explanation
+            // is a screen nobody can trust. This is the explanation, and it sits
+            // on the figure that would otherwise look wrong.
+            rangeLabel={
+              range.rangeLabel +
+              (range.inProgress ? ' · in progress' : '') +
+              (summary.basis === 'live' ? '' : ' · nothing measured')
+            }
+            // The dashed level is the user's total budget once they have set
+            // ceilings, and their own stated spend before that. Both are named
+            // for what they are — calling an unset figure "Budget" would invent
+            // a commitment they never made.
+            reference={
+              totalCeiling !== null && period === 'month'
+                ? { amount: totalCeiling, label: 'Your budget' }
+                : expenses > 0
+                  ? { amount: expenses * range.months, label: 'What you said you spend' }
+                  : null
+            }
+            onSelectDay={setOpenDay}
+          />
+        )}
 
-                <Text style={styles.catAmount}>${fmt(c.amount)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-              </Touchable>
-              );
-            })}
+        {/* ── Budget ────────────────────────────────────────────────────── */}
+        {/* Deliberately NOT gated on having transactions. Deciding what you
+            mean to spend is a plan, and a plan does not need a bank connection
+            to be worth writing down — gating it meant the one screen that could
+            have given a free, unlinked user something to do showed them nothing.
+            `spentMeasured` is what keeps that honest: with nothing measured the
+            widget states the ceilings and says so, rather than dressing the
+            user's own entered expense figure up as spending we observed. */}
+        {!f.loading && !budgets.loading && (
+          <BudgetWidget
+            categories={monthSummary.categories}
+            budgets={budgets.budgets}
+            totalCeiling={totalCeiling}
+            totalSpent={monthSummary.spend}
+            spentMeasured={monthSummary.basis === 'live'}
+            monthLabel={monthLabel}
+            categoryFor={f.categories.metaFor}
+            onOpenCategory={openCategoryById}
+            onOpenAll={() => router.push('/modals/budget' as never)}
+            onStartBudget={() => router.push('/modals/budget' as never)}
+          />
+        )}
 
-            {/* Progressive disclosure. The count is stated rather than a bare
-                "See more", because four more rows and forty more rows are
-                different decisions and only the number distinguishes them. */}
-            {summary.categories.length > COLLAPSED_CATS && (
-              <Touchable
-                style={styles.seeMore}
-                onPress={() => { setCatsExpanded(e => !e); }}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: catsExpanded }}
-                accessibilityLabel={
-                  catsExpanded
-                    ? 'Show fewer categories'
-                    : `Show ${summary.categories.length - COLLAPSED_CATS} more categories`
-                }
-              >
-                <Text style={styles.seeMoreText}>
-                  {catsExpanded
-                    ? 'Show fewer'
-                    : `Show ${summary.categories.length - COLLAPSED_CATS} more`}
-                </Text>
-                <Ionicons
-                  name={catsExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={15}
-                  color={colors.mint700}
-                />
-              </Touchable>
-            )}
-
-            {summary.untaggedCount > 0 && (
-              <Text style={styles.untagged}>
-                {summary.untaggedCount} transaction{summary.untaggedCount === 1 ? '' : 's'} your
-                bank didn&apos;t label {summary.untaggedCount === 1 ? 'is' : 'are'} sitting in
-                Other. Open it to retag {summary.untaggedCount === 1 ? 'it' : 'them'}.
-              </Text>
-            )}
-            {overrides.error && <Text style={styles.errorNote}>{overrides.error}</Text>}
-            {txnMeta.error && <Text style={styles.errorNote}>{txnMeta.error}</Text>}
+        {/* The two writes this screen can fail at. Kept out of the Sentinel
+            card on purpose — a save error is about the app, not about the
+            user's spending, and burying it inside a chart card is how it goes
+            unread. */}
+        {(overrides.error || txnMeta.error) && (
+          <View style={styles.errorBlock}>
+            {overrides.error ? <Text style={styles.errorNote}>{overrides.error}</Text> : null}
+            {txnMeta.error ? <Text style={styles.errorNote}>{txnMeta.error}</Text> : null}
           </View>
         )}
 
@@ -1032,35 +1046,6 @@ export default function CashFlowScreen() {
 
 // ─── Period controls ──────────────────────────────────────────────────────────
 
-/** Pill segmented control. Active pill filled solid; the rest sit outlined. */
-function PeriodToggle({ value, onChange }: {
-  value: PeriodId;
-  onChange: (p: PeriodId) => void;
-}) {
-  const styles = useStyles();
-  return (
-    <View style={styles.toggle} accessibilityRole="tablist">
-      {PERIODS.map(p => {
-        const active = p.id === value;
-        return (
-          <Touchable
-            key={p.id}
-            style={[styles.pill, active && styles.pillActive]}
-            onPress={() => onChange(p.id)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={`Show this ${p.label.toLowerCase()}`}
-          >
-            <Text style={[styles.pillText, active && styles.pillTextActive]}>
-              {p.label}
-            </Text>
-          </Touchable>
-        );
-      })}
-    </View>
-  );
-}
-
 /**
  * One line of the income/spend/net summary.
  *
@@ -1324,20 +1309,49 @@ function fmt(n: number) { return Math.round(n).toLocaleString('en-US'); }
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const useStyles = createThemedStyles(t => ({
-  topTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: OnDark.secondary,
-    marginBottom: Spacing[5],
+  topBar: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
   },
-  heroEyebrow: {
-    fontSize: 11,
+  // `textPrimary`, not `OnDark.secondary`. This title used to sit on the aurora
+  // and moved onto the light canvas with the rest of the screen — which is
+  // exactly the failure lib/theme.ts warns about: a token measured on one
+  // surface is not measured on another, and white-at-72% on #ECF7EF is 1.2:1.
+  topTitle: {
+    fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: OnDark.muted,
-    letterSpacing: 1.4,
+    letterSpacing: Tracking.heading,
+    color: t.colors.textPrimary,
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
-  heroSkeleton: { gap: Spacing[3], paddingVertical: Spacing[2] },
+
+  // ── The plan strip ───────────────────────────────────────────────────────
+  plan: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    minHeight: 44,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    borderRadius: Radius.lg,
+    backgroundColor: t.colors.mint50,
+    borderWidth: 1,
+    borderColor: t.colors.mint200,
+  },
+  planBody: { flex: 1, gap: 2 },
+  planTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
+    color: t.colors.mint700,
+  },
+  planSub: { fontSize: 11, color: t.colors.textSecondary, lineHeight: 16 },
+  planAction: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: t.colors.accentInk,
+  },
+
+  errorBlock: { gap: Spacing[2] },
 
   staleBanner: {
     flexDirection: 'row',
@@ -1382,37 +1396,8 @@ const useStyles = createThemedStyles(t => ({
     color: t.colors.textPrimary,
   },
   cardStatusInline: { fontSize: Typography.xs, color: t.colors.textMuted },
-  ringHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    alignSelf: 'stretch',
-    minHeight: 44,
-  },
-
-  // ── Period toggle ────────────────────────────────────────────────────────
-  toggle: { flexDirection: 'row', gap: Spacing[2] },
-  pill: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: t.colors.border,
-    backgroundColor: t.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing[2],
-  },
-  pillActive: {
-    backgroundColor: t.colors.mint800,
-    borderColor: t.colors.mint800,
-    ...t.shadows.card,
-  },
-  pillText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: t.colors.textSecondary },
-  pillTextActive: { color: t.colors.white, fontWeight: Typography.semibold },
 
   // ── Ring card ────────────────────────────────────────────────────────────
-  ringCard: { alignItems: 'center', gap: Spacing[4] },
   ringSkeleton: { alignItems: 'center', gap: Spacing[4] },
   emptyRing: {
     width: 64, height: 64, borderRadius: 32,
@@ -1420,10 +1405,6 @@ const useStyles = createThemedStyles(t => ({
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'center',
   },
-
-  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1] },
-  rangeLabel: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: t.colors.textSecondary },
-  rangeNote: { fontSize: Typography.xs, color: t.colors.textMuted },
 
   // ── Summary card ─────────────────────────────────────────────────────────
   sumRow: {
@@ -1541,72 +1522,7 @@ const useStyles = createThemedStyles(t => ({
     borderTopColor: t.colors.borderSubtle,
   },
 
-  // ── Category list ────────────────────────────────────────────────────────
-  catList: { gap: Spacing[2] },
-  catCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    minHeight: 68,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: t.colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: t.colors.borderSubtle,
-    ...t.shadows.card,
-  },
-  // borderField, not border: this is the one card whose outline has to be
-  // legible as a state rather than read as decoration.
-  catCardSelected: { borderColor: t.colors.borderField, backgroundColor: t.colors.mint50 },
-  catIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: t.colors.mint50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  catSwatch: {
-    position: 'absolute',
-    right: -1,
-    bottom: -1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: t.colors.surface,
-  },
-  catBody: { flex: 1, gap: 2 },
-  catLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.textPrimary },
-  catAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: t.colors.textPrimary },
-  catMeta: { fontSize: 11, color: t.colors.textMuted },
-
-  untagged: {
-    fontSize: Typography.xs,
-    color: t.colors.textSecondary,
-    lineHeight: 17,
-    marginTop: Spacing[3],
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[3],
-    borderRadius: Radius.md,
-    backgroundColor: t.colors.mint50,
-  },
   errorNote: { fontSize: Typography.xs, color: t.colors.textSecondary, marginTop: Spacing[3] },
-
-  seeMore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    minHeight: 44,
-    marginTop: Spacing[1],
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: t.colors.mint200,
-    backgroundColor: t.colors.mint50,
-  },
-  seeMoreText: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: t.colors.mint700 },
 
   stateBlock: { gap: Spacing[3] },
   emptyBody: { fontSize: Typography.sm, color: t.colors.textSecondary, lineHeight: 20 },

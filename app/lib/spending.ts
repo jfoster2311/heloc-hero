@@ -353,6 +353,15 @@ export interface PeriodSummary {
   inflows: CategorizedTxn[];
   /** Rows Plaid could not place, sitting in Other until the user tags them. */
   untaggedCount: number;
+  /**
+   * Dollars behind `untaggedCount`.
+   *
+   * Summed here rather than at the call site because the rule for what counts as
+   * untagged — no user override AND `isUncategorized` — lives in this function.
+   * A screen re-deriving it would drift the first time that rule changed, and
+   * the two figures are read in the same sentence.
+   */
+  untaggedAmount: number;
 }
 
 /**
@@ -407,12 +416,14 @@ export function summarizePeriod(args: {
       rows: [],
       inflows: [],
       untaggedCount: 0,
+      untaggedAmount: 0,
     };
   }
 
   let income = 0;
   let spend  = 0;
   let untaggedCount = 0;
+  let untaggedAmount = 0;
   const totals = new Map<SpendCategory, { amount: number; count: number }>();
   const rows: CategorizedTxn[] = [];
   const inflows: CategorizedTxn[] = [];
@@ -432,7 +443,7 @@ export function summarizePeriod(args: {
 
     const override = overrides[t.transaction_id];
     const category = override ?? defaultCategory(t);
-    if (!override && isUncategorized(t)) untaggedCount++;
+    if (!override && isUncategorized(t)) { untaggedCount++; untaggedAmount += t.amount; }
 
     rows.push({ txn: t, category, overridden: override !== undefined });
     const bucket = totals.get(category) ?? { amount: 0, count: 0 };
@@ -465,6 +476,7 @@ export function summarizePeriod(args: {
     rows,
     inflows,
     untaggedCount,
+    untaggedAmount,
   };
 }
 

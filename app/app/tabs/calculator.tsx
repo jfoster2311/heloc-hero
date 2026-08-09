@@ -37,6 +37,7 @@ import { hapticLight, hapticSelection } from '../../lib/haptics';
 import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { CalculatorInputs } from '../../lib/types';
+import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
 
 
 // Years LEFT on the note, not the original term. Most people running this
@@ -133,6 +134,11 @@ function money(n: number): string {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CalculatorScreen() {
+  // This tab opens on the aurora, so the clock stays light. Declared here
+  // rather than inherited: two tabs are now light-topped and set it dark, and
+  // whichever screen was visited last would otherwise win. See the hook.
+  useStatusBarStyle('light');
+
   /**
    * Re-tapping the active tab scrolls back to the top.
    *

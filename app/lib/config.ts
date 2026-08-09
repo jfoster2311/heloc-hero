@@ -47,6 +47,40 @@ export const MAX_SURPLUS_WINDOW_MONTHS = 24;
  */
 export const CASHFLOW_MATERIAL_GAP_PCT = 0.15;
 
+/**
+ * The Cash flow tab's diagnostic thresholds — see lib/velocity.ts.
+ *
+ * Every one of these turns into a sentence with a judgement in it, which is
+ * exactly the kind of number this file exists to keep out of JSX.
+ */
+export const VELOCITY = {
+  /**
+   * Elapsed days before a spending pace may be published at all.
+   *
+   * Rate extrapolation from a two-day sample is not a projection, it is an
+   * accident of when the rent cleared. Under this, the card says it is too early
+   * rather than printing a figure that will swing by hundreds tomorrow.
+   */
+  minElapsedDays: 5,
+  /**
+   * How far off the planned pace still counts as "on it", in percent.
+   *
+   * Without a band, a card whose whole job is to be checked daily would flip
+   * between "over" and "under" on a single coffee, and the user would learn to
+   * ignore it.
+   */
+  paceTolerancePct: 5,
+  /**
+   * Share of period spend in Other before the breakdown is called unreliable.
+   *
+   * Below this the ring is still broadly true and a banner would be nagging.
+   * Above it, the largest arc on the chart may well be the unnamed one.
+   */
+  untaggedCalloutPct: 15,
+  /** Categories ranked in the leak-detection column beside the ring. */
+  topOffenders: 3,
+} as const;
+
 /** Don't re-sync transactions more often than this from the client. */
 export const TXN_SYNC_INTERVAL_HOURS = 6;
 

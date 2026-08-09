@@ -43,6 +43,7 @@ import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { LinkedAccount, PlaidAccountType } from '../../lib/types';
+import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
 
 /**
  * Spans of the PROJECTION, not ranges of history.
@@ -61,6 +62,11 @@ const HORIZONS: { label: string; months: number | null; a11y: string }[] = [
 ];
 
 export default function AccountsScreen() {
+  // This tab opens on the aurora, so the clock stays light. Declared here
+  // rather than inherited: two tabs are now light-topped and set it dark, and
+  // whichever screen was visited last would otherwise win. See the hook.
+  useStatusBarStyle('light');
+
   /**
    * Re-tapping the active tab scrolls back to the top.
    *

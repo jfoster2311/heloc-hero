@@ -33,6 +33,7 @@ import { hapticLight } from '../../lib/haptics';
 import { UTILIZATION, BUFFER } from '../../lib/config';
 import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
+import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
 
 /** Thresholds read from config so the copy cannot outlive the numbers. */
 const REPLENISH_PCT = Math.round(UTILIZATION.replenishThreshold * 100);
@@ -223,6 +224,11 @@ const FAQ = [
 ];
 
 export default function LearnScreen() {
+  // This tab opens on the aurora, so the clock stays light. Declared here
+  // rather than inherited: two tabs are now light-topped and set it dark, and
+  // whichever screen was visited last would otherwise win. See the hook.
+  useStatusBarStyle('light');
+
   /**
    * Re-tapping the active tab scrolls back to the top.
    *

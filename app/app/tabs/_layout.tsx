@@ -43,9 +43,13 @@ export default function TabsLayout() {
     // `flex: 1` is not optional — without it the subtree collapses to zero
     // height and the tabs render blank.
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Every tab opens on the aurora, so the clock and battery have to be
-          light. Modals re-declare it as dark when they slide over the top. */}
-      <StatusBar style="light" />
+      {/* The first paint only. Tabs no longer agree on this — Dashboard and
+          Cash flow are light-topped and set it dark, the other three open on
+          the aurora and set it light — so each screen declares for itself via
+          `useStatusBarStyle`, which runs on FOCUS rather than on mount. This is
+          the value before any of them has been focused, and it matches the tab
+          that opens first. Modals re-declare it when they slide over the top. */}
+      <StatusBar style="dark" />
       <Tabs
       screenOptions={{
         headerShown: false,

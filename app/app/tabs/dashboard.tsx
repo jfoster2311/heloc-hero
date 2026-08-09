@@ -82,8 +82,14 @@ import { isPaidTier } from '../../lib/pricing';
 import { hapticLight, hapticSuccess, hapticError } from '../../lib/haptics';
 import { Typography, Spacing, Radius, Tracking, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
+import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
 
 export default function DashboardScreen() {
+  // The monolith hero replaced this screen's aurora, which left a LIGHT status
+  // bar over a near-white canvas — white-on-#ECF7EF, so the clock and the
+  // battery were invisible. See hooks/useStatusBarStyle.
+  useStatusBarStyle('dark');
+
   /**
    * Re-tapping the active tab scrolls back to the top.
    *

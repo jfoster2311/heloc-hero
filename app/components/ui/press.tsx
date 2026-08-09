@@ -265,6 +265,15 @@ export interface TouchableProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilityState?: React.ComponentProps<typeof Pressable>['accessibilityState'];
+  /**
+   * Custom actions, for a control that also answers to a gesture.
+   *
+   * A swipe is invisible to VoiceOver and to Switch Control, so any row that
+   * hides an action behind one has to publish that action here as well or the
+   * action does not exist for those users. Paired with `onAccessibilityAction`.
+   */
+  accessibilityActions?: React.ComponentProps<typeof Pressable>['accessibilityActions'];
+  onAccessibilityAction?: React.ComponentProps<typeof Pressable>['onAccessibilityAction'];
   hitSlop?: React.ComponentProps<typeof Pressable>['hitSlop'];
   /**
    * For the rare control that should be invisible to assistive tech — the
@@ -300,7 +309,8 @@ export function Touchable({
   children, onPress, onLongPress, style,
   scale = PressScale.control, haptic = 'light', disabled,
   accessibilityRole = 'button', accessibilityLabel, accessibilityHint,
-  accessibilityState, hitSlop, accessible, importantForAccessibility, testID,
+  accessibilityState, accessibilityActions, onAccessibilityAction,
+  hitSlop, accessible, importantForAccessibility, testID,
 }: TouchableProps) {
   const { animatedStyle, handlers, fireHaptic } = usePressScale({ scale, haptic, disabled });
 
@@ -325,6 +335,8 @@ export function Touchable({
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!disabled, ...accessibilityState }}
+      accessibilityActions={accessibilityActions}
+      onAccessibilityAction={onAccessibilityAction}
       {...handlers}
     >
       {children}
