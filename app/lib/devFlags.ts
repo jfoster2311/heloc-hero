@@ -11,24 +11,41 @@
 // affect a production build — Metro dead-strips the whole thing.
 import Constants from 'expo-constants';
 
-function flag(name: string, envValue: string | undefined): boolean {
-  const extra = Constants.expoConfig?.extra?.[name] as unknown;
-  // app.json -> extra wins, but only when actually set: an empty string there
-  // must fall through to the env var rather than shadow it. See lib/supabase.ts,
-  // where `??` did not catch "" and silently produced empty Supabase keys.
-  const set = typeof extra === 'boolean' || (typeof extra === 'string' && extra !== '');
-  const raw = set ? extra : envValue;
-
+function on(raw: unknown): boolean {
   if (typeof raw === 'boolean') return raw;
   return raw === 'true' || raw === '1';
+}
+
+/**
+ * On if EITHER source says so, rather than app.json winning outright.
+ *
+ * The precedence version could not express "off by default, on for my machine".
+ * `extra.devAuthBypass` is present and `false` in app.json — the honest way to
+ * write a default — and the old rule counted any boolean as "set", so that
+ * `false` shadowed the env var and the `EXPO_PUBLIC_…` route this module's own
+ * docstring recommends could never turn anything on. Same family of mistake as
+ * the empty-string one it was written to avoid: a falsy value that is present
+ * still counts as an answer.
+ *
+ * OR is also the safer shape for a dev shortcut. Neither source can silently
+ * DISABLE a flag the other enabled, and the default with both absent is off.
+ * It matters because the tracked file is now the one that stays `false`: the
+ * switch lives in .env, which is gitignored, so turning a bypass on for an
+ * afternoon cannot ride into a commit.
+ */
+function flag(name: string, envValue: string | undefined): boolean {
+  return on(Constants.expoConfig?.extra?.[name]) || on(envValue);
 }
 
 /**
  * Skips the Supabase auth + onboarding guards and drops straight into /tabs.
  * OFF by default so dev runs exercise the real sign-in path.
  *
- * To enable: set `extra.devAuthBypass` to true in app.json (or
- * EXPO_PUBLIC_DEV_AUTH_BYPASS=true) and reload. Never active in production.
+ * To enable: EXPO_PUBLIC_DEV_AUTH_BYPASS=true in app/.env, then RESTART Metro —
+ * env is read once at server start, so a reload alone will not pick it up.
+ * .env is gitignored, which is why it is the recommended switch over
+ * `extra.devAuthBypass` in app.json: a tracked file left on gets committed on.
+ * Never active in production.
  */
 export const DEV_AUTH_BYPASS =
   __DEV__ && flag('devAuthBypass', process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS);
