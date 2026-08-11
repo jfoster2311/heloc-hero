@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ModalHeader from '../../components/ui/ModalHeader';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -320,17 +321,9 @@ export default function SettingsModal() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <Touchable
-          onPress={() => { router.back(); }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Close settings"
-        >
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </Touchable>
-      </View>
+      {/* Shared bar — see ModalHeader. This screen's own version had a 40pt
+          close target and declared no status bar. */}
+      <ModalHeader title="Settings" closeLabel="Close settings" divider />
 
       <ScrollView
         ref={scrollRef}
@@ -714,17 +707,6 @@ function ToggleRow({
 
 const useStyles = createThemedStyles(t => ({
   container: { flex: 1, backgroundColor: t.colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    backgroundColor: t.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: t.colors.border,
-  },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
   content: { padding: Spacing[4], gap: Spacing[2], paddingBottom: Spacing[10] },
   sectionHeader: {
     flexDirection: 'row',

@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ModalHeader from '../../components/ui/ModalHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
@@ -219,16 +220,7 @@ export default function MoveMoneyModal() {
     const noNet = net === null;
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Move recorded</Text>
-          <Touchable
-            onPress={() => { router.back(); }}
-            style={styles.closeBtn}
-            accessibilityLabel="Close"
-          >
-            <Ionicons name="close" size={22} color={colors.textSecondary} />
-          </Touchable>
-        </View>
+        <ModalHeader title="Move recorded" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
@@ -320,16 +312,7 @@ export default function MoveMoneyModal() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Move money to your mortgage?</Text>
-        <Touchable
-          onPress={() => { router.back(); }}
-          style={styles.closeBtn}
-          accessibilityLabel="Close"
-        >
-          <Ionicons name="close" size={22} color={colors.textSecondary} />
-        </Touchable>
-      </View>
+      <ModalHeader title="Move money to your mortgage?" />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -624,24 +607,6 @@ function fmtPct(v: number) { return `${Math.round(v * 100)}%`; }
 
 const useStyles = createThemedStyles(t => ({
   safe: { flex: 1, backgroundColor: t.colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing[3],
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: t.colors.textPrimary,
-  },
-  closeBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-  },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
 
   card: {

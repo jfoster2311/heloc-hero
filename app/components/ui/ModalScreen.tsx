@@ -3,15 +3,19 @@
 // Four modals were each hand-rolling a header, a keyboard-avoiding scroll view
 // and a save button, which is how three of them ended up with different
 // touch-target heights. The frame is here so the screens are only their fields.
+//
+// The header itself now lives in ModalHeader, because four MORE screens —
+// settings, move-money, link-account, get-heloc — have bodies too different to
+// adopt this frame and had each grown a header of their own. A screen may need
+// its own body; none needs its own title bar.
 import {
   View, Text, ScrollView,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { Touchable } from './press';
+import ModalHeader from './ModalHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { hapticSelection } from '../../lib/haptics';
 import { Typography, Spacing, Radius } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
@@ -33,33 +37,14 @@ interface ModalScreenProps {
 }
 
 export default function ModalScreen({ title, intro, children, save, footnote }: ModalScreenProps) {
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
-  const router = useRouter();
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* The sheet slides over a tab whose status bar is light, so it has to set
-          its own — and it has to follow the theme, not a fixed value. The old
-          hardcoded "dark" was correct while sheets were always a light surface;
-          on a dark sheet it painted the clock and battery near-black on
-          near-black. It is the one thing here that is invisible rather than
-          merely wrong, since the OS draws it over content this file cannot see. */}
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        {/* This one is OWNED by the component rather than passed in, so the
-            haptic belongs here — unlike `save.onPress` below, where the caller
-            supplies it and adding a second would double-buzz. Every modal in
-            the app closes through this button. */}
-        <Touchable
-          onPress={() => { router.back(); }}
-          style={styles.close}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <Ionicons name="close" size={22} color={colors.textSecondary} />
-        </Touchable>
-      </View>
+      {/* Shared with the four sheets that keep their own bodies — see
+          ModalHeader, which also carries the themed status bar this used to
+          declare for itself. */}
+      <ModalHeader title={title} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -161,15 +146,6 @@ export function Segmented<T extends string>({ options, value, onChange, columns 
 
 const useStyles = createThemedStyles(t => ({
   safe: { flex: 1, backgroundColor: t.colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-  },
-  title: { flex: 1, fontSize: Typography.xl, fontWeight: Typography.bold, color: t.colors.textPrimary },
-  close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[10] },
 
   introCard: {

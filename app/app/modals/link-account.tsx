@@ -2,6 +2,7 @@
 import { View, Text, ActivityIndicator, ScrollView } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ModalHeader from '../../components/ui/ModalHeader';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
@@ -188,17 +189,7 @@ export default function LinkAccountModal() {
   if (!proLoading && !isPro) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Link an Account</Text>
-          <Touchable
-            onPress={() => { router.back(); }}
-            style={styles.closeBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Ionicons name="close" size={24} color={colors.textPrimary} />
-          </Touchable>
-        </View>
+        <ModalHeader title="Link an Account" divider />
         <View style={styles.gateContainer}>
           <Ionicons name="lock-closed-outline" size={48} color={colors.mint400} />
           <Text style={styles.gateTitle}>Pro Feature</Text>
@@ -219,17 +210,7 @@ export default function LinkAccountModal() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Link an Account</Text>
-        <Touchable
-          onPress={() => { router.back(); }}
-          style={styles.closeBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </Touchable>
-      </View>
+      <ModalHeader title="Link an Account" divider />
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>
@@ -324,25 +305,6 @@ export default function LinkAccountModal() {
 
 const useStyles = createThemedStyles(t => ({
   container: { flex: 1, backgroundColor: t.colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    borderBottomWidth: 1,
-    borderBottomColor: t.colors.border,
-  },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
-  // 44pt, not `padding: Spacing[1]`. A 24pt icon with 4pt of padding is a 32pt
-  // target — under the HIG minimum, on the control that dismisses the screen
-  // where the app asks for bank credentials.
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   gateContainer: {
     flex: 1,
     alignItems: 'center',

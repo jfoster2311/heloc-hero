@@ -2,7 +2,7 @@
 import { View, Text, ScrollView, Linking, Alert } from 'react-native';
 import { Touchable } from '../../components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import ModalHeader from '../../components/ui/ModalHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { eligibleLenders } from '../../lib/lenders';
 import { hapticLight, hapticError } from '../../lib/haptics';
@@ -12,7 +12,6 @@ import { createThemedStyles, useTheme } from '../../lib/themeContext';
 export default function GetHelocModal() {
   const { colors } = useTheme();
   const styles = useStyles();
-  const router = useRouter();
   const lenders = eligibleLenders();
 
   /**
@@ -38,17 +37,9 @@ export default function GetHelocModal() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Open a HELOC</Text>
-        <Touchable
-          onPress={() => { router.back(); }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <Ionicons name="close" size={24} color={colors.textPrimary} />
-        </Touchable>
-      </View>
+      {/* Shared bar — see ModalHeader. This screen's own version had a 40pt
+          close target and declared no status bar. */}
+      <ModalHeader title="Open a HELOC" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -184,17 +175,6 @@ function AvoidRow({ text }: { text: string }) {
 
 const useStyles = createThemedStyles(t => ({
   container: { flex: 1, backgroundColor: t.colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    backgroundColor: t.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: t.colors.border,
-  },
-  title: { fontSize: Typography.lg, fontWeight: Typography.bold, color: t.colors.textPrimary },
   content: { padding: Spacing[5], gap: Spacing[4], paddingBottom: Spacing[10] },
 
   sectionTitle: {
