@@ -43,12 +43,17 @@ export default function TabsLayout() {
     // `flex: 1` is not optional — without it the subtree collapses to zero
     // height and the tabs render blank.
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* The first paint only. Tabs no longer agree on this — Dashboard and
-          Cash flow are light-topped and set it dark, the other three open on
-          the aurora and set it light — so each screen declares for itself via
-          `useStatusBarStyle`, which runs on FOCUS rather than on mount. This is
-          the value before any of them has been focused, and it matches the tab
-          that opens first. Modals re-declare it when they slide over the top. */}
+      {/* The first paint only. Every tab is now light-topped — the aurora came
+          off Learn and the Calculator's hero became an inset card, so all five
+          declare `useStatusBarStyle('dark')` and there is no disagreement left.
+          Each still declares for itself rather than relying on this: the hook
+          runs on FOCUS rather than on mount because React Navigation keeps a
+          visited tab mounted, so a screen that stayed silent would inherit
+          whatever was set last. Modals re-declare when they slide over the top.
+
+          Keep that per-screen call even though the five now agree. The moment
+          one screen goes dark-topped again, the ones that never declared are
+          the ones that break, and they break invisibly. */}
       <StatusBar style="dark" />
       <Tabs
       screenOptions={{

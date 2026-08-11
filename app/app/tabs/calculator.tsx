@@ -35,7 +35,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { computeProjection, computeCyclingSchedule, formatMonths, calcMonthlyPayment } from '../../lib/projections';
 import { parsePositive } from '../../lib/parseNumeric';
 import { hapticLight, hapticSelection } from '../../lib/haptics';
-import { Typography, Spacing, Radius, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import type { CalculatorInputs } from '../../lib/types';
 import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
@@ -135,10 +135,12 @@ function money(n: number): string {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CalculatorScreen() {
-  // This tab opens on the aurora, so the clock stays light. Declared here
-  // rather than inherited: two tabs are now light-topped and set it dark, and
-  // whichever screen was visited last would otherwise win. See the hook.
-  useStatusBarStyle('light');
+  // The glass hero is an inset card now, so the clock sits on the light canvas
+  // rather than on a dark field — see ImpactHero.shell. Every tab is 'dark',
+  // which is what finally makes this safe: the hook runs on FOCUS rather than
+  // on mount precisely because a visited tab stays mounted and the last writer
+  // used to win. With all five agreeing there is no disagreement left to lose.
+  useStatusBarStyle('dark');
 
   /**
    * Re-tapping the active tab scrolls back to the top.
@@ -352,25 +354,37 @@ export default function CalculatorScreen() {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
+          {/* The title sits on the canvas, as it does on all four other tabs.
+              It used to live inside the dark field, which is why this screen
+              opened unlike every other one. */}
+          <View style={[styles.topBar, { paddingTop: insets.top + Spacing[3] }]}>
+            <Text style={styles.topTitle}>Calculator</Text>
+          </View>
+
           {/* ── The billboard. Everything above the fold is the answer. ──────
-              A deep-forest slab rather than the aurora Hero the other screens
-              carry, and the levers below overlap its lower edge. That split is
-              the screen's whole metaphor: the outcome is stated on the dark
-              half, the hardware that changes it sits on the light half, and the
-              controls straddle the join so the two read as one instrument.
+              A deep-forest slab, and the levers below overlap its lower edge.
+              That split is the screen's whole metaphor: the outcome is stated
+              on the dark half, the hardware that changes it sits on the light
+              half, and the controls straddle the join so the two read as one
+              instrument.
+
+              An inset card rather than the full-bleed banner this was, so it
+              matches the dashboard's MonolithHero — same material, same
+              gradient, and now the same presentation. See ImpactHero.shell.
 
               Every figure on it rolls. See ImpactHero — the travel is the
               reward this screen has to offer, and a value that swaps between
               frames is never seen moving. */}
-          <ImpactHero
-            status={status}
-            projection={projection}
-            clearedOutright={clearedOutright}
-            hasGain={hasGain}
-            termYears={termYears}
-            paymentTouched={paymentTouched}
-            topInset={insets.top}
-          />
+          <View style={styles.heroWrap}>
+            <ImpactHero
+              status={status}
+              projection={projection}
+              clearedOutright={clearedOutright}
+              hasGain={hasGain}
+              termYears={termYears}
+              paymentTouched={paymentTouched}
+            />
+          </View>
 
           <View style={styles.content}>
           {/* ── Three inputs. Everything else is behind Advanced. ──────────── */}
@@ -1162,6 +1176,22 @@ function BreakdownRow({ label, value, isLast }: {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const useStyles = createThemedStyles(t => ({
+  // Matches the top bar on every other tab. Page ink, not OnDark — this title
+  // moved off the dark field onto the light canvas, and a token measured on one
+  // surface is not measured on another (lib/theme.ts).
+  topBar: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
+  },
+  topTitle: {
+    fontSize: Typography['2xl'],
+    fontWeight: Typography.extrabold,
+    letterSpacing: Tracking.heading,
+    color: t.colors.textPrimary,
+  },
+  // Matches dashboard's heroWrap, so the two glass heroes inset identically.
+  heroWrap: { paddingHorizontal: Spacing[4] },
+
   content: { paddingHorizontal: Spacing[4], gap: Spacing[4], paddingTop: Spacing[1] },
 
   sectionTitle: {

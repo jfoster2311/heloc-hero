@@ -27,11 +27,10 @@ import { useRouter } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useRef } from 'react';
-import Hero, { HeroCaption } from '../../components/ui/Hero';
 import { SectionLabel } from '../../components/ui/primitives';
 import { hapticLight } from '../../lib/haptics';
 import { UTILIZATION, BUFFER } from '../../lib/config';
-import { Typography, Spacing, Radius, OnDark, TAB_BAR_CLEARANCE } from '../../lib/theme';
+import { Typography, Spacing, Radius, Tracking, TAB_BAR_CLEARANCE } from '../../lib/theme';
 import { createThemedStyles, useTheme } from '../../lib/themeContext';
 import { useStatusBarStyle } from '../../hooks/useStatusBarStyle';
 
@@ -227,7 +226,8 @@ export default function LearnScreen() {
   // This tab opens on the aurora, so the clock stays light. Declared here
   // rather than inherited: two tabs are now light-topped and set it dark, and
   // whichever screen was visited last would otherwise win. See the hook.
-  useStatusBarStyle('light');
+  // Light canvas since the aurora came off this tab — see the top bar note.
+  useStatusBarStyle('dark');
 
   /**
    * Re-tapping the active tab scrolls back to the top.
@@ -274,12 +274,28 @@ export default function LearnScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
-        <Hero intensity={0.6}>
-          <Text style={styles.heroTitle}>Learn</Text>
-          <HeroCaption>
+        {/* ── The top bar ──────────────────────────────────────────────────
+            No aurora here, and it is the same ruling accounts.tsx already
+            recorded: "two dark heroes competing for that role is what made
+            them both feel decorative." A dark hero is earned by carrying the
+            ONE display figure a screen is about — unified net debt on the
+            Dashboard, projected payoff on the Calculator. This screen carries
+            no figure at all, so its aurora was the weakest claim on that
+            material in the app, and it was also the only aurora left in the
+            tab bar: a third opening language behind the glass hero and this
+            light top bar. The aurora is not gone from the product, it is back
+            where it means something — the reveal ritual and the paywall.
+
+            `useStatusBarStyle('dark')` above moves with this. It is not
+            optional: the layout declares a LIGHT status bar for the aurora
+            tabs, so left alone the clock would be white on a near-white
+            canvas. */}
+        <View style={[styles.topBar, { paddingTop: insets.top + Spacing[3] }]}>
+          <Text style={styles.topTitle}>Learn</Text>
+          <Text style={styles.topCaption}>
             How the strategy works, what it costs, and who it is wrong for.
-          </HeroCaption>
-        </Hero>
+          </Text>
+        </View>
 
         <View style={styles.content}>
         {/* ── THE SURPLUS RULE ────────────────────────────────────────────────
@@ -444,11 +460,25 @@ export default function LearnScreen() {
 }
 
 const useStyles = createThemedStyles(t => ({
-  heroTitle: {
-    fontSize: Typography['3xl'],
+  topBar: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
+    gap: Spacing[2],
+  },
+  // `textPrimary`/`textSecondary`, not `OnDark.*`. This pair moved off the
+  // aurora onto the light canvas, which is precisely the failure lib/theme.ts
+  // warns about — a token measured on one surface is not measured on another,
+  // and OnDark.primary's white on #ECF7EF is 1.16:1.
+  topTitle: {
+    fontSize: Typography['2xl'],
     fontWeight: Typography.extrabold,
-    color: OnDark.primary,
-    letterSpacing: -0.6,
+    letterSpacing: Tracking.heading,
+    color: t.colors.textPrimary,
+  },
+  topCaption: {
+    fontSize: Typography.base,
+    lineHeight: 23,
+    color: t.colors.textSecondary,
   },
   content: { paddingHorizontal: Spacing[4], gap: Spacing[3], paddingTop: Spacing[1] },
   // Keeps the expand-all on the section label's baseline. SectionLabel carries

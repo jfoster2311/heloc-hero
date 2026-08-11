@@ -43,12 +43,10 @@ interface Props {
   termYears: number;
   /** True once the user has typed a real payment, which implies the term. */
   paymentTouched: boolean;
-  /** Safe-area top, since this bleeds to the top of the screen. */
-  topInset: number;
 }
 
 export default function ImpactHero({
-  status, projection, clearedOutright, hasGain, termYears, paymentTouched, topInset,
+  status, projection, clearedOutright, hasGain, termYears, paymentTouched,
 }: Props) {
   const styles = useStyles();
   const { colors, mode } = useTheme();
@@ -71,9 +69,7 @@ export default function ImpactHero({
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.body, { paddingTop: topInset + Spacing[3] }]}>
-        <Text style={styles.topTitle}>Calculator</Text>
-
+      <View style={styles.body}>
         <Text style={styles.eyebrow} accessibilityRole="header">
           YOUR PROJECTED PAYOFF
         </Text>
@@ -158,16 +154,28 @@ export default function ImpactHero({
 }
 
 const useStyles = createThemedStyles(t => ({
-  shell: { overflow: 'hidden' },
+  // ── An inset card, not a full-bleed banner ────────────────────────────────
+  // This used to bleed to the top of the screen and carry its own "Calculator"
+  // title inside the dark field, while the dashboard's MonolithHero — the same
+  // glass material, the same gradient pair — was a rounded card floating on the
+  // light canvas with its title above it. One material presented two ways, which
+  // is what made the two tabs feel like different apps.
+  //
+  // Matched to MonolithHero.shell. The consequence worth knowing: the screen no
+  // longer has a dark field under the clock, so calculator.tsx declares
+  // `useStatusBarStyle('dark')` like every other tab. All five now agree, which
+  // retires the status-bar trap noted in tabs/_layout entirely.
+  shell: {
+    borderRadius: Radius['2xl'],
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: OnDark.hairline,
+    ...t.shadows.ambient,
+  },
   body: {
     paddingHorizontal: Spacing[5],
+    paddingTop: Spacing[6],
     paddingBottom: Spacing[8],
-  },
-  topTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: OnDark.secondary,
-    marginBottom: Spacing[6],
   },
   eyebrow: {
     fontSize: 11,
