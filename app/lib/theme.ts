@@ -151,24 +151,58 @@ export const Colors = {
   // every meaning in the app; these describe only the material a card is milled
   // from. Nothing here is ever an accent and nothing here ever encodes a value.
   //
-  // Cooler than the green-tinted neutrals beside them, which is the intent — it
-  // reads as brushed aluminium rather than paper. Every ink was RE-MEASURED
-  // against these rather than inherited from the white-card numbers:
+  // ── These were blue, and it was the app's worst visual defect ─────────────
+  // Until 2026-08-11 this family was a generic slate recipe — #F8FAFC / #F1F5F9
+  // / #E2E8F0, measured at hue 256–264°. Every other surface in the app sits at
+  // 153–164°. So four of the five tabs rendered blue-grey cards on the green
+  // page canvas, ~103° apart in the a*b* plane: the milled edge measured ΔE 9.58
+  // against the canvas it sat on.
+  //
+  // The CardGradient note at the bottom of this file had already rejected that
+  // exact recipe, in those exact words — "Slate is blue-leaning ... two
+  // near-white surfaces of opposing hue temperature next to each other ... does
+  // not read as premium — it reads as a colour bug." The dark family below was
+  // derived correctly on the brand hue (156–157°) and only the light one was
+  // taken from the recipe, which is why the bug was invisible in dark mode.
+  //
+  // Fixed by rotating each token to hue 155 with **L\* and chroma preserved**,
+  // so this is a pure hue correction: every contrast ratio below moved by at
+  // most 0.02 and no pairing changed status. ΔE against the page canvas fell
+  // 9.58 → 4.45, and against the green card's far stop 5.45 → 1.75.
+  //
+  // ── What now separates a machined card from a paper one ──────────────────
+  // Not the pigment, and that is the honest reading rather than a regression.
+  // Hue was the ONLY thing distinguishing the two materials before — at ΔE 1.75
+  // their faces are now within the ~2.3 just-noticeable threshold, and the two
+  // DO appear on one screen (cashflow, accounts). There is no room to re-separate
+  // them by lightness either: `textMuted` on `machinedFar` is the tightest
+  // pairing in the app at 4.53, so the family cannot go darker, and `machinedNear`
+  // is already white, so it cannot go lighter.
+  //
+  // So the distinction is carried by LIGHT rather than by pigment, which is what
+  // was actually doing the work all along: the machined face rakes its gradient
+  // diagonally (top-left to bottom-right, one fixed light source per screen)
+  // where the paper card ramps vertically, and it wears the wide green
+  // `Shadows.ambient` glow where the paper card wears a soft dark drop shadow.
+  // One page, one material temperature, two lighting treatments. Do not try to
+  // re-introduce a hue difference here — that is the bug this replaced.
+  //
+  // Every ink RE-MEASURED against the new surfaces:
   //             canvas / near / far
-  //   textPrimary  14.12 / 14.77 / 13.49      textSecondary 6.81 / 7.13 / 6.51
-  //   textMuted     4.73 /  4.95 /  4.52      accentInk     4.77 / 5.00 / 4.56
-  // All clear AA. `textMuted` on `machinedFar` at 4.52 is the tightest pairing
+  //   textPrimary  14.09 / 14.77 / 13.51      textSecondary 6.80 / 7.13 / 6.52
+  //   textMuted     4.72 /  4.95 /  4.53      accentInk     4.77 / 5.00 / 4.57
+  // All clear AA. `textMuted` on `machinedFar` at 4.53 is the tightest pairing
   // in the app: treat it as a floor and re-measure before darkening `machinedFar`.
   //
-  // `mint600` measures 2.51/2.62/2.39 here, and the neon green a designer will
-  // reach for (#22C55E) is worse at 2.18/2.28/2.08. NEITHER may be ink on these
+  // `mint600` measures 2.50/2.62/2.40 here, and the neon green a designer will
+  // reach for (#22C55E) is worse at 2.17/2.28/2.08. NEITHER may be ink on these
   // surfaces however good it looks — that is what `accentInk` is for, and it is
   // why `neon` below is restricted to the dark hero.
-  machinedCanvas: '#F8FAFC',
+  machinedCanvas: '#F8FAF9',
   machinedNear:   '#FFFFFF',
-  machinedFar:    '#F1F5F9',
-  /** The milled edge. 1.18:1 — decorative, exempt like every other card border. */
-  machinedEdge:   '#E2E8F0',
+  machinedFar:    '#F1F6F2',
+  /** The milled edge. 1.23:1 — decorative, exempt like every other card border. */
+  machinedEdge:   '#E1EAE3',
 
   /**
    * The glass hero, and the ONLY surface `neon` is permitted on.
@@ -370,8 +404,14 @@ export const Gradients = {
    * The two stops are only 4% apart in luminance. That is the entire trick: a
    * stronger gradient stops looking like brushed aluminium and starts looking
    * like a coloured panel.
+   *
+   * The far stop is `machinedFar`, re-pigmented to the app's hue on 2026-08-11
+   * — see the long note on that token. Since the paper card's face is now the
+   * same temperature, this DIAGONAL rake is half of what still distinguishes a
+   * machined card from a paper one (the ambient glow is the other half), so the
+   * angle is now load-bearing rather than merely tidy.
    */
-  machined: ['#FFFFFF', '#F1F5F9'] as const,
+  machined: ['#FFFFFF', '#F1F6F2'] as const,
   /** Same face on dark, where the raised surface is the LIGHTER of the two. */
   machinedDark: ['#18241D', '#101A14'] as const,
 };
@@ -911,6 +951,18 @@ export type ThemeMode = 'light' | 'dark';
  *
  * So the metaphor is kept and the pigment is the app's own — the same lightness
  * move the slate recipe makes, in this system's hue.
+ *
+ * ── This prediction came true, and it shipped ──────────────────────────────
+ * Worth reading as a warning rather than as settled advice. The paragraph above
+ * kept the PAPER card out of slate, and then the Machined Silver family was
+ * added in Aug 2026 taking that same rejected recipe verbatim — #F8FAFC /
+ * #F1F5F9 / #E2E8F0 — onto four of the five tabs. It read exactly as this note
+ * says it would, for five days, because the reasoning lived here and the new
+ * tokens were written 800 lines up. Corrected 2026-08-11 by rotating that family
+ * to hue 155 at fixed L\*; see the note on `machinedCanvas`.
+ *
+ * The lesson is about placement, not pigment: a rule recorded only next to the
+ * token it protects does not protect the next token someone adds.
  *
  * ── The first version of this was invisible ────────────────────────────────
  * It ran `surface → gray50`, which measures ΔE 3.72 against white. The
